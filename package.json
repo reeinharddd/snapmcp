@@ -1,0 +1,52 @@
+{
+  "name": "snapmcp",
+  "version": "2.1.0",
+  "description": "All-in-one MCP server for visual captures: terminal, code, browser, markdown, diffs, HTML, and PDF — via Playwright",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "bun --watch src/index.ts",
+    "test": "bun test",
+    "setup": "bun run scripts/setup.ts",
+    "prepublishOnly": "bun run build && bun test",
+    "postinstall": "bun run scripts/postinstall.ts"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "screenshot",
+    "terminal",
+    "code",
+    "syntax-highlighting",
+    "shiki",
+    "playwright",
+    "capture",
+    "snapmcp"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "marked": "15.0.12",
+    "playwright": "1.60.0",
+    "shiki": "4.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.20",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=20",
+    "bun": ">=1.2"
+  },
+  "license": "MIT",
+  "author": "",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/erik/snapmcp"
+  }
+}
