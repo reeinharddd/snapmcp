@@ -216,12 +216,67 @@ const THEMES: Record<string, ThemeColors> = {
     font: "'Ubuntu Mono','Cascadia Code','JetBrains Mono','Fira Code','Consolas',monospace",
     fontSize: "14px", lineHeight: "1.6",
   },
+
+  /* ── Rose Pine ── */
+  "rose-pine": {
+    bg: "#191724", titleBg: "#13111e", text: "#e0def4",
+    green: "#31748f", blue: "#9ccfd8", yellow: "#f6c177",
+    orange: "#ebbcba", red: "#eb6f92", gray: "#6e6a86", cyan: "#c4a7e7",
+    font: "'Ubuntu Mono','Cascadia Code','JetBrains Mono','Fira Code','Consolas',monospace",
+    fontSize: "14px", lineHeight: "1.6",
+  },
+  "rose-pine-moon": {
+    bg: "#232136", titleBg: "#1c1a29", text: "#e0def4",
+    green: "#3e8fb0", blue: "#9ccfd8", yellow: "#f6c177",
+    orange: "#ea9a97", red: "#eb6f92", gray: "#6e6a86", cyan: "#c4a7e7",
+    font: "'Ubuntu Mono','Cascadia Code','JetBrains Mono','Fira Code','Consolas',monospace",
+    fontSize: "14px", lineHeight: "1.6",
+  },
+  "rose-pine-dawn": {
+    bg: "#faf4ed", titleBg: "#f0e9e1", text: "#575279",
+    green: "#286983", blue: "#56949f", yellow: "#ea9d34",
+    orange: "#d7827e", red: "#b4637a", gray: "#9893a5", cyan: "#907aa9",
+    font: "'Ubuntu Mono','Cascadia Code','JetBrains Mono','Fira Code','Consolas',monospace",
+    fontSize: "14px", lineHeight: "1.6",
+  },
+
+  /* ── Slack themes ── */
+  "slack-dark": {
+    bg: "#1a1d21", titleBg: "#131518", text: "#d1d2d3",
+    green: "#6ec97c", blue: "#6eb1e0", yellow: "#e5a639",
+    orange: "#e5894a", red: "#e35d5d", gray: "#696c70", cyan: "#6ec9c9",
+    font: "'Ubuntu Mono','Cascadia Code','JetBrains Mono','Fira Code','Consolas',monospace",
+    fontSize: "14px", lineHeight: "1.6",
+  },
+  "slack-ochin": {
+    bg: "#1a1d23", titleBg: "#14171c", text: "#b7bcc8",
+    green: "#7ec699", blue: "#7aa2f7", yellow: "#e5c07b",
+    orange: "#d19a66", red: "#e55555", gray: "#606570", cyan: "#56b6c2",
+    font: "'Ubuntu Mono','Cascadia Code','JetBrains Mono','Fira Code','Consolas',monospace",
+    fontSize: "14px", lineHeight: "1.6",
+  },
+
+  /* ── Snazzy Light ── */
+  "snazzy-light": {
+    bg: "#fafafa", titleBg: "#f0f0f0", text: "#282a36",
+    green: "#50ad6a", blue: "#268bd2", yellow: "#b58900",
+    orange: "#cb4b16", red: "#e05555", gray: "#a0a0a0", cyan: "#2aa198",
+    font: "'Ubuntu Mono','Cascadia Code','JetBrains Mono','Fira Code','Consolas',monospace",
+    fontSize: "14px", lineHeight: "1.6",
+  },
 };
 
 const DEFAULT_THEME = "dark-plus";
 
+const DEFAULT_FONT = "'Ubuntu Mono','Cascadia Code','JetBrains Mono','Fira Code','Consolas',monospace";
+
 function resolveTheme(config: SnapConfig): ThemeColors {
-  return THEMES[config.theme] ?? THEMES[DEFAULT_THEME]!;
+  const theme = { ...(THEMES[config.theme] ?? THEMES[DEFAULT_THEME]!) };
+  // Allow user font override via SNAPMCP_FONT
+  if (config.font && config.font !== DEFAULT_FONT) {
+    theme.font = config.font;
+  }
+  return theme;
 }
 
 /* ── Shadow CSS map ── */
@@ -260,7 +315,7 @@ function framedTemplate(
     : "";
 
   const badgeHtml = showBadge
-    ? `<div class="badge">snapmcp</div>`
+    ? `<div class="badge"><span class="badge-dot"></span>snapmcp</div>`
     : "";
 
   return `<!DOCTYPE html>
@@ -281,8 +336,10 @@ body{background:${theme.bg};font-family:${theme.font};font-size:${theme.fontSize
 .body{padding:${pad}px ${pad}px ${pad}px;width:fit-content;min-width:100%}
 pre{font-family:${theme.font};font-size:${theme.fontSize};line-height:${theme.lineHeight};margin:0;white-space:pre;tab-size:4}
 .line{white-space:pre}
+.line-num{font-size:inherit;font-family:inherit}
 .empty-line{height:${theme.lineHeight}}
-.badge{text-align:right;padding:4px 16px 8px;font-size:11px;color:${theme.gray};opacity:.35;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;letter-spacing:.5px;user-select:none}
+.badge{text-align:right;padding:4px 16px 8px;font-size:11px;color:${theme.gray};opacity:.35;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;letter-spacing:.5px;user-select:none;display:flex;align-items:center;justify-content:flex-end;gap:6px}
+.badge-dot{width:6px;height:6px;border-radius:50%;background:linear-gradient(135deg,#00d4aa,#0099ff,#7c4dff);display:inline-block}
 </style></head><body>
 <div class="frame">${windowChromeHtml}<div class="body">${bodyHtml}</div>${badgeHtml}</div>
 </body></html>`;
@@ -337,6 +394,17 @@ function hexToRgb(hex: string): string {
   const g = parseInt(clean.substring(2, 4), 16);
   const b = parseInt(clean.substring(4, 6), 16);
   return `${r},${g},${b}`;
+}
+
+/* ── Line number injector for Shiki output ── */
+
+function addLineNumbers(highlightedHtml: string, startLine: number, theme: ThemeColors): string {
+  // Replace each <span class="line"> with a version that has a line number prefix
+  let lineNum = startLine;
+  return highlightedHtml.replace(
+    /<span class="line">/g,
+    () => `<span class="line"><span class="line-num" style="user-select:none;color:${theme.gray};opacity:0.5;display:inline-block;width:3em;text-align:right;padding-right:1.5em;border-right:1px solid ${theme.gray}33;margin-right:1em">${lineNum++}</span>`,
+  );
 }
 
 /* ── Document template (for markdown) ── */
@@ -567,11 +635,20 @@ export async function captureCode(
   title: string,
   outputPath: string,
   config: SnapConfig,
+  startLine?: number,
+  endLine?: number,
 ): Promise<string> {
   if (config.securityChecks) validateCodeInput(code);
   const theme = resolveTheme(config);
   const highlighted = await highlightCode(code, lang || "text", config.theme);
-  await screenshotHtml(framedTemplate(title, highlighted, theme, config), outputPath, config);
+
+  // Add line numbers if startLine is specified
+  let bodyHtml = highlighted;
+  if (startLine !== undefined) {
+    bodyHtml = addLineNumbers(highlighted, startLine, theme);
+  }
+
+  await screenshotHtml(framedTemplate(title, bodyHtml, theme, config), outputPath, config);
   return outputPath;
 }
 
@@ -593,6 +670,8 @@ export async function captureFile(
   filePath: string,
   outputPath: string,
   config: SnapConfig,
+  startLine?: number,
+  endLine?: number,
 ): Promise<string> {
   if (config.securityChecks) validateFileRead(filePath, filePolicy(config));
 
@@ -608,7 +687,22 @@ export async function captureFile(
     tf: "terraform", diff: "diff", patch: "diff",
   };
   const lang = langMap[ext] || "text";
-  return captureCode(code, lang, path.basename(filePath), outputPath, config);
+  const lines = code.split("\n");
+
+  // Apply line range slicing
+  let slicedCode = code;
+  let displayTitle = path.basename(filePath);
+  if (startLine !== undefined || endLine !== undefined) {
+    const start = startLine ?? 1;
+    const end = endLine ?? lines.length;
+    if (start < 1 || end > lines.length || start > end) {
+      throw new Error(`Invalid line range: ${start}-${end} (file has ${lines.length} lines)`);
+    }
+    slicedCode = lines.slice(start - 1, end).join("\n");
+    displayTitle = `${path.basename(filePath)} (lines ${start}-${end})`;
+  }
+
+  return captureCode(slicedCode, lang, displayTitle, outputPath, config, startLine, endLine);
 }
 
 /** Capture markdown as a rendered document screenshot */

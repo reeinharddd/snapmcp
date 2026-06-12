@@ -1,0 +1,60 @@
+/* ═══════════════════════════════════════════
+   snapmcp Design Tokens — CSS Custom Properties
+   ═══════════════════════════════════════════ */
+
+:root {
+  /* ── Brand Colors ── */
+  --snap-primary: #00d4aa;
+  --snap-secondary: #0099ff;
+  --snap-tertiary: #7c4dff;
+  --snap-gradient: linear-gradient(135deg, #00d4aa 0%, #0099ff 50%, #7c4dff 100%);
+
+  /* ── Neutrals ── */
+  --snap-black: #0d0d12;
+  --snap-dark: #1a1a2e;
+  --snap-medium: #2a2a3e;
+  --snap-gray: #6b6b80;
+  --snap-light: #a0a0b8;
+  --snap-lighter: #d0d0e0;
+  --snap-white: #e8e8f0;
+
+  /* ── Semantic ── */
+  --snap-success: #28c93f;
+  --snap-warning: #ffbd2e;
+  --snap-error: #ff5f57;
+  --snap-info: #0099ff;
+
+  /* ── Typography ── */
+  --snap-font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Ubuntu Mono', 'Consolas', monospace;
+  --snap-font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --snap-font-size-xs: 11px;
+  --snap-font-size-sm: 12px;
+  --snap-font-size-base: 13px;
+  --snap-font-size-md: 14px;
+  --snap-font-size-lg: 16px;
+  --snap-font-size-xl: 20px;
+  --snap-font-size-2xl: 28px;
+  --snap-font-size-3xl: 36px;
+
+  /* ── Spacing ── */
+  --snap-space-xs: 4px;
+  --snap-space-sm: 8px;
+  --snap-space-md: 16px;
+  --snap-space-lg: 24px;
+  --snap-space-xl: 32px;
+  --snap-space-2xl: 40px;
+  --snap-space-3xl: 48px;
+
+  /* ── Radius ── */
+  --snap-radius-sm: 4px;
+  --snap-radius-md: 8px;
+  --snap-radius-lg: 12px;
+  --snap-radius-xl: 16px;
+
+  /* ── Shadows ── */
+  --snap-shadow-none: none;
+  --snap-shadow-soft: 0 4px 24px rgba(0,0,0,.3);
+  --snap-shadow-medium: 0 8px 48px rgba(0,0,0,.45);
+  --snap-shadow-strong: 0 16px 72px rgba(0,0,0,.6);
+  --snap-shadow-glow: 0 0 20px rgba(0,212,170,0.2);
+}

@@ -15,7 +15,7 @@ const WARN = "\x1b[33m⚠\x1b[0m";
 const STEP = "\x1b[36m→\x1b[0m";
 
 async function main(): Promise<void> {
-  console.log("\n  snapmcp — Setup\n");
+  console.log("\n  ⬡ snapmcp — Setup\n");
 
   // Step 1: Check runtime
   console.log(`  ${STEP} Checking runtime...`);

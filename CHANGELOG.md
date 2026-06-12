@@ -65,6 +65,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[2.1.0]: https://github.com/erik/snapmcp/compare/v2.0.0...v2.1.0
-[2.0.0]: https://github.com/erik/snapmcp/compare/v1.0.0...v2.0.0
-[1.0.0]: https://github.com/erik/snapmcp/releases/tag/v1.0.0
+[2.1.0]: https://github.com/reeinharddd/snapmcp/compare/v2.0.0...v2.1.0
+[2.0.0]: https://github.com/reeinharddd/snapmcp/compare/v1.0.0...v2.0.0
+[1.0.0]: https://github.com/reeinharddd/snapmcp/releases/tag/v1.0.0

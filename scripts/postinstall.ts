@@ -24,10 +24,11 @@ function checkChromium(): boolean {
       }
     }
 
-    // Check system chromium
-    execSync("which chromium chromium-browser google-chrome 2>/dev/null", {
-      stdio: "ignore",
-    });
+    // Check system chromium (cross-platform)
+    const checkCmd = process.platform === "win32"
+      ? "where chromium 2>nul"
+      : "which chromium chromium-browser google-chrome 2>/dev/null";
+    execSync(checkCmd, { stdio: "ignore", shell: true });
     return true;
   } catch {
     return false;
@@ -35,7 +36,7 @@ function checkChromium(): boolean {
 }
 
 function main(): void {
-  console.log("\n  snapmcp — postinstall check\n");
+  console.log("\n  ⬡ snapmcp — postinstall check\n");
 
   const hasChromium = checkChromium();
 

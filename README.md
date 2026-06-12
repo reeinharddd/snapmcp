@@ -1,8 +1,24 @@
-# snapmcp 📸
+<p align="center">
+  <img src="./brand/logo/snapmcp-logo-horizontal.svg" alt="snapmcp" width="380" />
+</p>
 
-**All-in-one MCP server for visual captures.** Generate screenshots of terminals, code, web pages, markdown documents, HTML snippets, diffs, and PDFs — all through a single MCP server powered by Playwright.
+<p align="center">
+  <b>All-in-one MCP server for visual captures.</b><br/>
+  Terminal · Code · Browser · Markdown · Diff · HTML · PDF<br/>
+  <em>One server. 8 tools. 27 themes. Zero juggling.</em>
+</p>
 
-No more juggling 4 different MCP servers for your visual capture needs.
+<p align="center">
+  <a href="https://www.npmjs.com/package/snapmcp"><img src="https://img.shields.io/npm/v/snapmcp?style=flat&label=npm&color=%2300d4aa" alt="npm"/></a>
+  <a href="https://github.com/reeinharddd/snapmcp"><img src="https://img.shields.io/github/stars/reeinharddd/snapmcp?style=flat&color=%230099ff" alt="stars"/></a>
+  <img src="https://img.shields.io/badge/license-MIT-%230099ff" alt="MIT"/>
+  <img src="https://img.shields.io/badge/bun-%23f9f9f9?logo=bun" alt="bun"/>
+  <img src="https://img.shields.io/badge/node-20%2B-%2300d4aa" alt="node"/>
+</p>
+
+---
+
+Generate screenshots of terminals, code, web pages, markdown documents, HTML snippets, diffs, and PDFs — all through a single MCP server powered by Playwright. **No more juggling 4 different MCP servers for your visual capture needs.**
 
 ## Features
 
@@ -162,8 +178,8 @@ All options via environment variables with sensible defaults:
 | `SNAPMCP_TIMEOUT` | `30000` | Browser timeout in ms |
 | `SNAPMCP_DEVICE_SCALE` | `2` | Device pixel ratio (2 = retina) |
 | `SNAPMCP_CLEANUP_MAX` | `0` | Auto-delete oldest files when count exceeds N (0 = no limit) |
-| `SNAPMCP_FILE_SIZE_LIMIT` | `5242880` | Max file read size in bytes (5 MB) |
-| `SNAPMCP_ALLOWED_PATHS` | `""` | Comma-separated allowed paths for file reads |
+| `SNAPMCP_MAX_FILE_SIZE` | `5242880` | Max file read size in bytes (5 MB) |
+| `SNAPMCP_ALLOWED_PATHS` | `""` | Semicolon-separated allowed paths for file reads |
 | `SNAPMCP_SECURITY_CHECKS` | `true` | Enable/disable security validations |
 | `SNAPMCP_LOG_LEVEL` | `info` | Log level: error, warn, info, debug |
 
@@ -220,13 +236,13 @@ Set `SNAPMCP_CLEANUP_MAX` to auto-purge old files when the count exceeds your li
 ## Docker
 
 ```bash
-docker run -i --init -v $(pwd)/snapshots:/app/snapshots ghcr.io/erik/snapmcp
+docker run -i --init -v $(pwd)/snapshots:/app/snapshots ghcr.io/reeinharddd/snapmcp
 ```
 
 ## Development
 
 ```bash
-git clone https://github.com/erik/snapmcp
+git clone https://github.com/reeinharddd/snapmcp
 cd snapmcp
 
 # Install with bun (recommended)
@@ -271,6 +287,20 @@ snapmcp includes built-in security protections:
 - **Dependency pinning** — all deps locked to exact versions
 
 See [SECURITY.md](SECURITY.md) for full details.
+
+## Brand
+
+Brand assets, design tokens, and guidelines are in the [`brand/`](brand/) directory:
+
+| Asset | File |
+|-------|------|
+| Logo (full badge) | `brand/logo/snapmcp-logo.svg` |
+| Logo (horizontal) | `brand/logo/snapmcp-logo-horizontal.svg` |
+| Logo (icon) | `brand/logo/snapmcp-icon.svg` |
+| Logo (monochrome) | `brand/logo/snapmcp-logo-mono.svg` |
+| Design tokens | `brand/tokens/snapmcp-tokens.json` |
+| CSS variables | `brand/tokens/snapmcp-variables.css` |
+| Brand guidelines | `brand/BRAND.md` |
 
 ## License
 

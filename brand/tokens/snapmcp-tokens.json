@@ -1,0 +1,130 @@
+{
+  "snapmcp": {
+    "version": "1.0.0",
+    "description": "Snapmcp Design Tokens — brand identity system",
+    "colors": {
+      "brand": {
+        "primary": "#00d4aa",
+        "secondary": "#0099ff",
+        "tertiary": "#7c4dff",
+        "gradient": "linear-gradient(135deg, #00d4aa 0%, #0099ff 50%, #7c4dff 100%)"
+      },
+      "neutral": {
+        "black": "#0d0d12",
+        "dark": "#1a1a2e",
+        "medium": "#2a2a3e",
+        "gray": "#6b6b80",
+        "light": "#a0a0b8",
+        "lighter": "#d0d0e0",
+        "white": "#e8e8f0"
+      },
+      "semantic": {
+        "success": "#28c93f",
+        "warning": "#ffbd2e",
+        "error": "#ff5f57",
+        "info": "#0099ff",
+        "debug": "#7c4dff"
+      },
+      "syntax": {
+        "bg": "#0d0d12",
+        "titleBg": "#14141e",
+        "text": "#d0d0e0",
+        "green": "#4ec947",
+        "blue": "#569cd6",
+        "yellow": "#dcdcaa",
+        "orange": "#ce9178",
+        "red": "#f44747",
+        "gray": "#808080",
+        "cyan": "#4ec9b0"
+      }
+    },
+    "typography": {
+      "fontStack": {
+        "mono": "'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Ubuntu Mono', 'Consolas', monospace",
+        "ui": "-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif",
+        "display": "'JetBrains Mono', 'Fira Code', monospace"
+      },
+      "sizes": {
+        "xs": "11px",
+        "sm": "12px",
+        "base": "13px",
+        "md": "14px",
+        "lg": "16px",
+        "xl": "20px",
+        "2xl": "28px",
+        "3xl": "36px"
+      },
+      "weights": {
+        "normal": 400,
+        "medium": 500,
+        "semibold": 600,
+        "bold": 700
+      },
+      "lineHeights": {
+        "tight": "1.2",
+        "normal": "1.5",
+        "relaxed": "1.6",
+        "loose": "1.8"
+      }
+    },
+    "spacing": {
+      "xs": "4px",
+      "sm": "8px",
+      "md": "16px",
+      "lg": "24px",
+      "xl": "32px",
+      "2xl": "40px",
+      "3xl": "48px",
+      "4xl": "64px"
+    },
+    "borderRadius": {
+      "sm": "4px",
+      "md": "8px",
+      "lg": "12px",
+      "xl": "16px",
+      "full": "50%"
+    },
+    "shadows": {
+      "none": "none",
+      "soft": "0 4px 24px rgba(0,0,0,.3)",
+      "medium": "0 8px 48px rgba(0,0,0,.45)",
+      "strong": "0 16px 72px rgba(0,0,0,.6)",
+      "glow": "0 0 20px rgba(0,212,170,0.2)"
+    },
+    "animation": {
+      "duration": {
+        "fast": "100ms",
+        "normal": "200ms",
+        "slow": "300ms"
+      },
+      "easing": {
+        "default": "cubic-bezier(0.4, 0, 0.2, 1)",
+        "inOut": "cubic-bezier(0.65, 0, 0.35, 1)"
+      }
+    },
+    "badge": {
+      "text": "snapmcp",
+      "opacity": 0.35,
+      "fontSize": "11px"
+    },
+    "windowChrome": {
+      "minHeight": "40px",
+      "trafficLight": {
+        "red": "#ff5f57",
+        "yellow": "#ffbd2e",
+        "green": "#28c93f"
+      },
+      "titleBar": {
+        "bgGradient": "linear-gradient(180deg, var(--titleBg) 0%, var(--bg) 100%)"
+      }
+    },
+    "capture": {
+      "paddingMin": 0,
+      "paddingMax": 64,
+      "paddingDefault": 32,
+      "borderRadiusMin": 0,
+      "borderRadiusMax": 32,
+      "borderRadiusDefault": 8
+    }
+  }
+}
