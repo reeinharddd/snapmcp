@@ -34,7 +34,7 @@
     "shiki": "4.2.0"
   },
   "devDependencies": {
-    "@types/node": "22.19.20",
+    "@types/node": "25.9.3",
     "@types/pngjs": "^6.0.5",
     "typescript": "5.9.3"
   },
