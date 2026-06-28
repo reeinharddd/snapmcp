@@ -10,6 +10,8 @@
 
 import path from "path";
 import fs from "fs";
+import { URL } from "url";
+import { logger } from "./logger.js";
 
 // ─── Size limits ────────────────────────────────────────────
 // These prevent resource exhaustion attacks
@@ -27,6 +29,72 @@ export const LIMITS = {
   /** Max file size to read (bytes) */
   FILE_READ_SIZE: 5_000_000,
 } as const;
+
+// ─── SSRF Protection — URL denylist ────────────────────────
+// Blocks requests to private/internal networks to prevent SSRF.
+const PRIVATE_CIDR = [
+  { start: [10, 0, 0, 0], end: [10, 255, 255, 255] },
+  { start: [172, 16, 0, 0], end: [172, 31, 255, 255] },
+  { start: [192, 168, 0, 0], end: [192, 168, 255, 255] },
+  { start: [127, 0, 0, 0], end: [127, 255, 255, 255] },
+  { start: [169, 254, 0, 0], end: [169, 254, 255, 255] },
+  { start: [0, 0, 0, 0], end: [0, 255, 255, 255] },
+];
+
+function ipToNum(octets: number[]): number {
+  return ((octets[0] ?? 0) << 24) | ((octets[1] ?? 0) << 16) | ((octets[2] ?? 0) << 8) | (octets[3] ?? 0);
+}
+
+function isPrivateIP(hostname: string): boolean {
+  // Skip DNS resolution — check if it's already an IP literal
+  const ipv4Match = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!ipv4Match) return false;
+  const octets = [ipv4Match[1], ipv4Match[2], ipv4Match[3], ipv4Match[4]].map(Number);
+  if (octets.some((o) => o < 0 || o > 255)) return false;
+  const ipNum = ipToNum(octets);
+  return PRIVATE_CIDR.some((cidr) => ipNum >= ipToNum(cidr.start) && ipNum <= ipToNum(cidr.end));
+}
+
+/**
+ * Validate a URL for SSRF safety.
+ * Blocks: private/internal IPs, localhost, file://, unix sockets.
+ */
+export function validateUrl(raw: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new SecurityError(`Invalid URL: "${raw}"`);
+  }
+
+  // Block non-http(s) protocols
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    logger.audit({ event: "ssrf_block", severity: "warn", detail: `protocol: ${parsed.protocol}`, source: "validateUrl" });
+    throw new SecurityError(`URL protocol "${parsed.protocol}" is not allowed (only http/https)`);
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+
+  // Block localhost variants
+  if (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "0.0.0.0" ||
+    hostname === "[::1]" ||
+    hostname === "[0:0:0:0:0:0:0:1]" ||
+    hostname.endsWith(".localhost") ||
+    hostname.endsWith(".local")
+  ) {
+    logger.audit({ event: "ssrf_block", severity: "warn", detail: `local network: ${hostname}`, source: "validateUrl" });
+    throw new SecurityError(`URL target "${hostname}" is blocked (local network)`);
+  }
+
+  // Block private IP ranges
+  if (isPrivateIP(hostname)) {
+    logger.audit({ event: "ssrf_block", severity: "warn", detail: `private IP: ${hostname}`, source: "validateUrl" });
+    throw new SecurityError(`URL target "${hostname}" is blocked (private IP range)`);
+  }
+}
 
 export class SecurityError extends Error {
   constructor(message: string) {
@@ -107,7 +175,7 @@ export function validateHtmlInput(html: string): void {
 export interface FileReadPolicy {
   /** Max file size in bytes */
   maxSize: number;
-  /** Glob of allowed paths (empty = all paths allowed) */
+  /** Glob of allowed paths (empty = no paths allowed — must configure SNAPMCP_ALLOWED_PATHS) */
   allowedPaths: string[];
 }
 
@@ -121,16 +189,23 @@ export function validateFileRead(
 ): void {
   const resolved = path.resolve(filePath);
 
-  // Check allowed paths (if configured)
-  if (policy.allowedPaths.length > 0) {
-    const allowed = policy.allowedPaths.some((allowedPath) =>
-      resolved.startsWith(path.resolve(allowedPath)),
+  // Check allowed paths
+  if (policy.allowedPaths.length === 0) {
+    logger.audit({ event: "file_read_blocked", severity: "warn", detail: `no allowed paths configured: ${filePath}`, source: "validateFileRead" });
+    throw new SecurityError(
+      `capture_file requires SNAPMCP_ALLOWED_PATHS to be configured. ` +
+      `Set it to a semicolon-separated list of allowed directories. ` +
+      `Example: SNAPMCP_ALLOWED_PATHS="/home/user/projects;/tmp"`,
     );
-    if (!allowed) {
-      throw new SecurityError(
-        `File "${filePath}" is not in allowed paths: ${policy.allowedPaths.join(", ")}`,
-      );
-    }
+  }
+  const allowed = policy.allowedPaths.some((allowedPath) =>
+    resolved.startsWith(path.resolve(allowedPath)),
+  );
+  if (!allowed) {
+    logger.audit({ event: "file_read_blocked", severity: "warn", detail: `outside allowed paths: ${filePath}`, source: "validateFileRead" });
+    throw new SecurityError(
+      `File "${filePath}" is not in allowed paths: ${policy.allowedPaths.join(", ")}`,
+    );
   }
 
   // Check file exists and is a regular file

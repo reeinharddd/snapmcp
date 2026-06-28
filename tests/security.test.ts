@@ -233,24 +233,24 @@ describe("validateFileRead", () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("allows reading existing file", () => {
+  it("allows reading existing file with allowed path", () => {
     const fp = path.join(tmpDir, "test.txt");
     fs.writeFileSync(fp, "hello");
-    validateFileRead(fp, { maxSize: 1_000_000, allowedPaths: [] });
+    validateFileRead(fp, { maxSize: 1_000_000, allowedPaths: [tmpDir] });
   });
 
   it("rejects file exceeding maxSize", () => {
     const fp = path.join(tmpDir, "large.txt");
     fs.writeFileSync(fp, "x".repeat(100));
     assert.throws(
-      () => validateFileRead(fp, { maxSize: 10, allowedPaths: [] }),
+      () => validateFileRead(fp, { maxSize: 10, allowedPaths: [tmpDir] }),
       LimitError,
     );
   });
 
   it("rejects non-existent file", () => {
     assert.throws(
-      () => validateFileRead(path.join(tmpDir, "nope.txt"), { maxSize: 1_000_000, allowedPaths: [] }),
+      () => validateFileRead(path.join(tmpDir, "nope.txt"), { maxSize: 1_000_000, allowedPaths: [tmpDir] }),
       SecurityError,
     );
   });
@@ -259,7 +259,7 @@ describe("validateFileRead", () => {
     const subDir = path.join(tmpDir, "subdir");
     fs.mkdirSync(subDir);
     assert.throws(
-      () => validateFileRead(subDir, { maxSize: 1_000_000, allowedPaths: [] }),
+      () => validateFileRead(subDir, { maxSize: 1_000_000, allowedPaths: [tmpDir] }),
       SecurityError,
     );
   });
@@ -281,16 +281,19 @@ describe("validateFileRead", () => {
     );
   });
 
-  it("allows any file when allowedPaths is empty", () => {
+  it("rejects file when allowedPaths is empty (security default)", () => {
     const fp = path.join(tmpDir, "any.txt");
     fs.writeFileSync(fp, "any");
-    validateFileRead(fp, { maxSize: 1_000_000, allowedPaths: [] });
+    assert.throws(
+      () => validateFileRead(fp, { maxSize: 1_000_000, allowedPaths: [] }),
+      SecurityError,
+    );
   });
 
   it("allows file with exact size at max", () => {
     const fp = path.join(tmpDir, "exact.txt");
     fs.writeFileSync(fp, "x".repeat(100));
-    validateFileRead(fp, { maxSize: 100, allowedPaths: [] });
+    validateFileRead(fp, { maxSize: 100, allowedPaths: [tmpDir] });
   });
 });
 

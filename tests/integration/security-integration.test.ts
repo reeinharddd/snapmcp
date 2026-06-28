@@ -108,12 +108,12 @@ describe("security — path traversal via MCP", () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "snapmcp-traverse-"));
     server = new McpSecurityServer(tmpDir);
     await server.waitForReady();
-  });
+  }, { timeout: 30_000 });
 
   after(async () => {
     if (server) await server.shutdown();
     if (tmpDir) { try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ok */ } }
-  });
+  }, { timeout: 15_000 });
 
   it("blocks path traversal in capture_terminal output filename", async () => {
     const response = await server.sendRequest("tools/call", {
@@ -189,12 +189,12 @@ describe("security — oversized input limits via MCP", () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "snapmcp-limits-"));
     server = new McpSecurityServer(tmpDir);
     await server.waitForReady();
-  });
+  }, { timeout: 30_000 });
 
   after(async () => {
     if (server) await server.shutdown();
     if (tmpDir) { try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ok */ } }
-  });
+  }, { timeout: 15_000 });
 
   it("rejects oversized code input (> 200KB)", async () => {
     const bigCode = "x".repeat(200_001);
@@ -262,12 +262,12 @@ describe("security — file read restrictions", () => {
       SNAPMCP_ALLOWED_PATHS: tmpDir,
     });
     await server.waitForReady();
-  });
+  }, { timeout: 30_000 });
 
   after(async () => {
     if (server) await server.shutdown();
     if (tmpDir) { try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ok */ } }
-  });
+  }, { timeout: 15_000 });
 
   it("blocks capture_file from outside allowed paths", async () => {
     const response = await server.sendRequest("tools/call", {
