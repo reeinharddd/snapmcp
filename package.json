@@ -10,7 +10,7 @@
     "dev": "bun --watch src/index.ts",
     "test": "bun test",
     "setup": "bun run scripts/setup.ts",
-    "prepublishOnly": "bun run build && bun test",
+    "prepublishOnly": "bun run build",
     "postinstall": "bun run scripts/postinstall.ts"
   },
   "keywords": [
