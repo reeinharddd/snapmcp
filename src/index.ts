@@ -58,7 +58,7 @@ import { cliInit, cliDoctor, cliTest } from "./cli.js";
 import { BRAND, brandPrimary, brandSecondary, brandGradient } from "./brand.js";
 import { detectChrome, logChromeStatus, type DetectedChrome } from "./browser.js";
 
-const VERSION = "2.2.1";
+const VERSION = "2.2.2";
 
 // ─── Param interfaces (replace as any) ─────────────────────
 interface TerminalCaptureParams { title?: string; lines?: string[]; }
