@@ -57,8 +57,14 @@ import { createDocument, type DocumentSection, type DocumentFormat } from "./doc
 import { cliInit, cliDoctor, cliTest } from "./cli.js";
 import { BRAND, brandPrimary, brandSecondary, brandGradient } from "./brand.js";
 import { detectChrome, logChromeStatus, type DetectedChrome } from "./browser.js";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
 
-const VERSION = "2.2.2";
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const VERSION = JSON.parse(
+  readFileSync(resolve(__dirname, "..", "package.json"), "utf-8"),
+).version;
 
 // ─── Param interfaces (replace as any) ─────────────────────
 interface TerminalCaptureParams { title?: string; lines?: string[]; }
