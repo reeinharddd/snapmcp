@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { detectChrome } from '../src/browser.js';
+import { detectChrome } from '../dist/browser.js';
 
 try {
   const chrome = detectChrome();
