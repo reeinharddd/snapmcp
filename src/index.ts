@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /**
  * snapmcp v2 — All-in-one MCP server for visual captures.
  *

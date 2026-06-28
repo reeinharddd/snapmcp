@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
-import { detectSystemState, bootstrapSetup, printSummary, ask, STEP, CHECK, BLUE } from "../src/setup-shared.js";
-import { detectMcpClients, registerSnapmcp, printRegistrationResults, printDetectedClients } from "../src/register.js";
+import { detectSystemState, bootstrapSetup, printSummary, ask, STEP, CHECK, BLUE } from "../dist/setup-shared.js";
+import { detectMcpClients, registerSnapmcp, printRegistrationResults, printDetectedClients } from "../dist/register.js";
 
 async function main() {
   /* Phase 1: System detection & bootstrap */
