@@ -20,6 +20,8 @@ import {
   closeBrowser,
   runCleanup,
 } from "./renderer.js"
+import { ask, detectSystemState, bootstrapSetup, printSummary, SystemState, CHECK, WARN, CROSS, STEP, BLUE, GRAY } from "./setup-shared.js"
+import { BRAND, brandPrimary as TEAL } from "./brand.js"
 
 /* ─── Types ───────────────────────────────────────────────── */
 
@@ -66,9 +68,8 @@ function checkChromiumAvailability(): boolean {
 /**
  * Interactive setup wizard.
  *
- * Checks Chromium availability, creates the output directory, prints
- * the current configuration, and shows next steps for connecting
- * to MCP clients.
+ * Detects system state, runs the shared bootstrap (Chromium install,
+ * output directory, .env creation), and prints the summary.
  */
 export async function cliInit(config: SnapConfig): Promise<void> {
   logger.info("")
@@ -77,59 +78,10 @@ export async function cliInit(config: SnapConfig): Promise<void> {
   logger.info("  ╚═══════════════════════════════════════════╝")
   logger.info("")
 
-  /* Chromium check */
-  const hasChrome = checkChromiumAvailability()
-  if (hasChrome) {
-    logger.info("  ✓ Chromium is installed")
-  } else {
-    logger.warn("  ⚠  Chromium not found — installing...")
-    try {
-      execSync("bunx playwright install chromium", {
-        stdio: "inherit",
-        timeout: 120_000,
-      })
-      logger.info("  ✓ Chromium installed successfully")
-    } catch {
-      logger.error("  ✗ Failed to install Chromium")
-      logger.info("     Try: npx playwright install chromium")
-    }
-  }
-
-  /* Output directory */
-  const outDir = path.resolve(config.outputDir)
-  ensureOutputDir(outDir)
-  logger.info(`  ✓ Output directory: ${outDir}`)
-
-  /* Configuration summary */
-  logger.info("")
-  logger.info("  ── Configuration ──")
-  logger.info(`     Output:   ${config.outputDir}`)
-  logger.info(
-    `     Format:   ${config.format}${config.format === "jpeg" ? ` (q${config.quality})` : ""}`,
-  )
-  logger.info(`     Theme:    ${config.theme}`)
-  logger.info(
-    `     Chrome:   ${config.windowChrome ? "on" : "off"} · Shadow: ${config.shadow} · Radius: ${config.borderRadius}px`,
-  )
-  logger.info(`     Security: ${config.securityChecks ? "enabled" : "disabled"}`)
-
-  /* Next steps */
-  const entryPoint = process.argv[1] || "dist/index.js"
-
-  logger.info("")
-  logger.info("  ── Next Steps ──")
-  logger.info("  1. Set SNAPMCP_* environment variables (optional)")
-  logger.info("  2. Start the server:  snapmcp")
-  logger.info("  3. Connect your MCP client to the stdio endpoint")
-  logger.info("")
-  logger.info("  MCP client config (Claude Desktop):")
-  logger.info(`    "mcpServers": {`)
-  logger.info(`      "snapmcp": {`)
-  logger.info(`        "command": "node",`)
-  logger.info(`        "args": ["${path.resolve(entryPoint)}"]`)
-  logger.info(`      }`)
-  logger.info(`    }`)
-  logger.info("")
+  /* Detect system state and run interactive bootstrap */
+  const systemState = detectSystemState()
+  await bootstrapSetup({ createEnv: false })
+  printSummary(systemState)
 }
 
 /* ─── cliDoctor ────────────────────────────────────────────── */

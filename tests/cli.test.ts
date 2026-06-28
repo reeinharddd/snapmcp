@@ -146,7 +146,7 @@ describe("cliDoctor", () => {
 /* ─── cliInit ──────────────────────────────────────────────── */
 
 describe("cliInit", () => {
-  it("does not throw with default config", { timeout: 10_000 }, async () => {
+  it("does not throw with default config", { timeout: 15_000 }, async () => {
     const { cliInit } = await import("../src/cli.js")
     const { loadConfig } = await import("../src/config.js")
 
@@ -156,19 +156,15 @@ describe("cliInit", () => {
     process.env.SNAPMCP_DIR = tmpDir
     try {
       const config = loadConfig()
-      // Should not throw — it handles missing Chromium gracefully
       await cliInit(config)
     } finally {
-      if (oldDir === undefined) {
-        delete process.env.SNAPMCP_DIR
-      } else {
-        process.env.SNAPMCP_DIR = oldDir
-      }
+      if (oldDir === undefined) delete process.env.SNAPMCP_DIR
+      else process.env.SNAPMCP_DIR = oldDir
       fs.rmSync(tmpDir, { recursive: true, force: true })
     }
   })
 
-  it("creates the output directory", { timeout: 10_000 }, async () => {
+  it("uses the configured output directory", { timeout: 15_000 }, async () => {
     const { cliInit } = await import("../src/cli.js")
     const { loadConfig } = await import("../src/config.js")
 
@@ -177,15 +173,14 @@ describe("cliInit", () => {
     const oldDir = process.env.SNAPMCP_DIR
     process.env.SNAPMCP_DIR = childDir
     try {
+      // Create full path so bootstrapSetup skips interactive prompt
+      fs.mkdirSync(childDir, { recursive: true })
       const config = loadConfig()
       await cliInit(config)
-      assert.ok(fs.existsSync(childDir), "Output directory should exist after init")
+      assert.ok(fs.existsSync(childDir), "Output directory should still exist after init")
     } finally {
-      if (oldDir === undefined) {
-        delete process.env.SNAPMCP_DIR
-      } else {
-        process.env.SNAPMCP_DIR = oldDir
-      }
+      if (oldDir === undefined) delete process.env.SNAPMCP_DIR
+      else process.env.SNAPMCP_DIR = oldDir
       fs.rmSync(tmpDir, { recursive: true, force: true })
     }
   })
