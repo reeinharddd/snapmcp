@@ -26,7 +26,7 @@
   "author": "reeinharddd",
   "type": "module",
   "bin": {
-    "snapmcp": "./dist/index.js"
+    "snapmcp": "dist/index.js"
   },
   "main": "dist/index.js",
   "directories": {
