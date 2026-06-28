@@ -4,34 +4,48 @@
 
 <p align="center">
   <b>All-in-one MCP server for visual captures.</b><br/>
-  Terminal · Code · Browser · Markdown · Diff · HTML · PDF<br/>
-  <em>One server. 8 tools. 27 themes. Zero juggling.</em>
+  Terminal · Code · Browser · Markdown · Diff · HTML · PDF · GIF<br/>
+  <em>One server. 12 tools. Real fidelity. Zero juggling.</em>
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/snapmcp"><img src="https://img.shields.io/npm/v/snapmcp?style=flat&label=npm&color=%2300d4aa" alt="npm"/></a>
-  <a href="https://github.com/reeinharddd/snapmcp"><img src="https://img.shields.io/github/stars/reeinharddd/snapmcp?style=flat&color=%230099ff" alt="stars"/></a>
-  <img src="https://img.shields.io/badge/license-MIT-%230099ff" alt="MIT"/>
+  <a href="https://www.npmjs.com/package/snapmcp"><img src="https://img.shields.io/npm/v/snapmcp?style=flat&label=npm&color=%2306b6d4" alt="npm"/></a>
+  <a href="https://github.com/reeinharddd/snapmcp"><img src="https://img.shields.io/github/stars/reeinharddd/snapmcp?style=flat&color=%236366f1" alt="stars"/></a>
+  <img src="https://img.shields.io/badge/license-MIT-%2306b6d4" alt="MIT"/>
   <img src="https://img.shields.io/badge/bun-%23f9f9f9?logo=bun" alt="bun"/>
-  <img src="https://img.shields.io/badge/node-20%2B-%2300d4aa" alt="node"/>
 </p>
 
 ---
 
-Generate screenshots of terminals, code, web pages, markdown documents, HTML snippets, diffs, and PDFs — all through a single MCP server powered by Playwright. **No more juggling 4 different MCP servers for your visual capture needs.**
+Generate screenshots of terminals, code, web pages, markdown, diffs, PDFs, and GIF animations — all through a single MCP server. **No more juggling 4 different MCP servers for your visual capture needs.**
 
 ## Features
 
 | Tool | Description |
 |------|-------------|
-| `capture_terminal` | Synthetic terminal output with syntax-colored prompts |
+| `capture_terminal` | Terminal output with syntax-colored prompts (auto-detects real terminal theme) |
 | `capture_code` | Syntax-highlighted code via Shiki (50+ languages, 27 themes) |
-| `capture_browser` | Full-page or viewport URL screenshots |
+| `capture_browser` | Full-page or viewport screenshots (uses system Chrome profile when available) |
 | `capture_file` | File → auto-detected language → highlighted screenshot |
-| `capture_markdown` | Rendered markdown as a styled document screenshot |
+| `capture_markdown` | Rendered markdown as a styled document |
 | `capture_html` | Arbitrary HTML snippet rendered as image |
 | `capture_diff` | Git diffs with green additions / red deletions |
 | `capture_pdf` | URL → PDF document |
+| `create_gif` | Animated GIF from multiple screenshots |
+| `create_sequence` | Side-by-side animated sequence |
+| `document` | Multi-section markdown document render |
+| `init` | Interactive setup wizard |
+
+### v2.2 Highlights
+
+- **Real Terminal Colors** — detects Kitty, Gnome Terminal, Alacritty, WezTerm, Xfce4, and LXTerminal configs for authentic terminal captures
+- **Real Browser Profile** — finds system Chrome/Edge/Brave installations and uses your real user data directory
+- **In-Project Captures** — saves to `./captures` in your current project, not an isolated directory
+- **SSRF Protection** — blocks private/internal IP ranges in URL captures
+- **Audit Logging** — optional structured audit log file with timestamped events
+- **Centralized Brand** — consistent teal/blue ANSI output across all CLI commands
+- **Zero-Dep GIF** — migrated from gifencoder to gifenc + fast-png (7 fewer security vulnerabilities)
+- **Interactive Setup** — guided wizard with dependency detection and configuration
 
 ## Quick Start
 
@@ -39,8 +53,21 @@ Generate screenshots of terminals, code, web pages, markdown documents, HTML sni
 # Install globally
 npm install -g snapmcp
 
-# Or run directly
-npx snapmcp
+# Start the server
+snapmcp
+```
+
+Or run a quick health check:
+
+```bash
+# Run the interactive setup wizard
+snapmcp init
+
+# Check system readiness
+snapmcp doctor
+
+# Generate test captures
+snapmcp test
 ```
 
 ## Installation Guides
@@ -57,7 +84,7 @@ Add to your `~/.claude/claude.json`:
       "command": "npx",
       "args": ["-y", "snapmcp"],
       "env": {
-        "SNAPMCP_DIR": "/path/to/snapshots",
+        "SNAPMCP_DIR": "./captures",
         "SNAPMCP_THEME": "nord"
       }
     }
@@ -78,7 +105,7 @@ Add to your `opencode.json`:
       "command": "npx",
       "args": ["-y", "snapmcp"],
       "env": {
-        "SNAPMCP_DIR": "./snapshots",
+        "SNAPMCP_DIR": "./captures",
         "SNAPMCP_FORMAT": "jpeg",
         "SNAPMCP_QUALITY": "95"
       }
@@ -89,9 +116,9 @@ Add to your `opencode.json`:
 </details>
 
 <details>
-<summary><strong>VS Code / Cline</strong></summary>
+<summary><strong>VS Code / Cline / Roo-Cline</strong></summary>
 
-Add to your VS Code settings (`settings.json` → `cline.mcpServers` or `roo-cline.mcpServers`):
+Add to VS Code settings (`settings.json` → `cline.mcpServers`):
 
 ```json
 {
@@ -100,28 +127,8 @@ Add to your VS Code settings (`settings.json` → `cline.mcpServers` or `roo-cli
       "command": "npx",
       "args": ["-y", "snapmcp"],
       "env": {
-        "SNAPMCP_DIR": "/path/to/snapshots"
-      },
-      "disabled": false,
-      "autoApprove": ["capture_terminal", "capture_code"]
-    }
-  }
-}
-```
-</details>
-
-<details>
-<summary><strong>Continue (JetBrains / VS Code)</strong></summary>
-
-Add to `~/.continue/config.json`:
-
-```json
-{
-  "experimental": {
-    "mcpServers": {
-      "snapmcp": {
-        "command": "npx",
-        "args": ["-y", "snapmcp"]
+        "SNAPMCP_DIR": "./captures",
+        "SNAPMCP_FORMAT": "jpeg"
       }
     }
   }
@@ -130,113 +137,143 @@ Add to `~/.continue/config.json`:
 </details>
 
 <details>
-<summary><strong>Cursor</strong></summary>
+<summary><strong>Docker</strong></summary>
 
-Add to your Cursor MCP configuration:
-
-```json
-{
-  "mcpServers": {
-    "snapmcp": {
-      "command": "npx",
-      "args": ["-y", "snapmcp"]
-    }
-  }
-}
+```bash
+docker run -i --rm \
+  -e SNAPMCP_DIR=/captures \
+  -e SNAPMCP_THEME=nord \
+  -v /path/to/output:/captures \
+  ghcr.io/reeinharddd/snapmcp
 ```
 </details>
 
-<details>
-<summary><strong>Windsurf</strong></summary>
+## CLI Commands
 
-Add to your Windsurf MCP configuration:
+SnapMCP ships with a full CLI beyond the MCP server:
 
-```json
-{
-  "mcpServers": {
-    "snapmcp": {
-      "command": "npx",
-      "args": ["-y", "snapmcp"]
-    }
-  }
-}
 ```
-</details>
+snapmcp        — Start the MCP server
+snapmcp init   — Interactive setup wizard
+snapmcp doctor — Health check for all dependencies
+snapmcp test   — Generate test captures (terminal + browser)
+snapmcp --help — Show available tools and version
+```
+
+### `snapmcp init`
+
+Interactive wizard that:
+1. Detects system state (Chrome, Playwright, output directory, theme)
+2. Guides you through configuration choices
+3. Installs Chromium if missing
+4. Prints a ready-to-use MCP config snippet
+
+### `snapmcp doctor`
+
+Runs 7 checks:
+1. Node.js version ≥ 18
+2. Playwright Chromium installed
+3. Output directory writable
+4. SnapMCP version
+5. Chrome/Chromium detected
+6. System terminal theme detected
+7. Environment variables valid
+
+### `snapmcp test`
+
+Generates sample captures to verify everything works:
+- `captures/test-terminal.png` — terminal screenshot
+- `captures/test-code.png` — code screenshot
 
 ## Configuration
 
-All options via environment variables with sensible defaults:
+Environment variables for the MCP server:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SNAPMCP_DIR` | `./snapshots` | Output directory |
-| `SNAPMCP_FORMAT` | `png` | Output format: `png` or `jpeg` |
-| `SNAPMCP_QUALITY` | `90` | JPEG quality (1-100, jpeg only) |
-| `SNAPMCP_THEME` | `dark-plus` | Color theme (see below) |
-| `SNAPMCP_FONT` | `'Ubuntu Mono',...` | Font family override |
-| `SNAPMCP_FONT_SIZE` | `14px` | Font size |
-| `SNAPMCP_TIMEOUT` | `30000` | Browser timeout in ms |
-| `SNAPMCP_DEVICE_SCALE` | `2` | Device pixel ratio (2 = retina) |
-| `SNAPMCP_CLEANUP_MAX` | `0` | Auto-delete oldest files when count exceeds N (0 = no limit) |
-| `SNAPMCP_MAX_FILE_SIZE` | `5242880` | Max file read size in bytes (5 MB) |
-| `SNAPMCP_ALLOWED_PATHS` | `""` | Semicolon-separated allowed paths for file reads |
-| `SNAPMCP_SECURITY_CHECKS` | `true` | Enable/disable security validations |
-| `SNAPMCP_LOG_LEVEL` | `info` | Log level: error, warn, info, debug |
+| `SNAPMCP_DIR` | `./captures` | Output directory for captures |
+| `SNAPMCP_THEME` | auto-detected | Syntax theme (27 built-in themes + auto-detected terminal) |
+| `SNAPMCP_FORMAT` | `png` | Output format (`png`, `jpeg`) |
+| `SNAPMCP_QUALITY` | `90` | JPEG quality (1-100) |
+| `SNAPMCP_PADDING` | `32` | Content padding in pixels |
+| `SNAPMCP_SHADOW` | `none` | Drop shadow (`none` only; legacy values ignored) |
+| `SNAPMCP_WINDOW_CHROME` | `false` | macOS-style title bar frame |
+| `SNAPMCP_BORDER_RADIUS` | `0` | Window corner radius |
+| `SNAPMCP_BADGE` | `false` | Footer badge |
+| `SNAPMCP_LOG_FILE` | — | Audit log file path |
+| `SNAPMCP_CHROME_EXECUTABLE` | — | Path to Chrome/Chromium binary |
+| `SNAPMCP_CHROME_CHANNEL` | — | Chrome channel (`stable`, `beta`, `dev`, `canary`) |
+| `SNAPMCP_CHROME_PROFILE` | — | Chrome profile directory name |
+| `SNAPMCP_ALLOWED_PATHS` | (deny-all) | Comma-separated allowed file paths for `capture_file` |
 
-### Visual Options
+### Real Fidelity
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SNAPMCP_PADDING` | `32` | Inner padding inside the capture window (px) |
-| `SNAPMCP_SHADOW` | `soft` | Window drop-shadow: `none`, `soft`, `medium`, `strong` |
-| `SNAPMCP_WINDOW_CHROME` | `true` | macOS-style title bar (traffic light buttons) on/off |
-| `SNAPMCP_BORDER_RADIUS` | `8` | Capture window corner radius (px, 0–32) |
-| `SNAPMCP_BADGE` | `false` | Subtle "snapmcp" badge in the window footer |
+SnapMCP detects your real environment for authentic captures.
 
-### Available Themes (27)
+**Terminal auto-detection** (in priority order):
 
-snapmcp pre-loads every theme Shiki ships — switch instantly with `SNAPMCP_THEME`:
+| Source | Detection method |
+|--------|-----------------|
+| Kitty | `kitty.conf` (`foreground`, `background`, `tab_bar_style`) |
+| Gnome Terminal | `dconf /org/gnome/terminal/legacy/profiles:/` |
+| Alacritty | `alacritty.toml` / `alacritty.yml` (`colors.*`) |
+| WezTerm | `wezterm.lua` (background detection) |
+| Xfce4 Terminal | `xfce4/terminal/terminalrc` |
+| LXTerminal | `lxterminal.conf` |
+| COLORFGBG | Environment variable fallback |
+| OS Theme | `gsettings` dark mode detection |
 
-| Dark Themes | Light Themes |
-|-------------|--------------|
-| `dark-plus` (default) | `github-light` |
-| `github-dark` | `solarized-light` |
-| `github-dark-dimmed` | `vitesse-light` |
-| `monokai` | `catppuccin-latte` |
-| `nord` | `ayu-light` |
-| `solarized-dark` | `one-light` |
-| `dracula` | `min-light` |
-| `one-dark-pro` | `slack-ochin` |
-| `tokyo-night` | `snazzy-light` |
-| `catppuccin-mocha` | `rose-pine-dawn` |
-| `vitesse-dark` | |
-| `ayu-dark` | |
-| `min-dark` | |
-| `poimandres` | |
-| `rose-pine` | |
-| `rose-pine-moon` | |
-| `slack-dark` | |
+**Browser auto-detection** (in priority order):
 
-## Output
+1. `SNAPMCP_CHROME_EXECUTABLE` env var
+2. System Chrome paths (Linux: `google-chrome`, `chromium-browser`; macOS: `/Applications/Google Chrome.app`; Windows: `%LOCALAPPDATA%\Google\Chrome`)
+3. `which` / `where` PATH lookup
+4. Edge / Brave / Chromium fallbacks
+5. Bundled Playwright Chromium as final fallback
 
-Files are saved to `SNAPMCP_DIR` (default: `./snapshots/`) with auto-generated names like:
+### Security
+
+| Feature | Description |
+|---------|-------------|
+| **SSRF Protection** | Blocks private/internal IP ranges (127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, etc.) in URL captures |
+| **File Allowlist** | `SNAPMCP_ALLOWED_PATHS` defaults to deny-all when unset; only explicitly allowed paths can be captured |
+| **Path Traversal** | Prevents `../` escapes, symlink traversal, and null byte injection |
+| **Input Limits** | Max URL length 5KB, max content 1MB, max GIF frames 100 |
+| **Audit Log** | Optional structured JSON log file with timestamped events |
+| **Chromium Sandbox** | Sandbox availability checked at startup |
+
+### Themes
+
+27 built-in Shiki themes:
+
+`dracula`, `one-dark-pro`, `nord`, `tokyo-night`, `catppuccin-mocha`, `catppuccin-latte`, `ayu-dark`, `ayu-light`, `vitesse-dark`, `vitesse-light`, `min-dark`, `min-light`, `poimandres`, `rose-pine`, `rose-pine-moon`, `rose-pine-dawn`, `slack-dark`, `slack-ochin`, `snazzy-light`, `github-dark-dimmed`, `github-light`, `one-light`, `solarized-light`, `solarized-dark`, `material-theme`, `material-theme-lighter`, `material-theme-ocean`
+
+## Example Output
 
 ```
-snapshots/
-├── terminal-1717000000000.png
-├── code-1717000000001.jpg
-├── browser-1717000000002.png
-├── markdown-1717000000003.png
-├── diff-1717000000004.png
-└── pdf-1717000000005.pdf
+captures/
+├── test-terminal.png   # Terminal output with real detected colors
+├── test-code.png       # Syntax-highlighted code
+├── page.png            # Full-page browser screenshot
+└── output.pdf          # URL converted to PDF
 ```
 
-Set `SNAPMCP_CLEANUP_MAX` to auto-purge old files when the count exceeds your limit.
+## Architecture
 
-## Docker
-
-```bash
-docker run -i --init -v $(pwd)/snapshots:/app/snapshots ghcr.io/reeinharddd/snapmcp
+```
+src/
+├── index.ts        — MCP server, 12 tool definitions, CLI entry
+├── renderer.ts     — Capture engine (terminal, code, browser, PDF, GIF)
+├── config.ts       — Config loader, defaults, 27 themes
+├── cli.ts          — CLI commands (init, doctor, test)
+├── security.ts     — SSRF denylist, path traversal, input limits
+├── logger.ts       — Audit logging (AuditEvent, log file)
+├── brand.ts        — Centralized brand tokens (colors, ANSI, logo)
+├── terminal.ts     — Real terminal detection (Kitty/Gnome/Alacritty/WezTerm)
+├── browser.ts      — System Chrome profile detection (8-step fallback)
+├── setup-shared.ts — Shared bootstrap for interactive setup
+├── document.ts     — Document render engine (brand-colored)
+└── gif.ts          — GIF animation (gifenc + fast-png, zero deps)
 ```
 
 ## Development
@@ -244,64 +281,20 @@ docker run -i --init -v $(pwd)/snapshots:/app/snapshots ghcr.io/reeinharddd/snap
 ```bash
 git clone https://github.com/reeinharddd/snapmcp
 cd snapmcp
-
-# Install with bun (recommended)
 bun install
-bunx playwright install chromium
-bun run build
-bun start
-
-# Or with npm
-npm install
-npx playwright install chromium
-npm run build
-npm start
+bun run build    # tsc → dist/
+bun test         # 240+ tests
 ```
 
-### Testing
+### Requirements
 
-```bash
-bun test        # with bun
-npm test         # with npm
-```
+- **Runtime**: Node.js ≥ 18 or Bun ≥ 1.0
+- **TypeScript**: 5.x (ES2022, Node16 modules)
 
-### Setup script
+### CI
 
-```bash
-bun run setup    # Installs Chromium + creates output dir
-```
-
-## Requirements
-
-- Node.js 20+ or Bun 1.2+
-- Chromium (install via `bun run setup` or `npx playwright install chromium`)
-
-## Security
-
-snapmcp includes built-in security protections:
-
-- **Path traversal prevention** on all file operations
-- **Input size limits** per tool (code: 200KB, markdown: 200KB, diff: 500KB, etc.)
-- **File read validation** (max 5MB, optional path allowlist)
-- **Chromium sandbox detection** at startup
-- **Dependency pinning** — all deps locked to exact versions
-
-See [SECURITY.md](SECURITY.md) for full details.
-
-## Brand
-
-Brand assets, design tokens, and guidelines are in the [`brand/`](brand/) directory:
-
-| Asset | File |
-|-------|------|
-| Logo (full badge) | `brand/logo/snapmcp-logo.svg` |
-| Logo (horizontal) | `brand/logo/snapmcp-logo-horizontal.svg` |
-| Logo (icon) | `brand/logo/snapmcp-icon.svg` |
-| Logo (monochrome) | `brand/logo/snapmcp-logo-mono.svg` |
-| Design tokens | `brand/tokens/snapmcp-tokens.json` |
-| CSS variables | `brand/tokens/snapmcp-variables.css` |
-| Brand guidelines | `brand/BRAND.md` |
+GitHub Actions runs on `ubuntu-latest`, `macos-latest`, `windows-latest` — bun only, no node matrix.
 
 ## License
 
-MIT
+MIT — see [LICENSE](./LICENSE).
