@@ -50,7 +50,7 @@ import {
 } from "./renderer.js";
 import { resolveSafePath, checkChromiumSandbox, validateUrl, SecurityError } from "./security.js";
 import { getHighlighter } from "./highlighter.js";
-import { logger, setLogLevel, AuditEventType, closeAuditLog } from "./logger.js";
+import { logger, setLogLevel, setLogFile, AuditEventType, closeAuditLog } from "./logger.js";
 import { createGif, type GifFrame } from "./gif.js";
 import { createDocument, type DocumentSection, type DocumentFormat } from "./document.js";
 import { cliInit, cliDoctor, cliTest } from "./cli.js";
@@ -105,7 +105,7 @@ function showHelp(): void {
     test                 Run test capture (verifies everything works)
 
   CONFIG (env vars)
-    SNAPMCP_DIR              Output directory (default: ./snapshots)
+    SNAPMCP_DIR              Output directory (default: ./captures)
     SNAPMCP_FORMAT           png | jpeg
     SNAPMCP_QUALITY          JPEG quality 1-100
     SNAPMCP_THEME            27 themes: dark-plus, dracula, nord, catppuccin-mocha, tokyo-night...
@@ -145,7 +145,7 @@ async function runSetup(): Promise<void> {
   }
 
   // Create output dir
-  const outDir = process.env.SNAPMCP_DIR || "./snapshots";
+  const outDir = process.env.SNAPMCP_DIR || "./captures";
   fs.mkdirSync(pt.resolve(outDir), { recursive: true });
   console.error(`  ✓ Output directory: ${pt.resolve(outDir)}`);
 
@@ -170,6 +170,9 @@ const ansiBold = (t: string) => `\x1b[1m${t}\x1b[0m`;
 // ─── Configuration ─────────────────────────────────────────
 const config = loadConfig();
 setLogLevel(config.logLevel as import("./logger.js").LogLevel);
+if (process.env.SNAPMCP_LOG_FILE) {
+  setLogFile(process.env.SNAPMCP_LOG_FILE);
+}
 const OUTPUT_DIR = path.resolve(config.outputDir);
 ensureOutputDir(OUTPUT_DIR);
 
