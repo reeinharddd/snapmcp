@@ -27,6 +27,7 @@
  *  - Input size limits on all tools
  *  - File read validation (size, allowed paths)
  *  - Chromium sandbox detection at startup
+ *  - SSRF protection on URL-based tools
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -47,14 +48,25 @@ import {
   ensureOutputDir,
   runCleanup,
 } from "./renderer.js";
-import { resolveSafePath, checkChromiumSandbox } from "./security.js";
+import { resolveSafePath, checkChromiumSandbox, validateUrl, SecurityError } from "./security.js";
 import { getHighlighter } from "./highlighter.js";
-import { logger, setLogLevel } from "./logger.js";
+import { logger, setLogLevel, AuditEventType, closeAuditLog } from "./logger.js";
 import { createGif, type GifFrame } from "./gif.js";
 import { createDocument, type DocumentSection, type DocumentFormat } from "./document.js";
 import { cliInit, cliDoctor, cliTest } from "./cli.js";
+import { BRAND, brandPrimary, brandSecondary, brandGradient } from "./brand.js";
+import { detectChrome, logChromeStatus, type DetectedChrome } from "./browser.js";
 
-const VERSION = "2.1.0";
+const VERSION = "2.2.0";
+
+// ─── Param interfaces (replace as any) ─────────────────────
+interface TerminalCaptureParams { title?: string; lines?: string[]; }
+interface CodeCaptureParams { code?: string; language?: string; title?: string; }
+interface BrowserCaptureParams { url?: string; fullPage?: boolean; width?: number; height?: number; }
+interface FileCaptureParams { filePath?: string; }
+interface MarkdownCaptureParams { markdown?: string; title?: string; }
+interface HtmlCaptureParams { html?: string; title?: string; }
+interface DiffCaptureParams { diff?: string; }
 
 // ─── CLI helpers ─────────────────────────────────────────────
 function showHelp(): void {
@@ -119,7 +131,7 @@ function showVersion(): void {
 async function runSetup(): Promise<void> {
   const { execSync } = await import("node:child_process");
   const fs = await import("node:fs");
-  const path = await import("node:path");
+  const pt = await import("node:path");
 
   console.error("\n  ⬡ snapmcp — Setup\n");
 
@@ -134,8 +146,8 @@ async function runSetup(): Promise<void> {
 
   // Create output dir
   const outDir = process.env.SNAPMCP_DIR || "./snapshots";
-  fs.mkdirSync(path.resolve(outDir), { recursive: true });
-  console.error(`  ✓ Output directory: ${path.resolve(outDir)}`);
+  fs.mkdirSync(pt.resolve(outDir), { recursive: true });
+  console.error(`  ✓ Output directory: ${pt.resolve(outDir)}`);
 
   console.error("\n  Ready! Run: snapmcp\n");
 }
@@ -143,12 +155,17 @@ async function runSetup(): Promise<void> {
 // ─── Banner ─────────────────────────────────────────────────
 const BANNER = `
   ┌──────────────────────────────────┬
-  │  ⬡ snapmcp v2.1  —  12 tools  │
+  │  ⬡ snapmcp v2.2  —  12 tools  │
   │  27 themes · GIF · Documents   │
   │  PNG / JPEG / PDF / GIF / MD   │
   │  precision captures for AI      │
   └──────────────────────────────────┘
 `;
+
+// ─── ANSI helpers for brand-colored output ─────────────────
+const ansiPri = (t: string) => `\x1b[38;2;0;212;170m${t}\x1b[0m`;
+const ansiSec = (t: string) => `\x1b[38;2;0;153;255m${t}\x1b[0m`;
+const ansiBold = (t: string) => `\x1b[1m${t}\x1b[0m`;
 
 // ─── Configuration ─────────────────────────────────────────
 const config = loadConfig();
@@ -156,10 +173,14 @@ setLogLevel(config.logLevel as import("./logger.js").LogLevel);
 const OUTPUT_DIR = path.resolve(config.outputDir);
 ensureOutputDir(OUTPUT_DIR);
 
+// Chrome status at startup
+const chromeDetected = detectChrome();
+logChromeStatus(chromeDetected);
+
 // ─── Server setup ─────────────────────────────────────────
 const server = new McpServer({
-  name: "snapmcp",
-  version: "2.1.0",
+  name: "SnapMCP",
+  version: "2.2.0",
   description:
     "All-in-one visual captures: terminal, code, browser, markdown, HTML, diffs, files, and PDF — via Playwright",
 });
@@ -169,7 +190,6 @@ const ext = () => formatExt(config.format);
 
 function outPath(prefix: string, name?: string): string {
   if (name) {
-    // Security: prevent path traversal in user-provided filenames
     return resolveSafePath(OUTPUT_DIR, name);
   }
   return path.join(OUTPUT_DIR, `${prefix}-${Date.now()}.${ext()}`);
@@ -247,8 +267,10 @@ server.tool(
   },
   async ({ url, fullPage, width, height, output }) => {
     try {
+      validateUrl(url);
       const p = outPath("browser", output);
       await captureBrowser(url, p, fullPage, width, height, config);
+      logger.audit({ event: AuditEventType.CaptureBrowser, severity: "info", detail: `URL: ${url}`, source: "capture_browser" });
       return ok(p);
     } catch (e) {
       return fail(e);
@@ -349,9 +371,11 @@ server.tool(
   },
   async ({ url, fullPage, width, height, output }) => {
     try {
+      validateUrl(url);
       const filename = output || `pdf-${Date.now()}.pdf`;
       const p = resolveSafePath(OUTPUT_DIR, filename);
       await capturePdf(url, p, fullPage, width, height, config);
+      logger.audit({ event: AuditEventType.CapturePdf, severity: "info", detail: `URL: ${url}`, source: "capture_pdf" });
       return ok(p);
     } catch (e) {
       return fail(e);
@@ -381,37 +405,37 @@ server.tool(
 
         switch (cap.type) {
           case "terminal": {
-            const { title, lines } = cap.params as any;
+            const { title, lines } = cap.params as TerminalCaptureParams;
             await captureTerminal(title || "terminal", lines || [], p, config);
             break;
           }
           case "code": {
-            const { code, language, title } = cap.params as any;
+            const { code, language, title } = cap.params as CodeCaptureParams;
             await captureCode(code || "", language || "text", title || "code", p, config);
             break;
           }
           case "file": {
-            const { filePath } = cap.params as any;
+            const { filePath } = cap.params as FileCaptureParams;
             await captureFile(filePath || "", p, config);
             break;
           }
           case "browser": {
-            const { url, fullPage, width, height } = cap.params as any;
+            const { url, fullPage, width, height } = cap.params as BrowserCaptureParams;
             await captureBrowser(url || "about:blank", p, fullPage || false, width || 1280, height || 800, config);
             break;
           }
           case "markdown": {
-            const { markdown, title } = cap.params as any;
+            const { markdown, title } = cap.params as MarkdownCaptureParams;
             await captureMarkdown(markdown || "", title || "document", p, config);
             break;
           }
           case "html": {
-            const { html, title } = cap.params as any;
+            const { html, title } = cap.params as HtmlCaptureParams;
             await captureHtml(html || "", title || "html", p, config);
             break;
           }
           case "diff": {
-            const { diff } = cap.params as any;
+            const { diff } = cap.params as DiffCaptureParams;
             await captureDiff(diff || "", p, config);
             break;
           }
@@ -420,7 +444,6 @@ server.tool(
         results.push({ type: cap.type, path: p, caption: cap.caption });
       }
 
-      // Cleanup after batch
       runCleanup(config);
 
       const summary = results.map(r =>
@@ -460,37 +483,37 @@ server.tool(
 
         switch (step.type) {
           case "terminal": {
-            const { title, lines } = step.params as any;
+            const { title, lines } = step.params as TerminalCaptureParams;
             await captureTerminal(title || "step", lines || [], p, config);
             break;
           }
           case "code": {
-            const { code, language, title } = step.params as any;
+            const { code, language, title } = step.params as CodeCaptureParams;
             await captureCode(code || "", language || "text", title || "step", p, config);
             break;
           }
           case "file": {
-            const { filePath } = step.params as any;
+            const { filePath } = step.params as FileCaptureParams;
             await captureFile(filePath || "", p, config);
             break;
           }
           case "browser": {
-            const { url, fullPage, width, height } = step.params as any;
+            const { url, fullPage, width, height } = step.params as BrowserCaptureParams;
             await captureBrowser(url || "about:blank", p, fullPage || false, width || 1280, height || 800, config);
             break;
           }
           case "markdown": {
-            const { markdown, title } = step.params as any;
+            const { markdown, title } = step.params as MarkdownCaptureParams;
             await captureMarkdown(markdown || "", title || "step", p, config);
             break;
           }
           case "html": {
-            const { html, title } = step.params as any;
+            const { html, title } = step.params as HtmlCaptureParams;
             await captureHtml(html || "", title || "step", p, config);
             break;
           }
           case "diff": {
-            const { diff } = step.params as any;
+            const { diff } = step.params as DiffCaptureParams;
             await captureDiff(diff || "", p, config);
             break;
           }
@@ -549,37 +572,37 @@ server.tool(
 
         switch (cap.type) {
           case "terminal": {
-            const { title: t, lines } = cap.params as any;
+            const { title: t, lines } = cap.params as TerminalCaptureParams;
             await captureTerminal(t || "frame", lines || [], p, config);
             break;
           }
           case "code": {
-            const { code, language, title: t } = cap.params as any;
+            const { code, language, title: t } = cap.params as CodeCaptureParams;
             await captureCode(code || "", language || "text", t || "frame", p, config);
             break;
           }
           case "file": {
-            const { filePath } = cap.params as any;
+            const { filePath } = cap.params as FileCaptureParams;
             await captureFile(filePath || "", p, config);
             break;
           }
           case "browser": {
-            const { url, fullPage, width, height } = cap.params as any;
+            const { url, fullPage, width, height } = cap.params as BrowserCaptureParams;
             await captureBrowser(url || "about:blank", p, fullPage || false, width || 1280, height || 800, config);
             break;
           }
           case "markdown": {
-            const { markdown, title: t } = cap.params as any;
+            const { markdown, title: t } = cap.params as MarkdownCaptureParams;
             await captureMarkdown(markdown || "", t || "frame", p, config);
             break;
           }
           case "html": {
-            const { html, title: t } = cap.params as any;
+            const { html, title: t } = cap.params as HtmlCaptureParams;
             await captureHtml(html || "", t || "frame", p, config);
             break;
           }
           case "diff": {
-            const { diff } = cap.params as any;
+            const { diff } = cap.params as DiffCaptureParams;
             await captureDiff(diff || "", p, config);
             break;
           }
@@ -632,37 +655,37 @@ server.tool(
 
         switch (cap.type) {
           case "terminal": {
-            const { title: t, lines } = cap.params as any;
+            const { title: t, lines } = cap.params as TerminalCaptureParams;
             await captureTerminal(t || "step", lines || [], p, config);
             break;
           }
           case "code": {
-            const { code, language, title: t } = cap.params as any;
+            const { code, language, title: t } = cap.params as CodeCaptureParams;
             await captureCode(code || "", language || "text", t || "step", p, config);
             break;
           }
           case "file": {
-            const { filePath } = cap.params as any;
+            const { filePath } = cap.params as FileCaptureParams;
             await captureFile(filePath || "", p, config);
             break;
           }
           case "browser": {
-            const { url, fullPage, width, height } = cap.params as any;
+            const { url, fullPage, width, height } = cap.params as BrowserCaptureParams;
             await captureBrowser(url || "about:blank", p, fullPage || false, width || 1280, height || 800, config);
             break;
           }
           case "markdown": {
-            const { markdown, title: t } = cap.params as any;
+            const { markdown, title: t } = cap.params as MarkdownCaptureParams;
             await captureMarkdown(markdown || "", t || "step", p, config);
             break;
           }
           case "html": {
-            const { html, title: t } = cap.params as any;
+            const { html, title: t } = cap.params as HtmlCaptureParams;
             await captureHtml(html || "", t || "step", p, config);
             break;
           }
           case "diff": {
-            const { diff } = cap.params as any;
+            const { diff } = cap.params as DiffCaptureParams;
             await captureDiff(diff || "", p, config);
             break;
           }
@@ -691,6 +714,29 @@ server.tool(
     } catch (e) {
       return fail(e);
     }
+  },
+);
+
+// ─── Tool 13: Hint ───────────────────────────────────────────
+server.tool(
+  "snapmcp-hint",
+  "Return a helpful hint about configuring and using snapmcp.",
+  {
+    topic: z.string().optional().describe("Optional topic: init, doctor, browser, themes, output"),
+  },
+  async ({ topic }) => {
+    const hints: Record<string, string> = {
+      init: "Run `snapmcp init` to configure output directory, theme, and browser profile interactively.",
+      doctor: "Run `snapmcp doctor` to diagnose your system setup and verify all dependencies.",
+      browser: "Set SNAPMCP_CHROME_EXECUTABLE to your Chrome/Chromium path to use your real browser profile for captures.",
+      themes: "Set SNAPMCP_THEME to one of 27 themes: dracula, nord, catppuccin-mocha, tokyo-night, and more.",
+      output: "Set SNAPMCP_DIR to control where captures are saved (default: ./snapshots).",
+    };
+
+    const generic = "Need help configuring snapmcp? Run `snapmcp init` to set up your output directory, terminal theme, and browser profile interactively.";
+    const text = topic && hints[topic] ? hints[topic] : generic;
+
+    return { content: [{ type: "text", text }] };
   },
 );
 
@@ -744,8 +790,15 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
-  // Startup banner (always shown, goes to stderr)
-  logger.info(`${BANNER}`);
+  // Brand-colored startup banner
+  if (BRAND.ascii) {
+    console.error(ansiBold(BRAND.ascii));
+  } else {
+    console.error(ansiBold(BANNER));
+  }
+  const toolList = ["capture_terminal", "capture_code", "capture_browser", "capture_file", "capture_markdown", "capture_html", "capture_diff", "capture_pdf", "capture_batch", "capture_sequence", "capture_gif", "capture_to_document"];
+  console.error(ansiPri(`  v${VERSION}`));
+  console.error(ansiSec(`  ${toolList.join(" · ")}`));
   logger.info(`  Mode:     stdio`);
   logger.info(`  Format:   ${config.format}${config.format === "jpeg" ? ` (q${config.quality})` : ""}`);
   logger.info(`  Output:   ${OUTPUT_DIR}`);
@@ -757,10 +810,12 @@ async function main() {
 
   process.on("SIGINT", async () => {
     await closeBrowser();
+    closeAuditLog();
     process.exit(0);
   });
   process.on("SIGTERM", async () => {
     await closeBrowser();
+    closeAuditLog();
     process.exit(0);
   });
 }

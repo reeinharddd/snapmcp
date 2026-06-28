@@ -191,7 +191,7 @@ describe("MCP server protocol", () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "snapmcp-mcp-e2e-"));
     server = new McpServerProcess(tmpDir);
     await server.waitForReady();
-  });
+  }, { timeout: 30_000 });
 
   after(async () => {
     if (server) {
@@ -200,7 +200,7 @@ describe("MCP server protocol", () => {
     if (tmpDir) {
       try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ok */ }
     }
-  });
+  }, { timeout: 15_000 });
 
   // ─── Tool listing ──────────────────────────────────────────
 
@@ -211,7 +211,7 @@ describe("MCP server protocol", () => {
       assert.ok(response.result, "Response should have a result");
       const result = response.result as { tools: Array<{ name: string }> };
       assert.ok(Array.isArray(result.tools));
-      assert.ok(result.tools.length >= 12, "Should have at least 12 tools");
+      assert.ok(result.tools.length >= 13, "Should have at least 13 tools");
     });
 
     it("includes expected tool names", async () => {
@@ -232,6 +232,7 @@ describe("MCP server protocol", () => {
         "capture_sequence",
         "capture_terminal",
         "capture_to_document",
+        "snapmcp-hint",
       ];
       assert.deepEqual(names, expected.sort());
     });
