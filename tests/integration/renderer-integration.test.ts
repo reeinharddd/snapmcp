@@ -27,7 +27,7 @@ let config: ReturnType<typeof loadConfig>;
 
 before(() => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "snapmcp-integration-"));
-  config = { ...loadConfig(), outputDir: tmpDir, format: "png", timeout: 15_000 };
+  config = { ...loadConfig(), outputDir: tmpDir, format: "png", timeout: 15_000, allowedPaths: [tmpDir] };
 });
 
 after(async () => {

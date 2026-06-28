@@ -32,6 +32,8 @@ import {
   type FileReadPolicy,
 } from "./security.js";
 import { highlightCode } from "./highlighter.js";
+import { detectChrome, ChromeProfile } from './browser.js';
+import { TerminalColors, terminalColorsToThemeOverrides } from './terminal.js';
 
 /* ─── Theme color definitions ─────────────────────────────── */
 
@@ -49,6 +51,28 @@ export interface ThemeColors {
   font: string;
   fontSize: string;
   lineHeight: string;
+}
+
+/**
+ * Visual rendering options for framedTemplate.
+ * Controls chrome decorations independently of SnapConfig.
+ */
+export interface ScreenshotOptions {
+  windowChrome: boolean;
+  shadow: string;
+  borderRadius: number;
+  padding: number;
+}
+
+/**
+ * Type-safe options for Playwright page.screenshot() calls.
+ * Replaces raw `Record<string, unknown>` + `as any` pattern.
+ */
+export interface PageScreenshotOptions {
+  type?: 'png' | 'jpeg';
+  fullPage?: boolean;
+  omitBackground?: boolean;
+  clip?: { x: number; y: number; width: number; height: number };
 }
 
 const THEMES: Record<string, ThemeColors> = {
@@ -303,12 +327,13 @@ function framedTemplate(
   bodyHtml: string,
   theme: ThemeColors,
   config: SnapConfig,
+  opts?: ScreenshotOptions,
 ): string {
-  const shadow = shadowCss(config.shadow);
-  const br = config.borderRadius;
-  const hasChrome = config.windowChrome;
+  const hasChrome = opts?.windowChrome ?? config.windowChrome;
+  const shadow = shadowCss(opts?.shadow ?? config.shadow);
+  const br = opts?.borderRadius ?? config.borderRadius;
+  const pad = opts?.padding ?? config.padding;
   const showBadge = config.badge;
-  const pad = config.padding;
 
   const windowChromeHtml = hasChrome
     ? `<div class="title-bar-glass"><div class="dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></div><span class="title-text">${escHtml(title)}</span></div>`
@@ -317,6 +342,23 @@ function framedTemplate(
   const badgeHtml = showBadge
     ? `<div class="badge"><span class="badge-dot"></span>snapmcp</div>`
     : "";
+
+  if (!hasChrome) {
+    // minimal frame — no window chrome, just content
+    return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:${theme.bg};font-family:${theme.font};font-size:${theme.fontSize};line-height:${theme.lineHeight};color:${theme.text};width:fit-content;padding:${pad}px}
+pre{font-family:${theme.font};font-size:${theme.fontSize};line-height:${theme.lineHeight};margin:0;white-space:pre;tab-size:4}
+.line{white-space:pre}
+.line-num{font-size:inherit;font-family:inherit}
+.empty-line{height:${theme.lineHeight}}
+</style></head><body>
+${bodyHtml}
+</body></html>`;
+  }
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -459,7 +501,18 @@ let _browser: playwright.Browser | null = null;
 
 async function getBrowser(config: SnapConfig): Promise<playwright.Browser> {
   if (!_browser) {
-    _browser = await playwright.chromium.launch({ headless: true });
+    const launchOptions: playwright.LaunchOptions = { headless: true };
+
+    // When chromeExecutable and chromeChannel are configured, use system Chrome
+    if (config.chromeExecutable && config.chromeChannel) {
+      const chrome = detectChrome();
+      if (chrome.found && chrome.executablePath) {
+        launchOptions.executablePath = chrome.executablePath;
+      }
+      // falls back to bundled Chromium if system Chrome not found for that channel
+    }
+
+    _browser = await playwright.chromium.launch(launchOptions);
   }
   return _browser;
 }
@@ -499,18 +552,33 @@ async function screenshotHtml(
       { sel: selector },
     );
 
-    if (!box) throw new Error(`Element "${selector}" not found`);
-
-    // Use padding from config (around the frame itself)
-    const pad = config.padding + 8;
-    await page.setViewportSize({
-      width: Math.max(minWidth, box.width + pad),
-      height: Math.max(600, box.height + pad),
-    });
+    if (!box) {
+      // Fall back to body when selector not found (minimal frame mode)
+      const bodyBox = await page.evaluate(() => {
+        const b = document.querySelector('body') as HTMLElement | null;
+        if (!b) return null;
+        const r = b.getBoundingClientRect();
+        return { width: Math.ceil(r.width), height: Math.ceil(r.height) };
+      });
+      if (!bodyBox) throw new Error('No captureable element found');
+      const pad = config.padding + 8;
+      await page.setViewportSize({
+        width: Math.max(minWidth, bodyBox.width + pad),
+        height: Math.max(600, bodyBox.height + pad),
+      });
+    } else {
+      // Use padding from config (around the frame itself)
+      const pad = config.padding + 8;
+      await page.setViewportSize({
+        width: Math.max(minWidth, box.width + pad),
+        height: Math.max(600, box.height + pad),
+      });
+    }
     await page.waitForTimeout(100);
 
-    const el = await page.$(selector);
-    if (!el) throw new Error(`Element "${selector}" not found`);
+    // Element to capture: prefer selector, fall back to body
+    const el = await page.$(selector) ?? await page.$('body');
+    if (!el) throw new Error('No captureable element found');
 
     const opts: Record<string, unknown> = { path: outputPath };
     if (config.format === "jpeg") {
@@ -542,12 +610,11 @@ async function screenshotPage(
   try {
     await page.goto(url, { waitUntil: "networkidle", timeout: config.timeout });
 
-    const opts: Record<string, unknown> = { path: outputPath, fullPage };
-    if (config.format === "jpeg") {
-      opts.type = "jpeg";
-      opts.quality = config.quality;
-    }
-    await page.screenshot(opts as any);
+    const screenshotOpts: PageScreenshotOptions = {
+      fullPage,
+      ...(config.format === "jpeg" ? { type: "jpeg" as const } : {}),
+    };
+    await page.screenshot({ path: outputPath, ...screenshotOpts });
   } finally {
     await page.close();
   }
@@ -612,6 +679,30 @@ function filePolicy(config: SnapConfig): FileReadPolicy {
   return { maxSize: config.maxFileSize, allowedPaths: config.allowedPaths };
 }
 
+/* ── Terminal color normalizer ── */
+
+/**
+ * Normalize terminal theme colors for consistent ANSI-compatible output.
+ * Ensures all color values are proper 6-digit hex and applies brand-compatible
+ * defaults for any missing ANSI color slots.
+ */
+function normalizeTerminalStyles(theme: ThemeColors): ThemeColors {
+  const normalized = { ...theme };
+
+  // Ensure every hex color is a full 6-digit value
+  for (const key of Object.keys(normalized) as (keyof ThemeColors)[]) {
+    const val = normalized[key];
+    if (typeof val === 'string' && val.startsWith('#')) {
+      if (val.length === 4) {
+        const r = val[1], g = val[2], b = val[3];
+        (normalized as Record<string, string>)[key] = `#${r}${r}${g}${g}${b}${b}`;
+      }
+    }
+  }
+
+  return normalized;
+}
+
 /* ── Public API ── */
 
 /** Capture terminal-style screenshot from lines of text */
@@ -623,8 +714,34 @@ export async function captureTerminal(
 ): Promise<string> {
   if (config.securityChecks) validateTerminalLines(lines);
   const theme = resolveTheme(config);
-  const bodyHtml = buildTerminalBody(lines, theme);
-  await screenshotHtml(framedTemplate(title, bodyHtml, theme, config), outputPath, config);
+
+  // Apply real terminal color overrides when available
+  if (config.terminalColors) {
+    const overrides = config.terminalColors;
+    if (overrides.bg) theme.bg = overrides.bg;
+    if (overrides.text) theme.text = overrides.text;
+    if (overrides.green) theme.green = overrides.green;
+    if (overrides.red) theme.red = overrides.red;
+    if (overrides.blue) theme.blue = overrides.blue;
+    if (overrides.yellow) theme.yellow = overrides.yellow;
+    if (overrides.cyan) theme.cyan = overrides.cyan;
+    if (overrides.gray) theme.gray = overrides.gray;
+    if (overrides.orange) theme.orange = overrides.orange;
+    if (overrides.font) theme.font = overrides.font;
+    if (overrides.fontSize) theme.fontSize = overrides.fontSize;
+  }
+
+  const normalizedTheme = normalizeTerminalStyles(theme);
+  const bodyHtml = buildTerminalBody(lines, normalizedTheme);
+
+  const screenshotOpts: ScreenshotOptions = {
+    windowChrome: config.windowChrome,
+    shadow: config.shadow,
+    borderRadius: config.borderRadius,
+    padding: config.padding,
+  };
+
+  await screenshotHtml(framedTemplate(title, bodyHtml, normalizedTheme, config, screenshotOpts), outputPath, config);
   return outputPath;
 }
 
@@ -648,7 +765,14 @@ export async function captureCode(
     bodyHtml = addLineNumbers(highlighted, startLine, theme);
   }
 
-  await screenshotHtml(framedTemplate(title, bodyHtml, theme, config), outputPath, config);
+  const screenshotOpts: ScreenshotOptions = {
+    windowChrome: config.windowChrome,
+    shadow: config.shadow,
+    borderRadius: config.borderRadius,
+    padding: config.padding,
+  };
+
+  await screenshotHtml(framedTemplate(title, bodyHtml, theme, config, screenshotOpts), outputPath, config);
   return outputPath;
 }
 
@@ -740,8 +864,16 @@ export async function captureDiff(
 ): Promise<string> {
   if (config.securityChecks) validateDiffInput(diffText);
   const theme = resolveTheme(config);
+
+  const screenshotOpts: ScreenshotOptions = {
+    windowChrome: config.windowChrome,
+    shadow: config.shadow,
+    borderRadius: config.borderRadius,
+    padding: config.padding,
+  };
+
   const bodyHtml = buildDiffBody(diffText, theme);
-  await screenshotHtml(framedTemplate("diff", bodyHtml, theme, config), outputPath, config);
+  await screenshotHtml(framedTemplate("diff", bodyHtml, theme, config, screenshotOpts), outputPath, config);
   return outputPath;
 }
 
