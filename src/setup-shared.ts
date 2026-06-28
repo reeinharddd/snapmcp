@@ -58,6 +58,8 @@ export const GRAY  = (s: string) => `\x1b[38;2;107;107;128m${s}\x1b[0m`;
  * Works in both Node and Bun.
  */
 export async function ask(prompt: string, defaultYes: boolean = true): Promise<boolean> {
+  // Auto-answer in CI / non-interactive environments
+  if (process.env.CI || !process.stdin.isTTY) return defaultYes;
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   return new Promise<boolean>((resolve) => {
     rl.question(`${prompt} ${defaultYes ? "[Y/n]" : "[y/N]"} `, (answer) => {
