@@ -21,16 +21,17 @@ import {
 // ─── resolveSafePath ─────────────────────────────────────────
 
 describe("resolveSafePath", () => {
-  const baseDir = "/tmp/out";
+  // Use path.resolve for cross-platform compatibility
+  const baseDir = path.resolve("/tmp/out");
 
   it("resolves normal path", () => {
     const result = resolveSafePath(baseDir, "file.png");
-    assert.equal(result, "/tmp/out/file.png");
+    assert.equal(result, path.join(baseDir, "file.png"));
   });
 
   it("resolves path in subdirectory", () => {
     const result = resolveSafePath(baseDir, "sub/file.png");
-    assert.equal(result, "/tmp/out/sub/file.png");
+    assert.equal(result, path.join(baseDir, "sub", "file.png"));
   });
 
   it("blocks simple path traversal (../etc/passwd)", () => {
@@ -48,27 +49,27 @@ describe("resolveSafePath", () => {
   });
 
   it("allows absolute path inside base dir", () => {
-    const result = resolveSafePath(baseDir, "/tmp/out/file.png");
-    assert.equal(result, "/tmp/out/file.png");
+    const result = resolveSafePath(baseDir, path.resolve("/tmp/out/file.png"));
+    assert.equal(result, path.resolve("/tmp/out/file.png"));
   });
 
   it("blocks absolute path outside base dir", () => {
     assert.throws(
-      () => resolveSafePath(baseDir, "/etc/passwd"),
+      () => resolveSafePath(baseDir, path.resolve("/etc/passwd")),
       SecurityError,
     );
   });
 
   it("blocks deeply nested traversal", () => {
     assert.throws(
-      () => resolveSafePath("/tmp/out/a/b/c", "../../../file.png"),
+      () => resolveSafePath(path.resolve("/tmp/out/a/b/c"), "../../../file.png"),
       SecurityError,
     );
   });
 
   it("resolves '.' as base dir", () => {
     const result = resolveSafePath(baseDir, ".");
-    assert.ok(result.endsWith("/out"));
+    assert.ok(result.endsWith(path.sep + "out"));
   });
 
   it("does not prevent encoded path that doesn't contain ../", () => {
@@ -79,8 +80,8 @@ describe("resolveSafePath", () => {
   });
 
   it("resolves nested paths within bounds", () => {
-    const result = resolveSafePath("/tmp/out/sub", "file.png");
-    assert.equal(result, "/tmp/out/sub/file.png");
+    const result = resolveSafePath(path.resolve("/tmp/out/sub"), "file.png");
+    assert.equal(result, path.join(path.resolve("/tmp/out/sub"), "file.png"));
   });
 });
 
