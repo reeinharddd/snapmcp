@@ -1,5 +1,20 @@
+# Build artifacts
 node_modules/
 dist/
 snapshots/
+
+# Logs
 *.log
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Agent artifacts (not for public repo)
+.atl/
+.omo/
+.code-review-graph/
+docs/superpowers/
+.codegraph
+TODOS.md
+HANDOFF.md

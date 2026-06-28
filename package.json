@@ -1,6 +1,6 @@
 {
   "name": "snapmcp",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "All-in-one MCP server for visual captures: terminal, code, browser, markdown, diffs, HTML, and PDF — via Playwright",
   "type": "module",
   "main": "dist/index.js",
@@ -27,15 +27,14 @@
   ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.29.0",
-    "gifencoder": "^2.0.1",
+    "fast-png": "^8.0.0",
+    "gifenc": "^1.0.3",
     "marked": "15.0.12",
     "playwright": "1.60.0",
-    "pngjs": "^7.0.0",
     "shiki": "4.2.0"
   },
   "devDependencies": {
     "@types/node": "22.19.20",
-    "@types/pngjs": "^6.0.5",
     "typescript": "5.9.3"
   },
   "engines": {
@@ -43,13 +42,10 @@
     "bun": ">=1.2"
   },
   "license": "MIT",
-  "author": "",
-  "publishConfig": {
-    "access": "public",
-    "provenance": true
-  },
+  "author": "reeinharddd",
+  "private": true,
   "repository": {
     "type": "git",
-    "url": "https://github.com/erik/snapmcp"
+    "url": "https://github.com/reeinharddd/snapmcp"
   }
 }

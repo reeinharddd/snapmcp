@@ -5,6 +5,44 @@ All notable changes to snapmcp are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2025-06-27
+
+### Added
+- **12 MCP tools** — new `create_gif`, `create_sequence`, `document`, `init` tools
+- **Real Terminal Colors** — detects Kitty, Gnome Terminal, Alacritty, WezTerm, Xfce4, LXTerminal configs via process parent tree and config parsing; fallback to COLORFGBG and OS theme
+- **Real Browser Profile** — 8-step Chrome/Edge/Brave detection (Linux, macOS, Windows) with profile extraction from Local State
+- **In-Project Captures** — default output directory changed to `./captures` (visible in cwd, not isolated)
+- **Interactive Setup Wizard** — `snapmcp init` guides through configuration with dependency detection and MCP config snippet output
+- **Health Check CLI** — `snapmcp doctor` runs 7 system readiness checks
+- **Test Captures** — `snapmcp test` generates verification captures
+- **SSRF Protection** — URL denylist blocks private/internal IP ranges (127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, ::1/128)
+- **Audit Logging** — structured JSON log file (`SNAPMCP_LOG_FILE`) with typed AuditEvent entries
+- **Centralized Brand** — `src/brand.ts` with consistent teal/blue tokens across CLI, document renderer, and banner
+- **CLI Banner** — brand-colored ASCII header showing version and all 12 tool names
+- **Cross-Platform Chrome Paths** — Windows (6 paths), macOS (3 paths), Linux (existing) in browser detection
+- **Type Safety** — all `as any` casts replaced with typed interfaces (`CaptureBrowserArgs`, `CaptureCodeArgs`, `ScreenshotOptions`, `PageScreenshotOptions`, etc.)
+
+### Changed
+- **Frame defaults**: `windowChrome=false`, `shadow=none`, `borderRadius=0` — no more decorative frames on captures by default
+- **GIF engine**: migrated from gifencoder + pngjs to gifenc + fast-png (zero dependencies, removed 7 high-severity vulnerabilities)
+- **Config defaults**: `outputDir='./captures'`, `theme` auto-detected from terminal if available
+- **CI**: simplified to bun-only (3 OS, no node matrix)
+- **Server name**: `SnapMCP` (capitalized) for branding consistency
+- **Package**: `"private": true` to prevent accidental npm publish
+
+### Security
+- URL SSRF denylist blocks all private, loopback, link-local, and multicast IP ranges
+- File capture deny-by-default: `SNAPMCP_ALLOWED_PATHS` must be explicitly set
+- Audit trail for blocked SSRF attempts, file read violations, and capture events
+- Chromium sandbox check at startup with clear guidance
+
+### Infrastructure
+- `src/terminal.ts` — real terminal detection module
+- `src/browser.ts` — system Chrome detection module
+- `src/setup-shared.ts` — shared bootstrap logic for interactive setup
+- `npm` → `bun` only (removed node workflow from CI)
+- `.gitignore` excludes agent artifacts (`.atl/`, `.omo/`, `.code-review-graph/`)
+
 ## [2.1.0] - 2025-06-07
 
 ### Added
