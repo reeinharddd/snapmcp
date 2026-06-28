@@ -2,17 +2,6 @@
   "name": "snapmcp",
   "version": "2.2.0",
   "description": "All-in-one MCP server for visual captures: terminal, code, browser, markdown, diffs, HTML, and PDF — via Playwright",
-  "type": "module",
-  "main": "dist/index.js",
-  "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "bun --watch src/index.ts",
-    "test": "bun test",
-    "setup": "bun run scripts/setup.ts",
-    "prepublishOnly": "bun run build",
-    "postinstall": "bun run scripts/postinstall.ts"
-  },
   "keywords": [
     "mcp",
     "model-context-protocol",
@@ -25,6 +14,37 @@
     "capture",
     "snapmcp"
   ],
+  "homepage": "https://github.com/reeinharddd/snapmcp#readme",
+  "bugs": {
+    "url": "https://github.com/reeinharddd/snapmcp/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/reeinharddd/snapmcp.git"
+  },
+  "license": "MIT",
+  "author": "reeinharddd",
+  "type": "module",
+  "main": "dist/index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "files": [
+    "dist/",
+    "scripts/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "bun --watch src/index.ts",
+    "test": "bun test",
+    "setup": "bun run scripts/setup.ts",
+    "prepublishOnly": "bun run build",
+    "postinstall": "bun run scripts/postinstall.ts"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.29.0",
     "fast-png": "^8.0.0",
@@ -41,20 +61,7 @@
     "node": ">=20",
     "bun": ">=1.2"
   },
-  "license": "MIT",
-  "author": "reeinharddd",
   "publishConfig": {
     "access": "public"
-  },
-  "files": [
-    "dist/",
-    "scripts/",
-    "README.md",
-    "LICENSE",
-    "CHANGELOG.md"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/reeinharddd/snapmcp"
   }
 }
