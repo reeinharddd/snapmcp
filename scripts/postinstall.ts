@@ -5,6 +5,9 @@ const chromePaths = [
   '/usr/bin/google-chrome',
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   '/Program Files/Google/Chrome/Application/chrome.exe',
+  '/Program Files (x86)/Google/Chrome/Application/chrome.exe',
+  `${process.env.LOCALAPPDATA}\\Google\\Chrome\\Application\\chrome.exe`,
+  `${process.env.LOCALAPPDATA}\\Chromium\\Application\\chrome.exe`,
 ];
 const found = chromePaths.find((p) => {
   try { return require('fs').existsSync(p); } catch { return false; }
