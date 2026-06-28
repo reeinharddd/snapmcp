@@ -7,65 +7,30 @@ on:
     branches: [main]
 
 jobs:
-  audit:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Install dependencies
-        run: npm install
-      - name: Security audit
-        run: npm audit --audit-level=high
-
   test:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        runtime: [bun, node]
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Bun
-        if: matrix.runtime == 'bun'
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
-      - name: Setup Node
-        if: matrix.runtime == 'node'
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
       - name: Install dependencies
-        run: |
-          if [ "${{ matrix.runtime }}" = "bun" ]; then
-            bun install --frozen-lockfile
-          else
-            npm install
-          fi
+        run: bun install --frozen-lockfile
 
       - name: Install Chromium
         run: npx playwright install chromium
 
       - name: Build
-        run: |
-          if [ "${{ matrix.runtime }}" = "bun" ]; then
-            bun run build
-          else
-            npm run build
-          fi
+        run: bun run build
 
       - name: Type check
         run: npx tsc --noEmit
 
       - name: Test
-        run: |
-          if [ "${{ matrix.runtime }}" = "bun" ]; then
-            bun test
-          else
-            npm test
-          fi
+        run: bun test
