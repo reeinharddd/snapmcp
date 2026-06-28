@@ -2,6 +2,7 @@
   "snapmcp": {
     "version": "1.0.0",
     "description": "Snapmcp Design Tokens — brand identity system",
+    "ascii": "\n  ╔═══════════════════════════════════════════╗\n  ║              snapmcp  v2.2.0              ║\n  ║    Precision captures for AI agents       ║\n  ╚═══════════════════════════════════════════╝",
     "colors": {
       "brand": {
         "primary": "#00d4aa",

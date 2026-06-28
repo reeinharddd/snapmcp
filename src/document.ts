@@ -12,6 +12,7 @@ import fs from "node:fs"
 import path from "node:path"
 import type { SnapConfig } from "./config.js"
 import { logger } from "./logger.js"
+import { BRAND } from "./brand.js"
 
 // ─── Types ─────────────────────────────────────────────────────
 
@@ -174,18 +175,19 @@ function writeHtml(
   parts.push("<head><meta charset=\"utf-8\">")
   parts.push(`<title>${escHtml(title)}</title>`)
   parts.push("<style>")
+  const C = BRAND.colors;
   parts.push("*{margin:0;padding:0;box-sizing:border-box}")
-  parts.push("body{background:#1e1e1e;color:#d4d4d4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:16px;line-height:1.7;padding:40px;max-width:900px;margin:0 auto}")
-  parts.push("h1{color:#569cd6;font-size:1.8em;border-bottom:1px solid rgba(255,255,255,.1);padding-bottom:.3em;margin-bottom:.8em}")
-  parts.push("h2{color:#569cd6;font-size:1.4em;margin:1.2em 0 .5em}")
+  parts.push(`body{background:${C.neutral.black};color:${C.neutral.lighter};font-family:${BRAND.typography.fontStack.ui};font-size:16px;line-height:1.7;padding:40px;max-width:900px;margin:0 auto}`)
+  parts.push(`h1{color:${C.brand.secondary};font-size:1.8em;border-bottom:1px solid rgba(255,255,255,.1);padding-bottom:.3em;margin-bottom:.8em}`)
+  parts.push(`h2{color:${C.brand.secondary};font-size:1.4em;margin:1.2em 0 .5em}`)
   parts.push("p{margin:.8em 0}")
   parts.push("figure{margin:1.2em 0;text-align:center}")
-  parts.push("figure img{max-width:100%;border-radius:6px;box-shadow:0 4px 24px rgba(0,0,0,.3)}")
-  parts.push("figcaption{color:#808080;font-size:.88em;margin-top:6px;font-style:italic}")
-  parts.push("code{background:#2d2d2d;padding:2px 8px;border-radius:4px;font-family:'Ubuntu Mono','Cascadia Code','JetBrains Mono','Fira Code','Consolas',monospace;font-size:.88em}")
-  parts.push("pre{margin:.8em 0;padding:14px 18px;background:#1a1a1a;border-radius:6px;overflow-x:auto}")
+  parts.push(`figure img{max-width:100%;border-radius:6px;box-shadow:${BRAND.shadows.medium}}`)
+  parts.push(`figcaption{color:${C.neutral.gray};font-size:.88em;margin-top:6px;font-style:italic}`)
+  parts.push(`code{background:${C.neutral.medium};padding:2px 8px;border-radius:4px;font-family:${BRAND.typography.fontStack.mono};font-size:.88em}`)
+  parts.push(`pre{margin:.8em 0;padding:14px 18px;background:${C.neutral.dark};border-radius:6px;overflow-x:auto}`)
   parts.push("pre code{background:none;padding:0}")
-  parts.push(".timestamp{color:#808080;font-size:.88em;margin-bottom:1.5em}")
+  parts.push(`.timestamp{color:${C.neutral.gray};font-size:.88em;margin-bottom:1.5em}`)
   parts.push("</style></head><body>")
   parts.push(`<h1>${escHtml(title)}</h1>`)
 
