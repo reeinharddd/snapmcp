@@ -3,6 +3,8 @@
  * All options come from SNAPMCP_* environment variables with sensible defaults.
  */
 
+import { detectTerminalTheme, detectTerminalColors, TerminalColors, terminalColorsToThemeOverrides } from './terminal.js';
+
 export type OutputFormat = "png" | "jpeg";
 export type ShadowLevel = "none" | "soft" | "medium" | "strong";
 
@@ -44,10 +46,31 @@ export interface SnapConfig {
   borderRadius: number;
   /** Show subtle "snapmcp" badge in the footer */
   badge: boolean;
+  /* ── Browser options ── */
+  /** Path to a custom Chrome/Chromium executable */
+  chromeExecutable?: string;
+  /** Chrome release channel: stable, beta, dev, canary */
+  chromeChannel?: string;
+  /** Chrome profile directory name */
+  chromeProfile?: string;
+  /** Auto-detected terminal colors (overrides theme defaults) */
+  terminalColors?: Partial<{
+    bg: string;
+    text: string;
+    green: string;
+    red: string;
+    blue: string;
+    yellow: string;
+    cyan: string;
+    gray: string;
+    orange: string;
+    font: string;
+    fontSize: string;
+  }>;
 }
 
 const DEFAULTS: SnapConfig = {
-  outputDir: "./snapshots",
+  outputDir: "./captures",
   format: "png",
   quality: 90,
   theme: "dark-plus",
@@ -61,19 +84,19 @@ const DEFAULTS: SnapConfig = {
   maxFileSize: 5_000_000,
   securityChecks: true,
   padding: 32,
-  shadow: "soft",
-  windowChrome: true,
-  borderRadius: 8,
+  shadow: "none",
+  windowChrome: false,
+  borderRadius: 0,
   badge: false,
 };
 
 export function loadConfig(): SnapConfig {
   const allowedPathsRaw = env("ALLOWED_PATHS", "");
-  return {
+  const config: SnapConfig = {
     outputDir: env("DIR", DEFAULTS.outputDir),
     format: env("FORMAT", DEFAULTS.format) === "jpeg" ? "jpeg" : "png",
     quality: clamp(envInt("QUALITY", DEFAULTS.quality), 1, 100),
-    theme: env("THEME", DEFAULTS.theme),
+    theme: env("THEME", detectTerminalTheme().theme), /* THEME: auto-detected */
     font: env("FONT", DEFAULTS.font),
     fontSize: env("FONT_SIZE", DEFAULTS.fontSize),
     timeout: Math.max(1000, envInt("TIMEOUT", DEFAULTS.timeout)),
@@ -91,6 +114,13 @@ export function loadConfig(): SnapConfig {
     borderRadius: Math.max(0, Math.min(32, envInt("BORDER_RADIUS", DEFAULTS.borderRadius))),
     badge: envBool("BADGE", DEFAULTS.badge),
   };
+
+  const terminalColors = detectTerminalColors();
+  if (terminalColors) {
+    config.terminalColors = terminalColorsToThemeOverrides(terminalColors);
+  }
+
+  return config;
 }
 
 export const THEME_LIST = [

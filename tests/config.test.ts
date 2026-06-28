@@ -27,10 +27,10 @@ describe("loadConfig", () => {
     withCleanEnv(() => {
       const cfg = loadConfig();
 
-      assert.equal(cfg.outputDir, "./snapshots");
+      assert.equal(cfg.outputDir, "./captures");
       assert.equal(cfg.format, "png");
       assert.equal(cfg.quality, 90);
-      assert.equal(cfg.theme, "dark-plus");
+      assert.ok(typeof cfg.theme === "string" && cfg.theme.length > 0);
       assert.equal(cfg.fontSize, "14px");
       assert.equal(cfg.timeout, 30000);
       assert.equal(cfg.deviceScale, 2);
@@ -40,9 +40,9 @@ describe("loadConfig", () => {
       assert.equal(cfg.maxFileSize, 5_000_000);
       assert.equal(cfg.securityChecks, true);
       assert.equal(cfg.padding, 32);
-      assert.equal(cfg.shadow, "soft");
-      assert.equal(cfg.windowChrome, true);
-      assert.equal(cfg.borderRadius, 8);
+      assert.equal(cfg.shadow, "none");
+      assert.equal(cfg.windowChrome, false);
+      assert.equal(cfg.borderRadius, 0);
       assert.equal(cfg.badge, false);
     });
   });

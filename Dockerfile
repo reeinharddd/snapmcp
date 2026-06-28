@@ -31,11 +31,11 @@ COPY --from=build /app/package.json /app/bun.lock ./
 # Prune devDependencies for runtime
 RUN bun install --frozen-lockfile --production --ignore-scripts
 
-ENV SNAPMCP_DIR=/app/snapshots
+ENV SNAPMCP_DIR=/app/captures
 ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium
 
 RUN mkdir -p $SNAPMCP_DIR
 
-VOLUME /app/snapshots
+VOLUME /app/captures
 
 ENTRYPOINT ["node", "dist/index.js"]

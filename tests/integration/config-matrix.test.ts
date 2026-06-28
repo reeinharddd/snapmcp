@@ -17,7 +17,7 @@ describe("Claude Code MCP config", () => {
           command: "npx",
           args: ["-y", "snapmcp"],
           env: {
-            SNAPMCP_DIR: "/path/to/snapshots",
+            SNAPMCP_DIR: "/path/to/captures",
             SNAPMCP_THEME: "nord",
           },
         },
@@ -27,7 +27,7 @@ describe("Claude Code MCP config", () => {
     assert.doesNotThrow(() => JSON.parse(json));
     assert.equal(config.mcpServers.snapmcp.command, "npx");
     assert.deepEqual(config.mcpServers.snapmcp.args, ["-y", "snapmcp"]);
-    assert.equal(config.mcpServers.snapmcp.env.SNAPMCP_DIR, "/path/to/snapshots");
+    assert.equal(config.mcpServers.snapmcp.env.SNAPMCP_DIR, "/path/to/captures");
     assert.equal(config.mcpServers.snapmcp.env.SNAPMCP_THEME, "nord");
   });
 
@@ -51,13 +51,13 @@ describe("Claude Code MCP config", () => {
           command: "npx",
           args: ["-y", "snapmcp"],
           env: {
-            SNAPMCP_DIR: "/custom/snapshots",
+            SNAPMCP_DIR: "/custom/captures",
           },
         },
       },
     };
     const parsed = JSON.parse(JSON.stringify(config));
-    assert.equal(parsed.mcpServers.snapmcp.env.SNAPMCP_DIR, "/custom/snapshots");
+    assert.equal(parsed.mcpServers.snapmcp.env.SNAPMCP_DIR, "/custom/captures");
   });
 });
 
@@ -71,7 +71,7 @@ describe("OpenCode MCP config", () => {
           command: "npx",
           args: ["-y", "snapmcp"],
           env: {
-            SNAPMCP_DIR: "./snapshots",
+            SNAPMCP_DIR: "./captures",
             SNAPMCP_FORMAT: "jpeg",
             SNAPMCP_QUALITY: "95",
           },
@@ -91,7 +91,7 @@ describe("OpenCode MCP config", () => {
           command: "npx",
           args: ["-y", "snapmcp"],
           env: {
-            SNAPMCP_DIR: "./snapshots",
+            SNAPMCP_DIR: "./captures",
             SNAPMCP_FORMAT: "png",
             SNAPMCP_QUALITY: "90",
             SNAPMCP_THEME: "dracula",
@@ -282,7 +282,7 @@ describe("MCP config cross-platform concerns", () => {
 
   it("all env vars roundtrip through JSON", () => {
     const env = {
-      SNAPMCP_DIR: "./snapshots",
+      SNAPMCP_DIR: "./captures",
       SNAPMCP_FORMAT: "jpeg",
       SNAPMCP_QUALITY: "95",
       SNAPMCP_THEME: "nord",
@@ -290,9 +290,9 @@ describe("MCP config cross-platform concerns", () => {
       SNAPMCP_TIMEOUT: "30000",
       SNAPMCP_DEVICE_SCALE: "2",
       SNAPMCP_PADDING: "32",
-      SNAPMCP_SHADOW: "soft",
-      SNAPMCP_WINDOW_CHROME: "true",
-      SNAPMCP_BORDER_RADIUS: "8",
+SNAPMCP_SHADOW: "none",
+            SNAPMCP_WINDOW_CHROME: "false",
+            SNAPMCP_BORDER_RADIUS: "0",
       SNAPMCP_BADGE: "false",
       SNAPMCP_LOG_LEVEL: "info",
       SNAPMCP_CLEANUP_MAX: "10",
