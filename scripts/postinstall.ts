@@ -1,8 +1,13 @@
 #!/usr/bin/env bun
-import { detectChrome } from '../dist/browser.js';
-
-try {
-  const chrome = detectChrome();
-  if (chrome.found) console.log('snapmcp: ✓ Chrome found at', chrome.executablePath);
-  else console.log('snapmcp: ⚠ Run "snapmcp init" to install Chromium');
-} catch { console.log('snapmcp: Run "snapmcp init" to set up'); }
+// Inline — no imports from dist/ (dist doesn't exist at install time)
+const chromePaths = [
+  '/usr/bin/google-chrome-stable', '/usr/bin/chromium-browser', '/usr/bin/chromium',
+  '/usr/bin/google-chrome',
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/Program Files/Google/Chrome/Application/chrome.exe',
+];
+const found = chromePaths.find((p) => {
+  try { return require('fs').existsSync(p); } catch { return false; }
+});
+if (found) console.log('snapmcp: ✓ chrome found at', found);
+else console.log('snapmcp: ⚠ run "snapmcp init" to install Chromium');
