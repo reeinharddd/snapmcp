@@ -12,6 +12,7 @@ import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { createInterface } from "node:readline";
+import { detectMcpClients, printDetectedClients } from "./register.js";
 
 /* ─── Types ───────────────────────────────────────────────── */
 
@@ -365,6 +366,9 @@ export function printSummary(state: SystemState): void {
         : STEP;
   console.log(`    ${modeIcon} Mode: ${state.installMode}`);
   console.log("");
+
+  /* ─── MCP Client Detection ─── */
+  printDetectedClients(detectMcpClients());
 
   /* ─── MCP Client Config Snippet ─── */
   printMcpConfigSnippet(state);

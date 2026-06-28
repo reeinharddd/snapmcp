@@ -580,12 +580,12 @@ async function screenshotHtml(
     const el = await page.$(selector) ?? await page.$('body');
     if (!el) throw new Error('No captureable element found');
 
-    const opts: Record<string, unknown> = { path: outputPath };
+    const opts: Parameters<typeof el.screenshot>[0] = { path: outputPath };
     if (config.format === "jpeg") {
       opts.type = "jpeg";
       opts.quality = config.quality;
     }
-    await el.screenshot(opts as any);
+    await el.screenshot(opts);
   } finally {
     await page.close();
   }

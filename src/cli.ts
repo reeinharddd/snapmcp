@@ -21,6 +21,7 @@ import {
   runCleanup,
 } from "./renderer.js"
 import { ask, detectSystemState, bootstrapSetup, printSummary, SystemState, CHECK, WARN, CROSS, STEP, BLUE, GRAY } from "./setup-shared.js"
+import { detectMcpClients, registerSnapmcp, printRegistrationResults, printDetectedClients } from "./register.js"
 import { BRAND, brandPrimary as TEAL } from "./brand.js"
 
 /* ─── Types ───────────────────────────────────────────────── */
@@ -82,6 +83,22 @@ export async function cliInit(config: SnapConfig): Promise<void> {
   const systemState = detectSystemState()
   await bootstrapSetup({ createEnv: false })
   printSummary(systemState)
+
+  /* MCP auto-registration */
+  const mcpClients = detectMcpClients()
+  if (mcpClients.length > 0) {
+    printDetectedClients(mcpClients)
+    const answer = await ask(
+      "  Register snapmcp with detected MCP clients?",
+      true,
+    )
+    if (answer) {
+      const results = await registerSnapmcp()
+      printRegistrationResults(results)
+    } else {
+      logger.info(`  ${STEP} MCP registration skipped`)
+    }
+  }
 }
 
 /* ─── cliDoctor ────────────────────────────────────────────── */

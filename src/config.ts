@@ -35,6 +35,8 @@ export interface SnapConfig {
   maxFileSize: number;
   /** Enable startup security checks */
   securityChecks: boolean;
+  /** SSRF protection opt-in (default: false — no blocking) */
+  ssrfProtection: boolean;
   /* ── Visual options ── */
   /** Padding inside the capture viewport (px) */
   padding: number;
@@ -83,6 +85,7 @@ const DEFAULTS: SnapConfig = {
   allowedPaths: [],
   maxFileSize: 5_000_000,
   securityChecks: true,
+  ssrfProtection: false,
   padding: 32,
   shadow: "none",
   windowChrome: false,
@@ -108,6 +111,7 @@ export function loadConfig(): SnapConfig {
       : [],
     maxFileSize: Math.max(1024, envInt("MAX_FILE_SIZE", DEFAULTS.maxFileSize)),
     securityChecks: envBool("SECURITY_CHECKS", DEFAULTS.securityChecks),
+    ssrfProtection: envBool("SSRF_PROTECTION", DEFAULTS.ssrfProtection),
     padding: Math.max(0, envInt("PADDING", DEFAULTS.padding)),
     shadow: parseShadow(env("SHADOW", DEFAULTS.shadow)),
     windowChrome: envBool("WINDOW_CHROME", DEFAULTS.windowChrome),

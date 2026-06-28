@@ -5,7 +5,7 @@
 <p align="center">
   <b>All-in-one MCP server for visual captures.</b><br/>
   Terminal · Code · Browser · Markdown · Diff · HTML · PDF · GIF<br/>
-  <em>One server. 12 tools. Real fidelity. Zero juggling.</em>
+  <em>One server. 13 tools. Real fidelity. Zero juggling.</em>
 </p>
 
 <p align="center">
@@ -31,17 +31,18 @@ Generate screenshots of terminals, code, web pages, markdown, diffs, PDFs, and G
 | `capture_html` | Arbitrary HTML snippet rendered as image |
 | `capture_diff` | Git diffs with green additions / red deletions |
 | `capture_pdf` | URL → PDF document |
+| `capture_batch` | Batch capture multiple items in one call |
 | `create_gif` | Animated GIF from multiple screenshots |
 | `create_sequence` | Side-by-side animated sequence |
-| `document` | Multi-section markdown document render |
-| `init` | Interactive setup wizard |
+| `capture_to_document` | Multi-section markdown document render |
+| `snapmcp-hint` | Server capability hints for MCP clients |
 
 ### v2.2 Highlights
 
 - **Real Terminal Colors** — detects Kitty, Gnome Terminal, Alacritty, WezTerm, Xfce4, and LXTerminal configs for authentic terminal captures
 - **Real Browser Profile** — finds system Chrome/Edge/Brave installations and uses your real user data directory
 - **In-Project Captures** — saves to `./captures` in your current project, not an isolated directory
-- **SSRF Protection** — blocks private/internal IP ranges in URL captures
+- **SSRF Protection** — opt-in URL protection that blocks private/internal IP ranges (enable via `SNAPMCP_SSRF_PROTECTION=true`)
 - **Audit Logging** — optional structured audit log file with timestamped events
 - **Centralized Brand** — consistent teal/blue ANSI output across all CLI commands
 - **Zero-Dep GIF** — migrated from gifencoder to gifenc + fast-png (7 fewer security vulnerabilities)
@@ -235,7 +236,7 @@ SnapMCP detects your real environment for authentic captures.
 
 | Feature | Description |
 |---------|-------------|
-| **SSRF Protection** | Blocks private/internal IP ranges (127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, etc.) in URL captures |
+| **SSRF Protection** | Blocks private/internal IP ranges (opt-in via `SNAPMCP_SSRF_PROTECTION=true`). When enabled, blocks 127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, etc. |
 | **File Allowlist** | `SNAPMCP_ALLOWED_PATHS` defaults to deny-all when unset; only explicitly allowed paths can be captured |
 | **Path Traversal** | Prevents `../` escapes, symlink traversal, and null byte injection |
 | **Input Limits** | Max URL length 5KB, max content 1MB, max GIF frames 100 |
@@ -285,6 +286,11 @@ bun install
 bun run build    # tsc → dist/
 bun test         # 240+ tests
 ```
+
+### Project Documentation
+
+- **[ARCHITECTURE.md](./ARCHITECTURE.md)** — Module map, data flow, key design decisions, security architecture, cross-platform support, and full MCP protocol reference. Required reading for anyone modifying the codebase.
+- **[CONTRIBUTING.md](./CONTRIBUTING.md)** — Development workflow, coding principles, testing guidelines, and PR checklist.
 
 ### Requirements
 

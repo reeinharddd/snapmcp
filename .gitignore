@@ -2,6 +2,8 @@
 node_modules/
 dist/
 snapshots/
+captures/
+*.tgz
 
 # Logs
 *.log

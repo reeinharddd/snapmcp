@@ -5,7 +5,7 @@ All notable changes to snapmcp are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.2.0] - 2025-06-27
+## [2.2.0] - 2026-06-27
 
 ### Added
 - **12 MCP tools** — new `create_gif`, `create_sequence`, `document`, `init` tools
@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Interactive Setup Wizard** — `snapmcp init` guides through configuration with dependency detection and MCP config snippet output
 - **Health Check CLI** — `snapmcp doctor` runs 7 system readiness checks
 - **Test Captures** — `snapmcp test` generates verification captures
-- **SSRF Protection** — URL denylist blocks private/internal IP ranges (127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, ::1/128)
+- **SSRF Protection** — opt-in URL denylist that blocks private/internal IP ranges when enabled via `SNAPMCP_SSRF_PROTECTION=true` (127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, ::1/128)
 - **Audit Logging** — structured JSON log file (`SNAPMCP_LOG_FILE`) with typed AuditEvent entries
 - **Centralized Brand** — `src/brand.ts` with consistent teal/blue tokens across CLI, document renderer, and banner
 - **CLI Banner** — brand-colored ASCII header showing version and all 12 tool names
@@ -31,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Package**: `"private": true` to prevent accidental npm publish
 
 ### Security
-- URL SSRF denylist blocks all private, loopback, link-local, and multicast IP ranges
+- URL SSRF denylist (opt-in via `SNAPMCP_SSRF_PROTECTION=true`) blocks all private, loopback, link-local, and multicast IP ranges
 - File capture deny-by-default: `SNAPMCP_ALLOWED_PATHS` must be explicitly set
 - Audit trail for blocked SSRF attempts, file read violations, and capture events
 - Chromium sandbox check at startup with clear guidance

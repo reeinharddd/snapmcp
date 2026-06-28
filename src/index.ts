@@ -270,7 +270,7 @@ server.tool(
   },
   async ({ url, fullPage, width, height, output }) => {
     try {
-      validateUrl(url);
+      validateUrl(url, config.ssrfProtection);
       const p = outPath("browser", output);
       await captureBrowser(url, p, fullPage, width, height, config);
       logger.audit({ event: AuditEventType.CaptureBrowser, severity: "info", detail: `URL: ${url}`, source: "capture_browser" });
@@ -374,7 +374,7 @@ server.tool(
   },
   async ({ url, fullPage, width, height, output }) => {
     try {
-      validateUrl(url);
+      validateUrl(url, config.ssrfProtection);
       const filename = output || `pdf-${Date.now()}.pdf`;
       const p = resolveSafePath(OUTPUT_DIR, filename);
       await capturePdf(url, p, fullPage, width, height, config);

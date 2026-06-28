@@ -43,7 +43,16 @@
   },
   "license": "MIT",
   "author": "reeinharddd",
-  "private": true,
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist/",
+    "scripts/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/reeinharddd/snapmcp"

@@ -57,15 +57,18 @@ function isPrivateIP(hostname: string): boolean {
 
 /**
  * Validate a URL for SSRF safety.
- * Blocks: private/internal IPs, localhost, file://, unix sockets.
+ * When ssrfProtection is true, blocks: private/internal IPs, localhost, file://, unix sockets.
+ * When false/undefined, only validates that the URL is parseable.
  */
-export function validateUrl(raw: string): void {
+export function validateUrl(raw: string, ssrfProtection: boolean = false): void {
   let parsed: URL;
   try {
     parsed = new URL(raw);
   } catch {
     throw new SecurityError(`Invalid URL: "${raw}"`);
   }
+
+  if (!ssrfProtection) return;
 
   // Block non-http(s) protocols
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {

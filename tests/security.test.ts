@@ -5,6 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import {
   resolveSafePath,
+  validateUrl,
   validateTerminalLines,
   validateCodeInput,
   validateMarkdownInput,
@@ -338,6 +339,56 @@ describe("checkChromiumSandbox", () => {
     // and sandbox is reported as enabled
     assert.equal(result.sandboxEnabled, true);
     assert.equal(result.message, "✓ Chromium sandbox enabled");
+  });
+});
+
+// ─── validateUrl ──────────────────────────────────────────────
+
+describe("validateUrl", () => {
+  it("rejects an invalid URL always (even without SSRF protection)", () => {
+    assert.throws(() => validateUrl("not-a-url", false), SecurityError);
+  });
+
+  it("rejects an invalid URL with SSRF protection enabled", () => {
+    assert.throws(() => validateUrl("not-a-url", true), SecurityError);
+  });
+
+  it("allows private IP when ssrfProtection is false", () => {
+    // Should not throw — SSRF checks skipped
+    validateUrl("http://127.0.0.1:8080/test", false);
+    validateUrl("http://192.168.1.1/admin", false);
+    validateUrl("http://10.0.0.1/internal", false);
+  });
+
+  it("allows localhost when ssrfProtection is false (default)", () => {
+    validateUrl("http://localhost:3000", false);
+    validateUrl("http://[::1]:8080", false);
+  });
+
+  it("allows private IP when ssrfProtection is undefined (default)", () => {
+    validateUrl("http://127.0.0.1:8080/test"); // no second arg = undefined default
+  });
+
+  it("blocks private IP when ssrfProtection is true", () => {
+    assert.throws(() => validateUrl("http://127.0.0.1:8080/test", true), SecurityError);
+    assert.throws(() => validateUrl("http://192.168.1.1/admin", true), SecurityError);
+    assert.throws(() => validateUrl("http://10.0.0.1/internal", true), SecurityError);
+  });
+
+  it("blocks localhost when ssrfProtection is true", () => {
+    assert.throws(() => validateUrl("http://localhost:3000", true), SecurityError);
+    assert.throws(() => validateUrl("http://[::1]:8080", true), SecurityError);
+  });
+
+  it("blocks non-http protocols when ssrfProtection is true", () => {
+    assert.throws(() => validateUrl("file:///etc/passwd", true), SecurityError);
+    assert.throws(() => validateUrl("ftp://files.example.com", true), SecurityError);
+  });
+
+  it("allows public URL regardless of ssrfProtection", () => {
+    validateUrl("https://example.com", false);
+    validateUrl("https://example.com", true);
+    validateUrl("http://google.com", true);
   });
 });
 
