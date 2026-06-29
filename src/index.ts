@@ -200,7 +200,10 @@ const ext = () => formatExt(config.format);
 
 function outPath(prefix: string, name?: string): string {
   if (name) {
-    return resolveSafePath(OUTPUT_DIR, name);
+    // Append default extension if name lacks one (Playwright needs ext for MIME)
+    const hasExt = /\.(png|jpe?g|gif|pdf)$/i.test(name);
+    const finalName = hasExt ? name : `${name}.${ext()}`;
+    return resolveSafePath(OUTPUT_DIR, finalName);
   }
   return path.join(OUTPUT_DIR, `${prefix}-${Date.now()}.${ext()}`);
 }
@@ -383,7 +386,9 @@ server.tool(
     try {
       validateUrl(url, config.ssrfProtection);
       const filename = output || `pdf-${Date.now()}.pdf`;
-      const p = resolveSafePath(OUTPUT_DIR, filename);
+      const hasExt = /\.(pdf)$/i.test(filename);
+      const finalName = hasExt ? filename : `${filename}.pdf`;
+      const p = resolveSafePath(OUTPUT_DIR, finalName);
       await capturePdf(url, p, fullPage, width, height, config);
       logger.audit({ event: AuditEventType.CapturePdf, severity: "info", detail: `URL: ${url}`, source: "capture_pdf" });
       return ok(p);

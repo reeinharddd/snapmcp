@@ -49,47 +49,65 @@ export async function createGif(
 
   fs.mkdirSync(path.dirname(outputPath), { recursive: true })
 
-  // Read first frame to auto-detect dimensions
-  const first = readPng(frames[0].filePath)
-  const width = options?.width ?? first.width
-  const height = options?.height ?? first.height
+  // Read all frames to auto-detect max canvas dimensions
+  const framesData = frames.map(f => ({ frame: f, png: readPng(f.filePath) }));
 
-  const gif = new GIFEncoder(width, height, { loop })
+  let canvasWidth = options?.width ?? Math.max(...framesData.map(f => f.png.width));
+  let canvasHeight = options?.height ?? Math.max(...framesData.map(f => f.png.height));
+
+  const gif = new GIFEncoder(canvasWidth, canvasHeight, { loop });
 
   try {
-    for (const frame of frames) {
-      const delay = (frame.delay ?? 80) * 10 // centiseconds → ms
-      const png = readPng(frame.filePath)
+    for (const { frame, png } of framesData) {
+      const delay = (frame.delay ?? 80) * 10; // centiseconds → ms
+      let data = png.data;
+      let w = png.width;
+      let h = png.height;
 
-      if (png.width !== width || png.height !== height) {
-        throw new GifError(
-          `Frame dimensions (${png.width}x${png.height}) must match ` +
-          `GIF canvas (${width}x${height}): ${frame.filePath}`,
-        )
+      // Auto-pad smaller frames to match canvas dimensions
+      if (w !== canvasWidth || h !== canvasHeight) {
+        const padded = new Uint8Array(canvasWidth * canvasHeight * 4);
+        padded.fill(0); // transparent black
+        const ox = Math.floor((canvasWidth - w) / 2);
+        const oy = Math.floor((canvasHeight - h) / 2);
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const si = (y * w + x) * 4;
+            const di = ((y + oy) * canvasWidth + (x + ox)) * 4;
+            padded[di] = data[si];
+            padded[di + 1] = data[si + 1];
+            padded[di + 2] = data[si + 2];
+            padded[di + 3] = data[si + 3];
+          }
+        }
+        data = padded;
+        w = canvasWidth;
+        h = canvasHeight;
       }
 
-      const palette = quantize(png.data, 256)
-      const idxData = applyPalette(png.data, palette)
-      const flatPalette = new Uint8Array(palette.length * 3)
+      const palette = quantize(data, 256);
+      const idxData = applyPalette(data, palette);
+      const flatPalette = new Uint8Array(palette.length * 3);
       for (let i = 0; i < palette.length; i++) {
-        flatPalette[i * 3] = palette[i][0]
-        flatPalette[i * 3 + 1] = palette[i][1]
-        flatPalette[i * 3 + 2] = palette[i][2]
+        flatPalette[i * 3] = palette[i][0];
+        flatPalette[i * 3 + 1] = palette[i][1];
+        flatPalette[i * 3 + 2] = palette[i][2];
       }
-      gif.writeFrame(idxData, width, height, { delay, palette: flatPalette, transparent: false })
+      gif.writeFrame(idxData, w, h, { delay, palette: flatPalette, transparent: false });
     }
 
-    gif.finish()
-    const buffer = gif.bytes()
-    fs.writeFileSync(outputPath, buffer)
+    gif.finish();
+    const buffer = gif.bytes();
+    fs.writeFileSync(outputPath, buffer);
 
-    return outputPath
+    return outputPath;
   } catch (err) {
     try { fs.unlinkSync(outputPath) } catch { /* ignore */ }
     throw err instanceof GifError
       ? err
-      : new GifError(`Encoding failed: ${(err as Error).message}`)
+      : new GifError(`Encoding failed: ${(err as Error).message}`);
   }
+
 }
 
 // ─── Internal helpers ─────────────────────────────────────────

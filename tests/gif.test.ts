@@ -152,15 +152,22 @@ describe("createGif", () => {
     )
   })
 
-  it("throws GifError when frame dimensions do not match", async () => {
+  it("auto-pads smaller frames to match canvas dimensions", async () => {
     const small = createPng("dim-small.png", 4, 4, 0, 0, 0)
     const large = createPng("dim-large.png", 8, 8, 255, 255, 255)
     const out   = path.join(tmpDir, "dim-mismatch.gif")
 
-    await assert.rejects(
-      createGif([{ filePath: small }, { filePath: large }], out),
-      { name: "GifError", message: /must match GIF canvas/ },
-    )
+    const result = await createGif([{ filePath: small }, { filePath: large }], out)
+
+    assert.equal(result, out)
+    assert.ok(fs.existsSync(out), "output file should exist")
+    assert.ok(isGif(out), "output should have GIF magic header")
+    // Canvas should be 8x8 (max frame dimensions)
+    const buf = fs.readFileSync(out)
+    const gifW = buf[6] + (buf[7] << 8)
+    const gifH = buf[8] + (buf[9] << 8)
+    assert.equal(gifW, 8, "canvas width should match largest frame")
+    assert.equal(gifH, 8, "canvas height should match largest frame")
   })
 
   it("cleans up partial output on encoding failure", async () => {
