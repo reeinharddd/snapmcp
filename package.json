@@ -1,6 +1,6 @@
 {
   "name": "snapmcp",
-  "version": "2.2.3",
+  "version": "2.2.4",
   "description": "All-in-one MCP server for visual captures: terminal, code, browser, markdown, diffs, HTML, and PDF — via Playwright",
   "keywords": [
     "mcp",
@@ -53,11 +53,11 @@
     "fast-png": "^8.0.0",
     "gifenc": "^1.0.3",
     "marked": "15.0.12",
-    "playwright": "1.60.0",
-    "shiki": "4.2.0"
+    "playwright": "1.61.1",
+    "shiki": "4.3.0"
   },
   "devDependencies": {
-    "@types/node": "22.19.20",
+    "@types/node": "26.0.1",
     "typescript": "5.9.3"
   },
   "engines": {
