@@ -37,6 +37,18 @@ Generate screenshots of terminals, code, web pages, markdown, diffs, PDFs, and G
 | `capture_to_document` | Multi-section markdown document render |
 | `snapmcp-hint` | Server capability hints for MCP clients |
 
+## Documentation
+
+Full reference documentation at **[docs/](docs/README.md)** — organized like a site with hyperlinks between pages:
+
+| Page | Contents |
+|------|----------|
+| [Getting Started](docs/getting-started.md) | Installation, quick start, MCP client setup |
+| [Tools Reference](docs/tools.md) | All 13 tools with parameters and examples |
+| [Configuration](docs/configuration.md) | All SNAPMCP_* env vars, themes, defaults |
+| [CLI Reference](docs/cli.md) | Init, doctor, test commands |
+| [Guides](docs/guides/) | Terminal capture, browser capture, GIF animation |
+
 ### v2.2 Highlights
 
 - **Real Terminal Colors** — detects Kitty, Gnome Terminal, Alacritty, WezTerm, Xfce4, and LXTerminal configs for authentic terminal captures
@@ -286,6 +298,10 @@ bun install
 bun run build    # tsc → dist/
 bun test         # 240+ tests
 ```
+
+### Docs
+
+Full reference documentation in **[docs/](docs/README.md)**: getting started, tools reference, configuration, CLI, and guides.
 
 ### Project Documentation
 
