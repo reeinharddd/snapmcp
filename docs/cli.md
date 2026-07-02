@@ -36,6 +36,11 @@ snapmcp init
 
 Run this first if you're setting up snapmcp for the first time.
 
+**Interactive wizard screenshot:**
+
+<img src="assets/init-wizard.png" alt="snapmcp init wizard" width="500"/>
+
+
 ### `snapmcp doctor`
 
 Runs 7 health checks and reports results. Useful for diagnosing why captures
@@ -56,6 +61,11 @@ The checks:
 6. **Environment variables** -- checks for common misconfigurations
 7. **Version** -- verifies the installed package matches the expected version
 
+**`snapmcp doctor` output:**
+
+<img src="assets/doctor.png" alt="snapmcp doctor output" width="500"/>
+
+
 ### `snapmcp test`
 
 Generates sample captures to verify the server works. Creates two files:
@@ -69,6 +79,12 @@ snapmcp test
 
 These files appear in your configured output directory
 ([`SNAPMCP_DIR`](configuration.md#snapmcp_dir)).
+
+**Generated test captures:**
+
+<img src="assets/test-terminal.png" alt="Test terminal" width="400"/>
+<img src="assets/test-code.png" alt="Test code" width="400"/>
+
 
 ### `snapmcp --help`
 
