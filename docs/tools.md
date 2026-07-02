@@ -106,6 +106,11 @@ Generate a styled terminal screenshot from text lines. Lines prefixed with `$ ` 
 }
 ```
 
+**Example output:**
+
+<img src="assets/tool-example.png" alt="capture_terminal example" width="500"/>
+
+
 ---
 
 ### 2. capture_code
@@ -273,6 +278,11 @@ Render a git diff with color-coded additions (green) and deletions (red). Accept
   }
 }
 ```
+
+**Example output:**
+
+<img src="assets/diff-example.png" alt="capture_diff example" width="500"/>
+
 
 ---
 

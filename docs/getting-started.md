@@ -99,6 +99,13 @@ Generates two test files in your output directory:
 Open them in your file browser. If they look right, everything is
 working.
 
+**Sample output:**
+
+<img src="assets/test-terminal.png" alt="Test terminal capture" width="500"/>
+
+*`snapmcp test` generates a terminal screenshot with real terminal colors.*
+
+
 ---
 
 ## MCP client setup
