@@ -319,11 +319,11 @@ describe("checkChromiumSandbox", () => {
     assert.equal(result.message, "✓ Chromium sandbox enabled");
   });
 
-  it("returns custom message when executable has 'chromium' in path", () => {
+  it("returns unknown for chromium executable without --no-sandbox", () => {
     process.env["PLAYWRIGHT_CHROMIUM_EXECUTABLE"] = "/usr/bin/chromium-browser";
     const result = checkChromiumSandbox();
     assert.equal(result.sandboxEnabled, false);
-    assert.ok(result.message.includes("without sandbox"));
+    assert.ok(result.message.includes("Custom Chromium executable"));
   });
 
   it("returns unknown message for custom executable", () => {

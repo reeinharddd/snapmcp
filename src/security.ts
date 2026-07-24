@@ -244,31 +244,31 @@ export interface SandboxStatus {
  * Returns a warning message if sandbox is disabled.
  */
 export function checkChromiumSandbox(): SandboxStatus {
-  const noSandbox = process.env["PLAYWRIGHT_CHROMIUM_EXECUTABLE"]?.includes("chromium");
+  const executable = process.env["PLAYWRIGHT_CHROMIUM_EXECUTABLE"];
+  const sandboxEnv = process.env["PLAYWRIGHT_SANDBOX"];
 
-  if (
-    process.env["PLAYWRIGHT_CHROMIUM_EXECUTABLE"] &&
-    !process.env["PLAYWRIGHT_CHROMIUM_EXECUTABLE"]!.includes("chromium")
-  ) {
-    // Custom executable path — can't verify
-    return {
-      sandboxEnabled: false,
-      message:
-        "⚠️  Custom Chromium executable — sandbox status unknown. Ensure sandbox is enabled.",
-    };
+  // Explicit sandbox override
+  if (sandboxEnv === "1" || sandboxEnv === "true") {
+    return { sandboxEnabled: true, message: "✓ Chromium sandbox enabled (forced via PLAYWRIGHT_SANDBOX)" };
   }
 
-  if (noSandbox) {
+  // Check if --no-sandbox is in the executable args
+  if (executable && executable.includes("--no-sandbox")) {
     return {
       sandboxEnabled: false,
-      message:
-        "⚠️  Chromium running without sandbox (common in Docker). " +
+      message: "⚠️  Chromium running without sandbox (--no-sandbox detected). " +
         "Add --cap-add=SYS_ADMIN or set PLAYWRIGHT_SANDBOX=1 for better isolation.",
     };
   }
 
-  return {
-    sandboxEnabled: true,
-    message: "✓ Chromium sandbox enabled",
-  };
+  // Custom executable path — can't verify sandbox status
+  if (executable) {
+    return {
+      sandboxEnabled: false,
+      message: `⚠️  Custom Chromium executable (${executable}) — sandbox status unknown. ` +
+        "Set PLAYWRIGHT_SANDBOX=1 to explicitly enable sandbox.",
+    };
+  }
+
+  return { sandboxEnabled: true, message: "✓ Chromium sandbox enabled" };
 }
