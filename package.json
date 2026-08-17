@@ -58,7 +58,7 @@
     "shiki": "4.4.3"
   },
   "devDependencies": {
-    "@types/node": "26.0.1",
+    "@types/node": "26.2.0",
     "typescript": "7"
   },
   "engines": {
