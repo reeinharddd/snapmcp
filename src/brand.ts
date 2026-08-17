@@ -52,7 +52,7 @@ function loadTokens(): BrandTokens {
 function fallbackTokens(): BrandTokens {
   return {
     version: "1.0.0",
-    ascii: "\n  ╔═══════════════════════════════════════════╗\n  ║              snapmcp  v2.2.0              ║\n  ║    Precision captures for AI agents       ║\n  ╚═══════════════════════════════════════════╝",
+    ascii: "\n  ╔═══════════════════════════════════════════╗\n  ║              snapmcp                       ║\n  ║    Precision captures for AI agents       ║\n  ╚═══════════════════════════════════════════╝",
     colors: {
       brand: { primary: "#00d4aa", secondary: "#0099ff", tertiary: "#7c4dff", gradient: "linear-gradient(135deg, #00d4aa 0%, #0099ff 50%, #7c4dff 100%)" },
       neutral: { black: "#0d0d12", dark: "#1a1a2e", medium: "#2a2a3e", gray: "#6b6b80", light: "#a0a0b8", lighter: "#d0d0e0", white: "#e8e8f0" },

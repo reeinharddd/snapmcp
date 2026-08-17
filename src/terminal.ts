@@ -69,7 +69,7 @@ const LIGHT_THEMES = new Set([
   "rose-pine-dawn",
 ]);
 
-function isDarkTheme(theme: string): boolean {
+export function isDarkTheme(theme: string): boolean {
   return DARK_THEMES.has(theme) || (theme.includes("dark") && !LIGHT_THEMES.has(theme));
 }
 
@@ -112,8 +112,9 @@ export function detectTerminalTheme(fallbackTheme = "dark-plus"): TerminalThemeR
     const parts = colorFgBg.split(";");
     const bg = parseInt(parts[parts.length - 1], 10);
     if (!Number.isNaN(bg) && bg >= 0 && bg <= 15) {
-      // bg 0-6 → light theme, bg 7-15 → dark theme
-      return done(bg >= 0 && bg <= 6 ? "github-light" : "dark-plus", "colorFgBg");
+      // COLORFGBG is "fg;bg" with xterm color indices: 0=black ... 7=white, 8-15 bright.
+      // A light/white background (>= 7) → light theme; a dark background (< 7) → dark theme.
+      return done(bg >= 7 ? "github-light" : "dark-plus", "colorFgBg");
     }
   }
 
@@ -436,7 +437,7 @@ function readGnomeTerminal(): TerminalColors | null {
     const fontRaw = execSync(`dconf read ${base}font`, { encoding: "utf-8", timeout: 1000, stdio: ["ignore", "pipe", "ignore"] }).trim().replace(/^'|'$/g, "");
     let font: string | undefined;
     let fontSize: string | undefined;
-    if (fontRaw) { const fp = fontRaw.split(" "); font = fp[0] || undefined; if (fp[1]) fontSize = fp[1]; }
+    if (fontRaw) { const fp = fontRaw.split(" "); font = fp[0] || undefined; if (fp[1]) fontSize = /px$/i.test(fp[1]) ? fp[1] : `${fp[1]}px`; }
 
     return { bg, fg, ansi, font, fontSize, source: "gnome-terminal" };
   } catch { return null; }
@@ -456,7 +457,7 @@ function readAlacritty(): TerminalColors | null {
         if (!t || t.startsWith("#")) continue;
         const sep = t.indexOf(":");
         if (sep === -1) continue;
-        cfg[t.slice(0, sep).trim()] = t.slice(sep + 1).trim().replace(/^"(.*)"$/, "$1");
+        cfg[t.slice(0, sep).trim()] = t.slice(sep + 1).trim().replace(/^"(.*)"$/, "$1").replace(/^'(.*)'$/, "$1");
       }
       const bg = hex6(cfg.background ?? cfg["colors.primary.background"] ?? "");
       const fg = hex6(cfg.foreground ?? cfg["colors.primary.foreground"] ?? "");
@@ -490,9 +491,8 @@ function readWezTerm(): TerminalColors | null {
       // Extract color_xxx = "#xxxxxx" or foreground = "#xxxxxx"
       const colorRE = /(?:foreground|background|color_\w+)\s*[=:]\s*"?(#[0-9a-fA-F]{6})"?/g;
       const colors: string[] = [];
-      let m;
-      while ((m = colorRE.exec(raw)) !== null) {
-        colors.push(m[1].toLowerCase());
+      for (const match of raw.matchAll(colorRE)) {
+        colors.push(match[1].toLowerCase());
       }
       // WezTerm has named colors, not indexed. Map what we can.
       const fgRaw = raw.match(/(?:foreground)\s*[=:]\s*"?(#[0-9a-fA-F]{6})"?/i);

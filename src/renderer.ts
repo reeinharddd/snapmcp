@@ -29,6 +29,8 @@ import {
   validateDiffInput,
   validateHtmlInput,
   validateFileRead,
+  validateUrlResolve,
+  assertSafeRequestUrl,
   type FileReadPolicy,
 } from "./security.js";
 import { highlightCode } from "./highlighter.js";
@@ -498,30 +500,71 @@ body{background:${theme.bg};color:${theme.text};font-family:${theme.font};font-s
 /* ── Playwright browser singleton ── */
 
 let _browser: playwright.Browser | null = null;
+let _browserPromise: Promise<playwright.Browser> | null = null;
 
-async function getBrowser(config: SnapConfig): Promise<playwright.Browser> {
-  if (!_browser) {
-    const launchOptions: playwright.LaunchOptions = { headless: true };
-
-    // When chromeExecutable and chromeChannel are configured, use system Chrome
-    if (config.chromeExecutable && config.chromeChannel) {
-      const chrome = detectChrome();
-      if (chrome.found && chrome.executablePath) {
-        launchOptions.executablePath = chrome.executablePath;
-      }
-      // falls back to bundled Chromium if system Chrome not found for that channel
-    }
-
-    _browser = await playwright.chromium.launch(launchOptions);
+function launchOptions(config: SnapConfig): playwright.LaunchOptions {
+  const opts: playwright.LaunchOptions = { headless: true };
+  if (config.chromeExecutable) {
+    opts.executablePath = config.chromeExecutable;
+  } else if (config.chromeChannel) {
+    opts.channel = config.chromeChannel;
   }
-  return _browser;
+  return opts;
+}
+
+async function launchBrowser(config: SnapConfig): Promise<playwright.Browser> {
+  const opts = launchOptions(config);
+  if (config.chromeProfile) {
+    const ctx = await playwright.chromium.launchPersistentContext(config.chromeProfile, opts);
+    const browser = ctx.browser();
+    if (!browser) throw new Error("Chromium closed immediately after launch");
+    return browser;
+  }
+  return playwright.chromium.launch(opts);
+}
+
+export async function getBrowser(config: SnapConfig): Promise<playwright.Browser> {
+  if (_browser) return _browser;
+  if (!_browserPromise) {
+    _browserPromise = launchBrowser(config).then((b) => {
+      _browser = b;
+      return b;
+    }).catch((err) => {
+      _browserPromise = null;
+      throw err;
+    });
+  }
+  return _browserPromise;
 }
 
 export async function closeBrowser(): Promise<void> {
-  if (_browser) {
-    await _browser.close();
-    _browser = null;
-  }
+  const pending = _browserPromise;
+  _browserPromise = null;
+  const target = pending
+    ? await pending.catch(() => null)
+    : _browser;
+  _browser = null;
+  if (target) await target.close();
+}
+
+/* ── SSRF route guard ── */
+
+/**
+ * Intercept every request a page makes (navigation, redirects, img/script/fetch)
+ * and abort any that resolve to private/internal hosts when SSRF protection is on.
+ * Re-validation per request closes redirect- and subresource-based bypasses that
+ * the initial validateUrl on the main URL cannot see.
+ */
+async function installRouteGuard(page: playwright.Page, config: SnapConfig): Promise<void> {
+  if (!config.securityChecks || !config.ssrfProtection) return;
+  await page.route("**/*", async (route) => {
+    try {
+      await assertSafeRequestUrl(route.request().url(), true);
+      await route.continue();
+    } catch {
+      await route.abort("blockedbyclient");
+    }
+  });
 }
 
 /* ── HTML → screenshot (PNG or JPEG) ── */
@@ -540,6 +583,7 @@ async function screenshotHtml(
   });
 
   try {
+    await installRouteGuard(page, config);
     await page.setContent(html, { waitUntil: "networkidle", timeout: config.timeout });
 
     const box = await page.evaluate(
@@ -608,6 +652,7 @@ async function screenshotPage(
   });
 
   try {
+    await installRouteGuard(page, config);
     await page.goto(url, { waitUntil: "networkidle", timeout: config.timeout });
 
     const screenshotOpts: PageScreenshotOptions = {
@@ -634,6 +679,7 @@ async function capturePdfInternal(
   const page = await browser.newPage({ viewport: { width, height } });
 
   try {
+    await installRouteGuard(page, config);
     await page.goto(url, { waitUntil: "networkidle", timeout: config.timeout });
     await page.pdf({ path: outputPath, format: "A4", printBackground: true });
   } finally {
@@ -785,6 +831,7 @@ export async function captureBrowser(
   height: number,
   config: SnapConfig,
 ): Promise<string> {
+  if (config.securityChecks) await validateUrlResolve(url, config.ssrfProtection);
   await screenshotPage(url, outputPath, fullPage, width, height, config);
   return outputPath;
 }
@@ -799,7 +846,11 @@ export async function captureFile(
 ): Promise<string> {
   if (config.securityChecks) validateFileRead(filePath, filePolicy(config));
 
-  const code = fs.readFileSync(filePath, "utf-8");
+  let readPath = filePath;
+  if (config.securityChecks) {
+    try { readPath = fs.realpathSync(filePath); } catch { /* keep original */ }
+  }
+  const code = fs.readFileSync(readPath, "utf-8");
   const ext = path.extname(filePath).slice(1).toLowerCase();
   const langMap: Record<string, string> = {
     py: "python", js: "javascript", ts: "typescript", tsx: "tsx", jsx: "jsx",
@@ -886,6 +937,7 @@ export async function capturePdf(
   height: number,
   config: SnapConfig,
 ): Promise<string> {
+  if (config.securityChecks) await validateUrlResolve(url, config.ssrfProtection);
   return capturePdfInternal(url, outputPath, fullPage, width, height, config);
 }
 

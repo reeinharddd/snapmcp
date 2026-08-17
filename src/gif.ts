@@ -21,6 +21,20 @@ export class GifError extends Error {
   }
 }
 
+// ─── Limits ───────────────────────────────────────────────────
+const GIF_MAX_FRAMES = 60;
+const GIF_MAX_DIM = 8192;
+const GIF_MAX_PIXELS = 67_108_864; // 8192 × 8192
+
+function enforceCanvasLimits(width: number, height: number): void {
+  if (width > GIF_MAX_DIM || height > GIF_MAX_DIM) {
+    throw new GifError(`Frame dimensions ${width}x${height} exceed maximum of ${GIF_MAX_DIM}x${GIF_MAX_DIM}`);
+  }
+  if (width * height > GIF_MAX_PIXELS) {
+    throw new GifError(`Frame area ${width * height} exceeds maximum of ${GIF_MAX_PIXELS} pixels`);
+  }
+}
+
 // ─── Interfaces ───────────────────────────────────────────────
 
 export interface GifFrame {
@@ -44,21 +58,30 @@ export async function createGif(
   if (frames.length === 0) {
     throw new GifError("At least one frame is required")
   }
+  if (frames.length > GIF_MAX_FRAMES) {
+    throw new GifError(`Too many frames: ${frames.length} (max ${GIF_MAX_FRAMES})`)
+  }
 
   const loop = options?.loop ?? true
 
   fs.mkdirSync(path.dirname(outputPath), { recursive: true })
 
-  // Read all frames to auto-detect max canvas dimensions
-  const framesData = frames.map(f => ({ frame: f, png: readPng(f.filePath) }));
+  // Pass 1: read only PNG headers to compute the canvas without holding
+  // every decoded RGBA buffer in memory at once.
+  const metas = frames.map(f => ({ frame: f, png: readPngMeta(f.filePath) }));
 
-  let canvasWidth = options?.width ?? Math.max(...framesData.map(f => f.png.width));
-  let canvasHeight = options?.height ?? Math.max(...framesData.map(f => f.png.height));
+  const canvasWidth = options?.width ?? Math.max(...metas.map(m => m.png.width));
+  const canvasHeight = options?.height ?? Math.max(...metas.map(m => m.png.height));
+  enforceCanvasLimits(canvasWidth, canvasHeight);
 
   const gif = new GIFEncoder(canvasWidth, canvasHeight, { loop });
 
   try {
-    for (const { frame, png } of framesData) {
+    // Pass 2: decode + emit one frame at a time — peak memory = one frame
+    // instead of the whole sequence.
+    for (const { frame } of metas) {
+      const png = readPng(frame.filePath);
+      enforceCanvasLimits(Math.max(canvasWidth, png.width), Math.max(canvasHeight, png.height));
       const delay = (frame.delay ?? 80) * 10; // centiseconds → ms
       let data = png.data;
       let w = png.width;
@@ -111,6 +134,26 @@ export async function createGif(
 }
 
 // ─── Internal helpers ─────────────────────────────────────────
+
+function readPngMeta(filePath: string): { width: number; height: number } {
+  let buffer: Buffer
+  try {
+    buffer = fs.readFileSync(filePath)
+  } catch (err) {
+    const nodeErr = err as NodeJS.ErrnoException
+    if (nodeErr.code === "ENOENT") {
+      throw new GifError(`File not found: ${filePath}`)
+    }
+    throw new GifError(`Cannot read file: ${filePath} — ${nodeErr.message}`)
+  }
+  if (buffer.length < 24) {
+    throw new GifError(`Invalid PNG file (too small): ${filePath}`)
+  }
+  // PNG header: bytes 16-19 = width, 20-23 = height (big endian)
+  const width = buffer.readUInt32BE(16);
+  const height = buffer.readUInt32BE(20);
+  return { width, height };
+}
 
 function readPng(filePath: string): { width: number; height: number; data: Uint8Array } {
   let buffer: Buffer

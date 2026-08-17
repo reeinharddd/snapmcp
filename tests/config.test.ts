@@ -294,10 +294,19 @@ describe("loadConfig", () => {
     }
   });
 
-  it('parses SNAPMCP_SHADOW="invalid" as soft (fallback)', () => {
+  it('parses SNAPMCP_SHADOW="invalid" as none (documented default)', () => {
     setEnv("SHADOW", "invalid");
     try {
-      assert.equal(loadConfig().shadow, "soft");
+      assert.equal(loadConfig().shadow, "none");
+    } finally {
+      setEnv("SHADOW", undefined);
+    }
+  });
+
+  it('parses SNAPMCP_SHADOW="lg" alias as strong', () => {
+    setEnv("SHADOW", "lg");
+    try {
+      assert.equal(loadConfig().shadow, "strong");
     } finally {
       setEnv("SHADOW", undefined);
     }

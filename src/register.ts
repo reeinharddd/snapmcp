@@ -136,7 +136,7 @@ function mcpSectionKey(format: McpClientConfig["format"]): string {
 /**
  * Check if snapmcp already exists in the config JSON.
  */
-function hasSnapmcp(config: Record<string, unknown>, format: McpClientConfig["format"]): boolean {
+export function hasSnapmcp(config: Record<string, unknown>, format: McpClientConfig["format"]): boolean {
   switch (format) {
     case "opencode": {
       const section = (config["mcp"] as Record<string, unknown>) || {};
@@ -159,7 +159,7 @@ function hasSnapmcp(config: Record<string, unknown>, format: McpClientConfig["fo
 /**
  * Add snapmcp entry to the config object (mutates in-place).
  */
-function addSnapmcpEntry(config: Record<string, unknown>, format: McpClientConfig["format"]): void {
+export function addSnapmcpEntry(config: Record<string, unknown>, format: McpClientConfig["format"]): void {
   const snapmcpEntry = {
     command: SNAPMCP_COMMAND,
     args: SNAPMCP_ARGS,

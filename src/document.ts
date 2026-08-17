@@ -13,6 +13,8 @@ import path from "node:path"
 import type { SnapConfig } from "./config.js"
 import { logger } from "./logger.js"
 import { BRAND } from "./brand.js"
+import { getBrowser } from "./renderer.js"
+import { validateFileRead, type FileReadPolicy } from "./security.js"
 
 // ─── Types ─────────────────────────────────────────────────────
 
@@ -77,9 +79,9 @@ export async function createDocument(
 
   switch (format) {
     case "markdown":
-      return writeMarkdown(title, sections, includeTimestamps ?? false, outputPath)
+      return writeMarkdown(title, sections, includeTimestamps ?? false, outputPath, config)
     case "html":
-      return writeHtml(title, sections, includeTimestamps ?? false, outputPath)
+      return writeHtml(title, sections, includeTimestamps ?? false, outputPath, config)
     case "pdf":
       return writePdf(title, sections, includeTimestamps ?? false, outputPath, config)
     default:
@@ -106,6 +108,7 @@ function writeMarkdown(
   sections: DocumentSection[],
   includeTimestamps: boolean,
   outputPath: string,
+  config: SnapConfig,
 ): string {
   const lines: string[] = []
 
@@ -129,7 +132,7 @@ function writeMarkdown(
     }
 
     if (section.imagePath) {
-      const b64 = readImageBase64(section.imagePath)
+      const b64 = readImageBase64(section.imagePath, config)
       if (b64) {
         const caption = section.caption ? escapeMd(section.caption) : ""
         lines.push(`![${caption}](${b64})`)
@@ -167,6 +170,7 @@ function writeHtml(
   sections: DocumentSection[],
   includeTimestamps: boolean,
   outputPath: string,
+  config: SnapConfig,
 ): string {
   const parts: string[] = []
 
@@ -203,7 +207,7 @@ function writeHtml(
       parts.push(`<p>${escHtml(section.description)}</p>`)
     }
     if (section.imagePath) {
-      const b64 = readImageBase64(section.imagePath)
+      const b64 = readImageBase64(section.imagePath, config)
       if (b64) {
         parts.push("<figure>")
         parts.push(`<img src="${b64}" alt="${escHtml(section.caption ?? "")}">`)
@@ -238,12 +242,11 @@ async function writePdf(
 ): Promise<string> {
   // Generate HTML first, save to temp file
   const tmpPath = outputPath.replace(/\.pdf$/i, ".html") || outputPath + ".html"
-  writeHtml(title, sections, includeTimestamps, tmpPath)
+  writeHtml(title, sections, includeTimestamps, tmpPath, config)
 
-  // Use Playwright to render to PDF
+  // Reuse the shared browser singleton — same lifecycle, closed by closeBrowser()
   try {
-    const playwright = await import("playwright")
-    const browser = await playwright.chromium.launch({ headless: true })
+    const browser = await getBrowser(config)
     const page = await browser.newPage({ viewport: { width: 1280, height: 1080 } })
 
     try {
@@ -259,7 +262,6 @@ async function writePdf(
       })
     } finally {
       await page.close()
-      await browser.close()
     }
   } finally {
     // Clean up the temp HTML file
@@ -277,11 +279,23 @@ async function writePdf(
 // ─── Helpers ───────────────────────────────────────────────────
 
 /**
- * Read a PNG file and return a base64 data URI.
- * Returns null when the file cannot be read.
+ * Read an image file and return a base64 data URI.
+ * Restricted to allowed paths when configured; always enforces the size limit.
+ * Returns null when the file cannot be read or is not allowed.
  */
-function readImageBase64(filePath: string): string | null {
+function readImageBase64(filePath: string, config: SnapConfig): string | null {
   try {
+    if (config.securityChecks) {
+      if (config.allowedPaths.length > 0) {
+        validateFileRead(filePath, {
+          maxSize: config.maxFileSize,
+          allowedPaths: [config.outputDir, ...config.allowedPaths],
+        });
+      } else {
+        const st = fs.statSync(path.resolve(filePath));
+        if (!st.isFile() || st.size > config.maxFileSize) return null;
+      }
+    }
     const resolved = path.resolve(filePath)
     const data = fs.readFileSync(resolved)
     const b64 = data.toString("base64")

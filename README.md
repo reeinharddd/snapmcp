@@ -32,8 +32,8 @@ Generate screenshots of terminals, code, web pages, markdown, diffs, PDFs, and G
 | `capture_diff` | Git diffs with green additions / red deletions |
 | `capture_pdf` | URL → PDF document |
 | `capture_batch` | Batch capture multiple items in one call |
-| `create_gif` | Animated GIF from multiple screenshots |
-| `create_sequence` | Side-by-side animated sequence |
+| `capture_gif` | Animated GIF from multiple screenshots |
+| `capture_sequence` | Side-by-side animated sequence |
 | `capture_to_document` | Multi-section markdown document render |
 | `snapmcp-hint` | Server capability hints for MCP clients |
 
@@ -209,7 +209,7 @@ Environment variables for the MCP server:
 | `SNAPMCP_FORMAT` | `png` | Output format (`png`, `jpeg`) |
 | `SNAPMCP_QUALITY` | `90` | JPEG quality (1-100) |
 | `SNAPMCP_PADDING` | `32` | Content padding in pixels |
-| `SNAPMCP_SHADOW` | `none` | Drop shadow (`none` only; legacy values ignored) |
+| `SNAPMCP_SHADOW` | `none` | Drop shadow (`none`, `soft`, `medium`, `strong`; aliases `sm`/`md`/`lg`; invalid values fall back to `none`) |
 | `SNAPMCP_WINDOW_CHROME` | `false` | macOS-style title bar frame |
 | `SNAPMCP_BORDER_RADIUS` | `0` | Window corner radius |
 | `SNAPMCP_BADGE` | `false` | Footer badge |
@@ -217,7 +217,7 @@ Environment variables for the MCP server:
 | `SNAPMCP_CHROME_EXECUTABLE` | — | Path to Chrome/Chromium binary |
 | `SNAPMCP_CHROME_CHANNEL` | — | Chrome channel (`stable`, `beta`, `dev`, `canary`) |
 | `SNAPMCP_CHROME_PROFILE` | — | Chrome profile directory name |
-| `SNAPMCP_ALLOWED_PATHS` | (deny-all) | Comma-separated allowed file paths for `capture_file` |
+| `SNAPMCP_ALLOWED_PATHS` | (deny-all) | Comma- or semicolon-separated allowed file paths for `capture_file` |
 
 ### Real Fidelity
 
@@ -248,10 +248,10 @@ SnapMCP detects your real environment for authentic captures.
 
 | Feature | Description |
 |---------|-------------|
-| **SSRF Protection** | Blocks private/internal IP ranges (opt-in via `SNAPMCP_SSRF_PROTECTION=true`). When enabled, blocks 127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, etc. |
+| **SSRF Protection** | **On by default** (disable with `SNAPMCP_SSRF_PROTECTION=false`). Blocks IP literals (v4 + v6), localhost variants, and DNS names that resolve to private ranges (`127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `fc00::/7`, `fe80::/10`, etc.); every page request (redirects included) is re-checked |
 | **File Allowlist** | `SNAPMCP_ALLOWED_PATHS` defaults to deny-all when unset; only explicitly allowed paths can be captured |
-| **Path Traversal** | Prevents `../` escapes, symlink traversal, and null byte injection |
-| **Input Limits** | Max URL length 5KB, max content 1MB, max GIF frames 100 |
+| **Path Traversal** | Prevents `../` escapes, symlink traversal (via realpath), and null byte injection |
+| **Input Limits** | Terminal 1000 lines; code/markdown/HTML 200KB; diff 500KB; file reads 5MB; max GIF frames 60; max GIF canvas 8192×8192 |
 | **Audit Log** | Optional structured JSON log file with timestamped events |
 | **Chromium Sandbox** | Sandbox availability checked at startup |
 
@@ -286,18 +286,20 @@ captures/
 
 ```
 src/
-├── index.ts        — MCP server, 12 tool definitions, CLI entry
-├── renderer.ts     — Capture engine (terminal, code, browser, PDF, GIF)
+├── index.ts        — MCP server, 13 tool registrations, CLI entry
+├── renderer.ts     — Capture engine + SSRF route guard (terminal, code, browser, PDF)
 ├── config.ts       — Config loader, defaults, 27 themes
 ├── cli.ts          — CLI commands (init, doctor, test)
-├── security.ts     — SSRF denylist, path traversal, input limits
+├── security.ts     — SSRF denylist (incl. DNS resolve), path traversal, input limits
 ├── logger.ts       — Audit logging (AuditEvent, log file)
 ├── brand.ts        — Centralized brand tokens (colors, ANSI, logo)
 ├── terminal.ts     — Real terminal detection (Kitty/Gnome/Alacritty/WezTerm)
 ├── browser.ts      — System Chrome profile detection (8-step fallback)
 ├── setup-shared.ts — Shared bootstrap for interactive setup
 ├── document.ts     — Document render engine (brand-colored)
-└── gif.ts          — GIF animation (gifenc + fast-png, zero deps)
+├── gif.ts          — GIF animation (gifenc + fast-png, zero deps)
+├── tools/          — One file per MCP tool (13 registrations)
+└── highlighter.ts  — Shiki wrapper
 ```
 
 ## Development
@@ -321,7 +323,7 @@ Full reference documentation in **[docs/](docs/README.md)**: getting started, to
 
 ### Requirements
 
-- **Runtime**: Node.js ≥ 18 or Bun ≥ 1.0
+- **Runtime**: Node.js ≥ 20 or Bun ≥ 1.2
 - **TypeScript**: 5.x (ES2022, Node16 modules)
 
 ### CI

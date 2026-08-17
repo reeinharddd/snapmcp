@@ -11,7 +11,27 @@
 import path from "path";
 import fs from "fs";
 import { URL } from "url";
+import dns from "dns";
 import { logger } from "./logger.js";
+
+// DNS lookup cache (hostname → IPs) with TTL so the per-request route guard does one lookup per hostname.
+const _dnsCache = new Map<string, { ips: string[]; ts: number }>();
+const DNS_TTL_MS = 60_000;
+
+async function resolveHostname(hostname: string): Promise<string[]> {
+  const now = Date.now();
+  const hit = _dnsCache.get(hostname);
+  if (hit && now - hit.ts < DNS_TTL_MS) return hit.ips;
+  try {
+    const result = await dns.promises.lookup(hostname, { all: true });
+    const ips = result.map((a) => a.address);
+    _dnsCache.set(hostname, { ips, ts: now });
+    return ips;
+  } catch {
+    _dnsCache.set(hostname, { ips: [], ts: now });
+    return [];
+  }
+}
 
 // ─── Size limits ────────────────────────────────────────────
 // These prevent resource exhaustion attacks
@@ -45,20 +65,56 @@ function ipToNum(octets: number[]): number {
   return ((octets[0] ?? 0) << 24) | ((octets[1] ?? 0) << 16) | ((octets[2] ?? 0) << 8) | (octets[3] ?? 0);
 }
 
+function normalizeHostname(hostname: string): string {
+  // WHATWG keeps a single trailing dot (FQDN form). Strip it so "localhost." and
+  // "127.0.0.1." match the local-network checks below — DNS still resolves them.
+  return hostname.endsWith(".") ? hostname.slice(0, -1) : hostname;
+}
+
+function ipv4Match(hostname: string): string[] | null {
+  return hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+}
+
 function isPrivateIP(hostname: string): boolean {
   // Skip DNS resolution — check if it's already an IP literal
   const ipv4Match = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-  if (!ipv4Match) return false;
+  if (!ipv4Match) return isPrivateIPv6(hostname);
   const octets = [ipv4Match[1], ipv4Match[2], ipv4Match[3], ipv4Match[4]].map(Number);
   if (octets.some((o) => o < 0 || o > 255)) return false;
   const ipNum = ipToNum(octets);
   return PRIVATE_CIDR.some((cidr) => ipNum >= ipToNum(cidr.start) && ipNum <= ipToNum(cidr.end));
 }
 
+function isPrivateIPv6(hostname: string): boolean {
+  const h = hostname.toLowerCase();
+  // WHATWG wraps IPv6 hostnames in brackets: "[::1]"
+  if (!h.startsWith("[") || !h.endsWith("]")) return false;
+  const inner = h.slice(1, -1);
+
+  // Loopback / unspecified
+  if (inner === "::1" || inner === "0:0:0:0:0:0:0:1" || inner === "::" ||
+      inner === "0:0:0:0:0:0:0:0") return true;
+
+  // IPv4-mapped loopback/private: "[::ffff:7f00:1]" → 127.0.0.1
+  const mapped = inner.match(/^::ffff:([0-9a-f]{1,4})\.([0-9a-f]{1,4})$/);
+  if (mapped) return true;
+  const dotted = inner.match(/^::ffff:(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (dotted) return isPrivateIP(`${dotted[1]}.${dotted[2]}.${dotted[3]}.${dotted[4]}`);
+
+  // Unique local (fc00::/7) — first hextet fc00–fdff
+  const firstHex = parseInt(inner.split(":")[0] || "0", 16);
+  if ((firstHex & 0xfe00) === 0xfc00) return true;
+
+  // Link-local (fe80::/10) — first hextet range 0xfe80–0xfebf
+  if ((firstHex & 0xffc0) === 0xfe80) return true;
+
+  return false;
+}
+
 /**
- * Validate a URL for SSRF safety.
- * When ssrfProtection is true, blocks: private/internal IPs, localhost, file://, unix sockets.
- * When false/undefined, only validates that the URL is parseable.
+ * Check whether a URL string is safe for SSRF-conscious navigation.
+ * Throws SecurityError when blocked. Validates literal IPs (v4 + v6),
+ * localhost variants, and non-http(s) protocols without DNS resolution.
  */
 export function validateUrl(raw: string, ssrfProtection: boolean = false): void {
   let parsed: URL;
@@ -70,13 +126,16 @@ export function validateUrl(raw: string, ssrfProtection: boolean = false): void 
 
   if (!ssrfProtection) return;
 
+  // about:blank is a safe, network-free navigation target used as a default
+  if (parsed.href === "about:blank") return;
+
   // Block non-http(s) protocols
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     logger.audit({ event: "ssrf_block", severity: "warn", detail: `protocol: ${parsed.protocol}`, source: "validateUrl" });
     throw new SecurityError(`URL protocol "${parsed.protocol}" is not allowed (only http/https)`);
   }
 
-  const hostname = parsed.hostname.toLowerCase();
+  const hostname = normalizeHostname(parsed.hostname.toLowerCase());
 
   // Block localhost variants
   if (
@@ -96,6 +155,61 @@ export function validateUrl(raw: string, ssrfProtection: boolean = false): void 
   if (isPrivateIP(hostname)) {
     logger.audit({ event: "ssrf_block", severity: "warn", detail: `private IP: ${hostname}`, source: "validateUrl" });
     throw new SecurityError(`URL target "${hostname}" is blocked (private IP range)`);
+  }
+}
+
+/**
+ * Full SSRF validation including DNS resolution of hostnames.
+ * Catches public names that resolve to private ranges (e.g. localtest.me, nip.io, DNS rebinding).
+ */
+export async function validateUrlResolve(raw: string, ssrfProtection: boolean = false): Promise<void> {
+  validateUrl(raw, ssrfProtection);
+  if (!ssrfProtection) return;
+
+  const parsed = new URL(raw);
+  if (parsed.href === "about:blank") return;
+  const hostname = normalizeHostname(parsed.hostname.toLowerCase());
+  if (ipv4Match(hostname) || hostname.startsWith("[") || hostname === "localhost") return;
+
+  const ips = await resolveHostname(hostname);
+  if (ips.some((ip) => isPrivateIP(ip) || ip === "::1" || ip === "::")) {
+    logger.audit({ event: "ssrf_block", severity: "warn", detail: `resolved private: ${hostname} → ${ips.join(",")}`, source: "validateUrlResolve" });
+    throw new SecurityError(`URL target "${hostname}" resolves to a private/internal address`);
+  }
+}
+
+/**
+ * Route-guard predicate: rejects a (sub)request URL when SSRF protection is active.
+ * Re-validation on every request also covers HTTP redirects and in-page resources
+ * (img/script/fetch) that bypass the initial validateUrl.
+ */
+export async function assertSafeRequestUrl(raw: string, ssrfProtection: boolean = false): Promise<void> {
+  if (!ssrfProtection) return;
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new SecurityError(`Invalid URL: "${raw}"`);
+  }
+  if (parsed.href === "about:blank") return;
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new SecurityError(`URL protocol "${parsed.protocol}" is not allowed`);
+  }
+  const hostname = normalizeHostname(parsed.hostname.toLowerCase());
+  if (
+    hostname === "localhost" || hostname === "127.0.0.1" || hostname === "0.0.0.0" ||
+    hostname === "[::1]" || hostname === "[0:0:0:0:0:0:0:1]" ||
+    hostname.endsWith(".localhost") || hostname.endsWith(".local")
+  ) {
+    throw new SecurityError(`URL target "${hostname}" is blocked (local network)`);
+  }
+  if (isPrivateIP(hostname)) {
+    throw new SecurityError(`URL target "${hostname}" is blocked (private IP range)`);
+  }
+  if (hostname.startsWith("[") || hostname === "localhost") return;
+  const ips = await resolveHostname(hostname);
+  if (ips.some((ip) => isPrivateIP(ip) || ip === "::1" || ip === "::")) {
+    throw new SecurityError(`URL target "${hostname}" resolves to a private/internal address`);
   }
 }
 
@@ -201,20 +315,34 @@ export function validateFileRead(
       `Example: SNAPMCP_ALLOWED_PATHS="/home/user/projects;/tmp"`,
     );
   }
-  const allowed = policy.allowedPaths.some((allowedPath) =>
-    resolved.startsWith(path.resolve(allowedPath)),
-  );
+
+  // Resolve symlinks so a symlink inside an allowed dir cannot escape it
+  let real: string;
+  try {
+    real = fs.realpathSync(resolved);
+  } catch {
+    throw new SecurityError(`File not found: "${filePath}"`);
+  }
+  const allowed = policy.allowedPaths.some((allowedPath) => {
+    let base: string;
+    try {
+      base = fs.realpathSync(path.resolve(allowedPath));
+    } catch {
+      base = path.resolve(allowedPath);
+    }
+    return real === base || real.startsWith(base + path.sep);
+  });
   if (!allowed) {
     logger.audit({ event: "file_read_blocked", severity: "warn", detail: `outside allowed paths: ${filePath}`, source: "validateFileRead" });
     throw new SecurityError(
-      `File "${filePath}" is not in allowed paths: ${policy.allowedPaths.join(", ")}`,
+      `File "${filePath}" is not in any allowed path (see SNAPMCP_ALLOWED_PATHS)`,
     );
   }
 
-  // Check file exists and is a regular file
+  // Check file exists and is a regular file (on the real path)
   let stat: fs.Stats;
   try {
-    stat = fs.statSync(resolved);
+    stat = fs.statSync(real);
   } catch {
     throw new SecurityError(`File not found: "${filePath}"`);
   }

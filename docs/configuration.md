@@ -10,25 +10,25 @@ file. Set these before starting the MCP server or running CLI commands.
 | `SNAPMCP_DIR` | `./captures` | Output directory for all captures |
 | `SNAPMCP_FORMAT` | `png` | Image format: `png` or `jpeg` |
 | `SNAPMCP_QUALITY` | `90` | JPEG quality (1-100, only used for JPEG) |
-| `SNAPMCP_THEME` | `auto` | Shiki syntax highlighting theme (see list below) |
+| `SNAPMCP_THEME` | auto-detected | Shiki syntax highlighting theme (see list below) |
 | `SNAPMCP_FONT` | `Fira Code, JetBrains Mono, Consolas, monospace` | Font family for code/terminal captures |
 | `SNAPMCP_FONT_SIZE` | `14px` | Font size for code/terminal captures |
 | `SNAPMCP_TIMEOUT` | `30000` | Browser timeout in milliseconds |
 | `SNAPMCP_DEVICE_SCALE` | `2` | Device pixel ratio (2 = Retina quality) |
 | `SNAPMCP_PADDING` | `32` | Inner padding in pixels around content |
-| `SNAPMCP_SHADOW` | `none` | Shadow level: `none`, `sm`, `md`, `lg` |
+| `SNAPMCP_SHADOW` | `none` | Shadow level: `none`, `soft`, `medium`, `strong` (aliases `sm`/`md`/`lg`; invalid values fall back to `none`) |
 | `SNAPMCP_WINDOW_CHROME` | `false` | Show macOS-style title bar on screenshots |
 | `SNAPMCP_BORDER_RADIUS` | `0` | Corner radius in pixels for the screenshot |
 | `SNAPMCP_BADGE` | `false` | Show footer badge with snapmcp branding |
 | `SNAPMCP_CHROME_EXECUTABLE` | `--` | Path to system Chrome binary |
-| `SNAPMCP_CHROME_CHANNEL` | `--` | Chrome channel: `chrome`, `msedge`, `chromium` |
-| `SNAPMCP_CHROME_PROFILE` | `--` | Path to Chrome profile directory |
-| `SNAPMCP_SSRF_PROTECTION` | `false` | Block requests to private IP ranges |
-| `SNAPMCP_ALLOWED_PATHS` | `(deny all)` | Comma-separated allowlist for file reads |
+| `SNAPMCP_CHROME_CHANNEL` | `--` | Chrome channel: `stable`, `beta`, `dev`, `canary` |
+| `SNAPMCP_CHROME_PROFILE` | `--` | Chrome profile directory (persistent context) |
+| `SNAPMCP_SSRF_PROTECTION` | `true` | Block requests to private IP ranges (set `false` to disable) |
+| `SNAPMCP_ALLOWED_PATHS` | `(deny all)` | Comma- or semicolon-separated allowlist for file reads |
 | `SNAPMCP_MAX_FILE_SIZE` | `5242880` | Max file read size in bytes (5 MB) |
 | `SNAPMCP_LOG_FILE` | `--` | File path for the audit log |
 | `SNAPMCP_LOG_LEVEL` | `info` | Log level: `debug`, `info`, `warn`, `error` |
-| `SNAPMCP_CLEANUP_MAX` | `0` | Auto-delete captures older than N days (0 = off) |
+| `SNAPMCP_CLEANUP_MAX` | `0` | Max files kept in output dir before auto-clean (0 = off) |
 | `SNAPMCP_SECURITY_CHECKS` | `true` | Enable security checks (`true`/`false`) |
 
 ## SNAPMCP_DIR
@@ -78,9 +78,8 @@ Set to `auto` to let snapmcp detect your terminal theme. The detection chain is:
 | `one-light` | Light |
 | `solarized-light` | Light |
 | `solarized-dark` | Dark |
-| `material-theme` | Dark |
-| `material-theme-lighter` | Light |
-| `material-theme-ocean` | Dark |
+| `dark-plus` | Dark |
+| `github-dark` | Dark |
 
 ## SNAPMCP_CHROME_EXECUTABLE and SNAPMCP_CHROME_PROFILE
 

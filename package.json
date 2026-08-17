@@ -1,6 +1,6 @@
 {
   "name": "snapmcp",
-  "version": "2.2.4",
+  "version": "2.3.0",
   "description": "All-in-one MCP server for visual captures: terminal, code, browser, markdown, diffs, HTML, and PDF — via Playwright",
   "keywords": [
     "mcp",
