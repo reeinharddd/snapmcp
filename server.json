@@ -1,0 +1,142 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.reeinharddd/snapmcp",
+  "description": "Visual capture MCP server: terminal colors, code, diffs, PDFs, GIFs. 13 tools, SSRF on by default.",
+  "repository": {
+    "url": "https://github.com/reeinharddd/snapmcp",
+    "source": "github"
+  },
+  "version": "2.3.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "snapmcp",
+      "version": "2.3.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "SNAPMCP_DIR",
+          "description": "Output directory for captures",
+          "isRequired": false,
+          "default": "./captures",
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "SNAPMCP_THEME",
+          "description": "Shiki syntax highlighting theme (27 built-in themes, auto-detected terminal theme when unset)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "SNAPMCP_FORMAT",
+          "description": "Output image format: png or jpeg",
+          "isRequired": false,
+          "default": "png",
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "SNAPMCP_QUALITY",
+          "description": "JPEG quality (1-100, only used for JPEG)",
+          "isRequired": false,
+          "default": "90",
+          "format": "number",
+          "isSecret": false
+        },
+        {
+          "name": "SNAPMCP_SHADOW",
+          "description": "Drop shadow level: none, soft, medium, strong",
+          "isRequired": false,
+          "default": "none",
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "SNAPMCP_ALLOWED_PATHS",
+          "description": "Comma- or semicolon-separated allowlist of file paths readable by capture_file (deny-all when unset)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "SNAPMCP_SSRF_PROTECTION",
+          "description": "Block requests to private IP ranges (DNS-resolved, IPv4 + IPv6). Default: true",
+          "isRequired": false,
+          "default": "true",
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "SNAPMCP_CHROME_EXECUTABLE",
+          "description": "Path to a system Chrome/Chromium binary to use for browser captures",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "SNAPMCP_CHROME_PROFILE",
+          "description": "Chrome profile directory to use for browser captures (persistent context)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        }
+      ]
+    }
+  ],
+  "tools": {
+    "list": [
+      {
+        "name": "capture_terminal",
+        "description": "Terminal output with syntax-colored prompts (auto-detects real terminal theme)"
+      },
+      {
+        "name": "capture_code",
+        "description": "Syntax-highlighted code via Shiki (50+ languages, 27 themes)"
+      },
+      {
+        "name": "capture_browser",
+        "description": "Full-page or viewport screenshot of a URL"
+      },
+      {
+        "name": "capture_file",
+        "description": "File to auto-detected language syntax-highlighted screenshot"
+      },
+      {
+        "name": "capture_markdown",
+        "description": "Rendered markdown as a styled document"
+      },
+      {
+        "name": "capture_html",
+        "description": "Arbitrary HTML snippet rendered as image"
+      },
+      {
+        "name": "capture_diff",
+        "description": "Git diffs with green additions / red deletions"
+      },
+      {
+        "name": "capture_pdf",
+        "description": "URL to PDF document"
+      },
+      {
+        "name": "capture_batch",
+        "description": "Batch capture multiple items in a single call"
+      },
+      {
+        "name": "capture_gif",
+        "description": "Animated GIF from multiple screenshots"
+      },
+      {
+        "name": "capture_sequence",
+        "description": "Side-by-side animated sequence"
+      },
+      {
+        "name": "capture_to_document",
+        "description": "Multi-section markdown document render"
+      }
+    ]
+  }
+}
