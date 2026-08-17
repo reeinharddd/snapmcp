@@ -135,7 +135,7 @@ describe("detectSystemState", () => {
     const originalHome = process.env.HOME;
     try {
       process.env.HOME = tmpDir;
-      fs.existsSync = (p) => p === path.join(tmpDir, ".cache/ms-playwright");
+      fs.existsSync = (p) => p === `${tmpDir}/.cache/ms-playwright`;
       fs.readdirSync = () => ["chromium-1234"];
       const state = detectSystemState();
       assert.ok(state.chromium.installed);

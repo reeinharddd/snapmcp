@@ -215,7 +215,7 @@ describe("getChromeProfileDir", () => {
     process.env.HOME = "/Users/test";
 
     const result = getChromeProfileDir("chrome");
-    assert.ok(result.includes("Library/Application Support/Google/Chrome"));
+    assert.ok(result.replace(/\\/g, "/").includes("Library/Application Support/Google/Chrome"));
   });
 
   it("should return correct path for chrome on linux", () => {
@@ -224,7 +224,7 @@ describe("getChromeProfileDir", () => {
     });
 
     const result = getChromeProfileDir("chrome");
-    assert.ok(result.includes(".config/google-chrome"));
+    assert.ok(result.replace(/\\/g, "/").includes(".config/google-chrome"));
   });
 });
 
