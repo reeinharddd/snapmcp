@@ -1,7 +1,7 @@
 {
   "name": "snapmcp",
   "mcpName": "io.github.reeinharddd/snapmcp",
-  "version": "2.3.1",
+  "version": "2.3.2",
   "description": "All-in-one MCP server for visual captures: terminal, code, browser, markdown, diffs, HTML, and PDF — via Playwright",
   "keywords": [
     "mcp",
