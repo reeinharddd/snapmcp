@@ -63,7 +63,7 @@ function getChromePaths(): Array<{ path: string; channel: string }> {
 /**
  * Return the user-data-directory for a given channel on the current platform.
  */
-function getChromeProfileDir(channel: string): string {
+export function getChromeProfileDir(channel: string): string {
   if (process.platform === "win32") {
     const localAppData =
       process.env.LOCALAPPDATA ||
@@ -83,7 +83,7 @@ function getChromeProfileDir(channel: string): string {
   return path.join(os.homedir(), ".config/chromium");
 }
 
-function tryWhich(bin: string): string | null {
+export function tryWhich(bin: string): string | null {
   try {
     const out = execSync(`which ${bin} 2>/dev/null`, {
       encoding: "utf8",
@@ -95,7 +95,7 @@ function tryWhich(bin: string): string | null {
   }
 }
 
-function tryPath(p: string): string | null {
+export function tryPath(p: string): string | null {
   try {
     if (fs.existsSync(p)) {
       fs.accessSync(p, fs.constants.X_OK);
@@ -107,7 +107,7 @@ function tryPath(p: string): string | null {
   return null;
 }
 
-function detectChromeProfiles(baseDir: string): ChromeProfile[] {
+export function detectChromeProfiles(baseDir: string): ChromeProfile[] {
   const localStatePath = path.join(baseDir, "Local State");
   try {
     if (!fs.existsSync(localStatePath)) return [];

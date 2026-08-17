@@ -3,9 +3,9 @@
 > All-in-one MCP server for visual captures: terminal, code, browser, markdown, diffs,
 > HTML, PDF, and GIF — via Playwright.
 
-**Version**: 2.2.0  
-**Runtime**: Bun (primary) / Node >=20  
-**License**: MIT  
+**Version**: 2.2.4 (current, see `package.json`)
+**Runtime**: Bun (primary) / Node >=20
+**License**: MIT
 **Repository**: [github.com/reeinharddd/snapmcp](https://github.com/reeinharddd/snapmcp)
 
 ---
@@ -39,8 +39,10 @@ funnels through a **shared rendering engine**: build HTML → screenshot with Pl
    visible and trackable.
 3. **Zero-config startup** — `snapmcp` with no arguments starts a working server.
    Configuration is opt-in via `SNAPMCP_*` env vars.
-4. **Security by design, not by default** — SSRF protection is opt-in. Path
-   traversal and input limits are always on.
+4. **Security by design, and on by default** — SSRF protection is **enabled by default**
+   (disable with `SNAPMCP_SSRF_PROTECTION=false`), including DNS resolution of hostnames
+   and per-request re-checking of redirects and sub-resources. Path traversal and input
+   limits are always on.
 
 ---
 
@@ -48,42 +50,44 @@ funnels through a **shared rendering engine**: build HTML → screenshot with Pl
 
 ```
 src/
-├── index.ts          # Entry point: 13 MCP tools + CLI parsing
+├── index.ts          # Entry point: 13 MCP tool registrations + CLI parsing
 ├── config.ts         # SnapConfig interface + env-based loading
-├── renderer.ts       # Playwright screenshot engine + HTML templates
+├── renderer.ts       # Playwright screenshot engine + HTML templates + SSRF route guard
 ├── cli.ts            # CLI commands: init, doctor, test
-├── security.ts       # URL validation, input limits, path safety
+├── security.ts       # URL validation (IP v4/v6 + DNS), input limits, path safety
 ├── terminal.ts       # Real terminal detection + color reading
 ├── browser.ts        # System Chrome detection + profile
-├── brand.ts          # Centralized design tokens (teal/indigo)
+├── brand.ts          # Centralized design tokens (teal/blue)
 ├── document.ts       # Document capture rendering
 ├── gif.ts            # GIF encoding (gifenc + fast-png)
 ├── highlighter.ts    # Shiki v4 syntax highlighting
 ├── logger.ts         # Structured audit logging
 ├── setup-shared.ts   # Shared bootstrap logic (installer wizard)
 ├── register.ts       # MCP auto-registration in client configs
+├── tools/            # One file per MCP tool (13 registrations)
 └── gifenc.d.ts       # TypeScript declarations for gifenc
 ```
 
 ### Detailed Responsibilities
 
-| File | Lines | Role | Key Exports |
-|------|-------|------|-------------|
-| `index.ts` | 771 | **Orchestrator**. Defines all MCP tools via `@modelcontextprotocol/sdk`. CLI entry point. SIGINT/SIGTERM cleanup. Wires SSRF, audit, Chrome status. | `main()` |
-| `config.ts` | 157 | **Configuration**. Loads `SNAPMCP_*` env vars into typed `SnapConfig`. Terminal theme auto-detection fallback. | `SnapConfig`, `loadConfig()`, `DEFAULTS` |
-| `renderer.ts` | 881 | **Capture engine**. All templates + Playwright screenshot logic. Three template modes: minimal (no frame), full-frame (window chrome), raw HTML. | `captureTerminal()`, `captureBrowser()`, `screenshotHtml()` |
-| `cli.ts` | 326 | **CLI dispatcher**. Routes `init`/`doctor`/`test` commands. Uses shared bootstrap from `setup-shared.ts`. | `cliInit()`, `cliDoctor()`, `cliTest()` |
-| `security.ts` | ~200 | **Validation layer**. URL SSRF denylist, input size limits, path traversal prevention, Chromium sandbox check. | `validateUrl()`, `resolveSafePath()`, `checkChromiumSandbox()` |
-| `terminal.ts` | 191 | **Terminal detection**. Walks `/proc` process tree for emulator, reads config files. Fallback chain: config → COLORFGBG → OS theme. | `detectTerminalColors()`, `detectTerminalTheme()`, `terminalColorsToThemeOverrides()` |
-| `browser.ts` | 224 | **Chrome detection**. 8-step priority (env var → platform paths → which). Cross-platform. Profile extraction from Local State. | `detectChrome()`, `logChromeStatus()`, `ChromeProfile` |
-| `brand.ts` | ~50 | **Design tokens**. Teal `#06b6d4` and indigo `#6366f1` brand colors. Used in CLI banner, document rendering, badge gradient. | `BRAND`, `brandGradient`, `lighten()` |
-| `document.ts` | — | **Document renderer**. Multi-section markdown → styled document. Uses brand colors. | — |
-| `gif.ts` | — | **GIF encoder**. Wraps `gifenc` + `fast-png` (zero deps). | `createGif()` |
-| `highlighter.ts` | — | **Syntax highlighter**. Shiki v4, 27 themes, 50+ languages. | `codeToHtml()` |
-| `logger.ts` | — | **Audit log**. Typed `AuditEvent` entries. JSON log file via `SNAPMCP_LOG_FILE`. | `logger.audit()`, `setLogFile()`, `AuditEvent` |
-| `setup-shared.ts` | — | **Bootstrap wizard**. Detects system state (deps, Chrome, output dir), interactive prompts. | `detectSystemState()`, `bootstrapSetup()`, `printSummary()` |
-| `register.ts` | 330 | **MCP auto-registration**. Scans 5 client configs (OpenCode, Claude Desktop, Windsurf, Cursor, VS Code Cline). Creates `.bak` backups. | `detectMcpClients()`, `registerSnapmcp()` |
-| `gifenc.d.ts` | — | **Type declarations** for `gifenc` library (`quantize`, `applyPalette`, `GIFEncoder`). | TypeScript interfaces |
+| File | Role | Key Exports |
+|------|------|-------------|
+| `index.ts` | **Orchestrator**. Registers all MCP tools via `@modelcontextprotocol/sdk`, CLI entry point, SIGINT/SIGTERM/SIGHUP cleanup, wires SSRF/audit/Chrome status. Version read from `package.json`. | `main()` |
+| `config.ts` | **Configuration**. Loads `SNAPMCP_*` env vars into typed `SnapConfig`. Terminal theme auto-detection fallback. | `SnapConfig`, `loadConfig()`, `DEFAULTS` |
+| `renderer.ts` | **Capture engine**. Templates + Playwright screenshot logic + per-request SSRF route guard. Shared browser singleton (promise-guarded). | `captureTerminal()`, `captureBrowser()`, `getBrowser()` |
+| `cli.ts` | **CLI dispatcher**. Routes `init`/`doctor`/`test` commands. Uses shared bootstrap from `setup-shared.ts`. | `cliInit()`, `cliDoctor()`, `cliTest()` |
+| `security.ts` | **Validation layer**. SSRF denylist (IPv4+IPv6 literals, localhost variants, DNS-resolved hostnames), input size limits, realpath path-allowlist, Chromium sandbox check. | `validateUrl()`, `validateUrlResolve()`, `assertSafeRequestUrl()`, `validateFileRead()`, `resolveSafePath()` |
+| `terminal.ts` | **Terminal detection**. Walks `/proc` process tree for emulator, reads config files. Fallback chain: config → COLORFGBG → OS theme. | `detectTerminalColors()`, `detectTerminalTheme()`, `terminalColorsToThemeOverrides()` |
+| `browser.ts` | **Chrome detection**. 8-step priority (env var → platform paths → which). Cross-platform. Profile extraction from Local State. | `detectChrome()`, `logChromeStatus()`, `ChromeProfile` |
+| `brand.ts` | **Design tokens**. Teal `#00d4aa` and blue `#0099ff` brand colors (indigo `#7c4dff` tertiary). Used in CLI banner, document rendering, badge gradient. | `BRAND`, `brandGradient`, `lighten()` |
+| `document.ts` | **Document renderer**. Multi-section markdown/HTML/PDF. Embeds captures as base64. PDF reuses shared browser. | `createDocument()` |
+| `gif.ts` | **GIF encoder**. Wraps `gifenc` + `fast-png` (zero deps). Two-pass reading, size-capped. | `createGif()` |
+| `highlighter.ts` | **Syntax highlighter**. Shiki v4, 27 themes, 50+ languages. | `codeToHtml()` |
+| `logger.ts` | **Audit log**. Typed `AuditEvent` entries. JSON log file via `SNAPMCP_LOG_FILE`. | `logger.audit()`, `setLogFile()`, `AuditEvent` |
+| `setup-shared.ts` | **Bootstrap wizard**. Detects system state (deps, Chrome, output dir), interactive prompts. | `detectSystemState()`, `bootstrapSetup()`, `printSummary()` |
+| `register.ts` | **MCP auto-registration**. Scans 5 client configs (OpenCode, Claude Desktop, Windsurf, Cursor, VS Code Cline). Creates `.bak` backups. | `detectMcpClients()`, `registerSnapmcp()` |
+| `tools/*.ts` | **Tool registrations**. One file per tool; centralize URL/file validation via the renderer entry points. | `register*Tool()` |
+| `gifenc.d.ts` | **Type declarations** for `gifenc` library (`quantize`, `applyPalette`, `GIFEncoder`). | TypeScript interfaces |
 
 ---
 
@@ -265,12 +269,12 @@ is Linux-specific. On macOS/Windows, it falls back to env vars and OS-level dark
 
 **Layered approach:**
 
-1. **Input validation** (index.ts): Zod schemas for every tool parameter
-2. **SSRF protection** (security.ts): URL denylist (opt-in)
-3. **Input limits** (security.ts): Size caps per tool (code/markdown: 200KB, diff: 500KB, terminal: 1000 lines, file: 5MB)
-4. **Path traversal prevention** (security.ts): `resolveSafePath()` validates all output filenames
+1. **Input validation** (index.ts + `tools/*`): Zod schemas for every tool parameter
+2. **SSRF protection** (renderer.ts route guard + security.ts): URL denylist (IP v4/v6 + DNS resolution, on by default) and per-request re-checking of redirects/sub-resources
+3. **Input limits** (security.ts): Size caps per tool (code/markdown/html: 200KB, diff: 500KB, terminal: 1000 lines, file: 5MB, GIF: 60 frames / 8192×8192)
+4. **Path traversal prevention** (security.ts): `resolveSafePath()` validates output filenames; `validateFileRead()` uses realpath + separator boundary
 5. **HTML escaping** (renderer.ts): All user content is HTML-escaped before rendering
-6. **Resource cleanup** (renderer.ts): Browser pages closed in `finally` blocks
+6. **Resource cleanup** (renderer.ts): Pages and the shared browser closed in `finally` blocks and on SIGINT/SIGTERM/SIGHUP
 7. **Chromium sandbox** (security.ts): Detection at startup with clear guidance
 
 ---
@@ -280,24 +284,24 @@ is Linux-specific. On macOS/Windows, it falls back to env vars and OS-level dark
 - **Transport**: stdio (JSON-RPC over stdin/stdout)
 - **SDK**: `@modelcontextprotocol/sdk@1.29.0`
 - **Server name**: `SnapMCP` (capitalized)
-- **Server version**: `2.2.0`
+- **Server version**: from `package.json` (currently 2.2.4)
 
 ### MCP Tools
 
 | Tool | Input | Output | Description |
 |------|-------|--------|-------------|
-| `capture_terminal` | `content: string`, `opts: ScreenshotOptions?` | `PNG/JPEG` | Terminal output with syntax-colored prompt |
-| `capture_code` | `code: string`, `language: string`, `opts: ScreenshotOptions?` | `PNG/JPEG` | Syntax-highlighted code via Shiki |
-| `capture_browser` | `url: string`, `opts: ScreenshotOptions?` | `PNG/JPEG` | Full-page or viewport browser screenshot |
-| `capture_file` | `path: string`, `opts: ScreenshotOptions?` | `PNG/JPEG` | File → auto-detected language → highlighted |
-| `capture_markdown` | `content: string`, `opts: ScreenshotOptions?` | `PNG/JPEG` | Rendered markdown as styled document |
-| `capture_html` | `content: string`, `opts: ScreenshotOptions?` | `PNG/JPEG` | Arbitrary HTML rendered as image |
-| `capture_diff` | `content: string`, `opts: ScreenshotOptions?` | `PNG/JPEG` | Git diff with green/red colorization |
-| `capture_pdf` | `url: string`, `opts: PdfOptions?` | `PDF` | URL → PDF document |
-| `capture_batch` | `items: CaptureItem[]` | `PNG/JPEG[]` | Batch capture multiple items |
-| `capture_sequence` | `captures: CaptureItem[]`, `opts: SequenceOptions?` | `PNG[] + GIF` | Step sequence + optional GIF animation |
-| `capture_gif` | `captures: CaptureItem[]`, `opts: GifOptions?` | `GIF` | Multi-frame animated GIF |
-| `capture_to_document` | `sections: DocumentSection[]` | `MD/HTML/PDF` | Multi-section document with embedded captures |
+| `capture_terminal` | `lines`, `title` | `PNG/JPEG` | Terminal output with syntax-colored prompt |
+| `capture_code` | `code`, `language`, `title`, `startLine?`, `endLine?` | `PNG/JPEG` | Syntax-highlighted code via Shiki |
+| `capture_browser` | `url`, `fullPage?`, `width?`, `height?` | `PNG/JPEG` | Full-page or viewport browser screenshot |
+| `capture_file` | `filePath`, `startLine?`, `endLine?` | `PNG/JPEG` | File → auto-detected language → highlighted |
+| `capture_markdown` | `markdown`, `title` | `PNG/JPEG` | Rendered markdown as styled document |
+| `capture_html` | `html`, `title` | `PNG/JPEG` | Arbitrary HTML rendered as image |
+| `capture_diff` | `diff` | `PNG/JPEG` | Git diff with green/red colorization |
+| `capture_pdf` | `url`, `fullPage?`, `width?`, `height?` | `PDF` | URL → PDF document |
+| `capture_batch` | `captures`, `output?` | `PNG/JPEG[]` | Batch capture multiple items |
+| `capture_sequence` | `steps`, `compileGif?`, `frameDelay?`, `loop?` | `PNG[] + GIF` | Step sequence + optional GIF animation |
+| `capture_gif` | `captures`, `frameDelay?`, `loop?` | `GIF` | Multi-frame animated GIF |
+| `capture_to_document` | `title`, `captures`, `format?`, `includeTimestamps?` | `MD/HTML/PDF` | Multi-section document with embedded captures |
 | `snapmcp-hint` | — | JSON | Server capability hints for MCP clients |
 
 ### CLI Commands

@@ -1,6 +1,6 @@
 # Tools Reference
 
-> **snapmcp v2.2.4** — All 13 MCP tools for visual captures.
+> **snapmcp v2.3.0** — All 13 MCP tools for visual captures.
 
 Each tool is registered via `server.tool()` in `src/index.ts` and backed by a capture function in `src/renderer.ts` (images), `src/gif.ts` (animations), or `src/document.ts` (documents). Tools communicate over stdio using the Model Context Protocol.
 
@@ -213,7 +213,7 @@ Render Markdown content as a styled document screenshot. Supports headings, list
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `content` | `string` | yes | — | Markdown content to render |
+| `markdown` | `string` | yes | — | Markdown content to render |
 | `title` | `string` | no | `"document"` | Document title |
 | `opts` | `ScreenshotOptions` | no | — | Visual rendering options |
 
@@ -223,7 +223,7 @@ Render Markdown content as a styled document screenshot. Supports headings, list
 {
   "name": "capture_markdown",
   "arguments": {
-    "content": "# API Design\n\n## Endpoints\n\n- `GET /users` — list users\n- `POST /users` — create user\n\n## Authentication\n\nAll requests require a Bearer token.",
+    "markdown": "# API Design\n\n## Endpoints\n\n- `GET /users` — list users\n- `POST /users` — create user\n\n## Authentication\n\nAll requests require a Bearer token.",
     "title": "API Reference"
   }
 }
@@ -239,7 +239,7 @@ Render arbitrary HTML as a screenshot. Useful for custom UI mockups, charts, or 
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `content` | `string` | yes | — | HTML content to render |
+| `html` | `string` | yes | — | HTML content to render |
 | `title` | `string` | no | `"html"` | Description (for logging) |
 | `opts` | `ScreenshotOptions` | no | — | Visual rendering options |
 
@@ -265,7 +265,7 @@ Render a git diff with color-coded additions (green) and deletions (red). Accept
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `content` | `string` | yes | — | Diff content in git diff / unified diff format |
+| `diff` | `string` | yes | — | Diff content in git diff / unified diff format |
 | `opts` | `ScreenshotOptions` | no | — | Visual rendering options |
 
 **Example:**
@@ -274,7 +274,7 @@ Render a git diff with color-coded additions (green) and deletions (red). Accept
 {
   "name": "capture_diff",
   "arguments": {
-    "content": "--- a/src/main.ts\n+++ b/src/main.ts\n@@ -1,3 +1,4 @@\n-const x = 1;\n-console.log(x);\n+const x = 42;\n+const y = x * 2;\n+console.log(y);"
+    "diff": "--- a/src/main.ts\n+++ b/src/main.ts\n@@ -1,3 +1,4 @@\n-const x = 1;\n-console.log(x);\n+const x = 42;\n+const y = x * 2;\n+console.log(y);"
   }
 }
 ```
@@ -324,7 +324,7 @@ Capture multiple items in a single call. Each capture is processed sequentially.
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `items` | `CaptureItem[]` | yes | — | Array of captures to process (max: 10) |
+| `captures` | `CaptureItem[]` | yes | — | Array of captures to process (max: 10) |
 | `opts` | `ScreenshotOptions` | no | — | Visual rendering options applied to all items |
 
 **Example:**

@@ -74,7 +74,7 @@ export async function ask(prompt: string, defaultYes: boolean = true): Promise<b
 /**
  * Detect install mode based on how the process was invoked.
  */
-function detectInstallMode(): "global" | "project" | "unknown" {
+export function detectInstallMode(): "global" | "project" | "unknown" {
   const exe = process.argv[1] || "";
   // Check for npx-run detection
   if (exe.includes("_npx") || /\bnpx\b/.test(exe)) return "global";

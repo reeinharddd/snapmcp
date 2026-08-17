@@ -5,6 +5,37 @@ All notable changes to snapmcp are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2026-08-17
+
+### Security (hardening)
+- **SSRF protection now ON by default** — `SNAPMCP_SSRF_PROTECTION` defaults to `true` (was opt-in); the README/config docs updated to match
+- **Real DNS-based SSRF blocking** — `validateUrl` now resolves hostnames and blocks private/loopback/link-local IPs, closing hostname-obfuscation bypasses (nip.io, localtest.me, DNS rebinding); IPv6 ranges (`::1`, `fc00::/7`, `fe80::/10`, `::ffff:v4`) and trailing-dot FQDNs (`localhost.`) covered; per-hostname DNS cache keeps the hot path cheap
+- **URL validation moved to capture entry points** — `captureBrowser`, `capturePdf` and the 4 composite tools (`capture_batch`, `capture_gif`, `capture_sequence`, `capture_to_document`) now validate every URL; `file://` reads via browser tools are blocked
+- **Per-request route guard** — when SSRF protection is on, every subrequest/redirect of a rendered page is re-validated and aborted if it targets a private network (closes `capture_html`/`capture_markdown` SSRF via hostile JS, and 302 redirects to internal IPs)
+- **Path allowlist hardened** — `SNAPMCP_ALLOWED_PATHS` uses `realpath` + boundary-aware prefix matching (no more `/tmp/allowed` matching `/tmp/allowed-evil`), supports comma or semicolon separators, and no longer leaks the full config in error messages
+
+### Added
+- **Real Chrome profile support** — `SNAPMCP_CHROME_EXECUTABLE`, `SNAPMCP_CHROME_CHANNEL` and `SNAPMCP_CHROME_PROFILE` env vars now actually work: snapmcp launches the system Chrome with your profile (cookies/sessions) via persistent context instead of always falling back to bundled Chromium
+- **Postinstall Chromium bootstrap** — `npm install` now installs Playwright Chromium automatically when no system Chrome is found (previously installed broken with only a warning)
+- **Test coverage for terminal/browser detection, logger and brand** — new `tests/terminal.test.ts`, `tests/browser.test.ts`, `tests/logger.test.ts`, `tests/brand.test.ts`, `tests/register.test.ts`, `tests/setup-shared.test.ts` (suite now 250+ tests)
+- **`about:blank` as safe default target** — allowed through the URL guard for in-memory rendering
+
+### Fixed
+- **Browser singleton race** — concurrent capture calls no longer race on first-launch (promise-cached singleton); close-failure no longer leaves a poisoned browser instance
+- **PDF capture leak** — `writePdf` reuses the shared browser instead of launching/leaking a second one
+- **GIF engine** — OOM-safe two-pass encoding with per-frame dimension metadata; frame count limit enforced
+- **Terminal font-size normalization** — GNOME/other parsers reporting bare numbers (e.g. `"12"`) are normalized to CSS `px`
+- **WezTerm config parsing** — typed `matchAll` replaces untyped regex loop that broke `tsc` builds
+- **Version source of truth** — banner/`--version` read from `package.json` instead of a hardcoded string; `SNAPMCP_THEME=auto` no longer passed to Shiki as a theme name
+
+### Changed
+- **Docs synchronized with code** — README tool count (13 tools), `SNAPMCP_SHADOW` values (`none|soft|medium|strong`), SSRF default, separators, theme list, Node/Bun requirements, batch schema (`items` not `captures`), and brand tokens (`#00d4aa` primary) now match the implementation
+- **CI runs the full unit-test suite** — new test files added to `ci.yml` and `publish.yml`
+
+### Infrastructure
+- `npm audit` requires a lockfile — repo uses Bun; noted in CI
+- 2 dependabot PRs reviewed (no issues found)
+
 ## [2.2.4] - 2026-07-01
 
 ### Added

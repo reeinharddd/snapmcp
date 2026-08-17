@@ -61,19 +61,25 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
+// Import tool registration functions
+import { registerTerminalTool } from "./tools/terminal.js";
+import { registerCodeTool } from "./tools/code.js";
+import { registerBrowserTool } from "./tools/browser.js";
+import { registerFileTool } from "./tools/file.js";
+import { registerMarkdownTool } from "./tools/markdown.js";
+import { registerHtmlTool } from "./tools/html.js";
+import { registerDiffTool } from "./tools/diff.js";
+import { registerPdfTool } from "./tools/pdf.js";
+import { registerBatchTool } from "./tools/batch.js";
+import { registerSequenceTool } from "./tools/sequence.js";
+import { registerGifTool } from "./tools/gif.js";
+import { registerDocumentTool } from "./tools/document.js";
+import { registerHintTool } from "./tools/hint.js";
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const VERSION = JSON.parse(
   readFileSync(resolve(__dirname, "..", "package.json"), "utf-8"),
 ).version;
-
-// ─── Param interfaces (replace as any) ─────────────────────
-interface TerminalCaptureParams { title?: string; lines?: string[]; }
-interface CodeCaptureParams { code?: string; language?: string; title?: string; }
-interface BrowserCaptureParams { url?: string; fullPage?: boolean; width?: number; height?: number; }
-interface FileCaptureParams { filePath?: string; }
-interface MarkdownCaptureParams { markdown?: string; title?: string; }
-interface HtmlCaptureParams { html?: string; title?: string; }
-interface DiffCaptureParams { diff?: string; }
 
 // ─── CLI helpers ─────────────────────────────────────────────
 function showHelp(): void {
@@ -81,7 +87,7 @@ function showHelp(): void {
   ╔═══════════════════════════════════════════╗
   ║  ⬡ snapmcp v${VERSION}                     ║
   ║  Precision captures for AI agents         ║
-  ╚═══════════════════════════════════════════╝
+  ╚════════════════════════════════════════════╝
 
   USAGE
     snapmcp                    Start MCP server (stdio)
@@ -160,14 +166,17 @@ async function runSetup(): Promise<void> {
 }
 
 // ─── Banner ─────────────────────────────────────────────────
-const BANNER = `
+function banner(): string {
+  const toolCount = 13;
+  return `
   ┌──────────────────────────────────┬
-  │  ⬡ snapmcp v2.2  —  12 tools  │
+  │  ⬡ snapmcp v${VERSION}  —  ${toolCount} tools  │
   │  27 themes · GIF · Documents   │
   │  PNG / JPEG / PDF / GIF / MD   │
   │  precision captures for AI      │
   └──────────────────────────────────┘
 `;
+}
 
 // ─── ANSI helpers for brand-colored output ─────────────────
 const ansiPri = (t: string) => `\x1b[38;2;0;212;170m${t}\x1b[0m`;
@@ -190,7 +199,7 @@ logChromeStatus(chromeDetected);
 // ─── Server setup ─────────────────────────────────────────
 const server = new McpServer({
   name: "SnapMCP",
-  version: "2.2.0",
+  version: VERSION,
   description:
     "All-in-one visual captures: terminal, code, browser, markdown, HTML, diffs, files, and PDF — via Playwright",
 });
@@ -200,7 +209,6 @@ const ext = () => formatExt(config.format);
 
 function outPath(prefix: string, name?: string): string {
   if (name) {
-    // Append default extension if name lacks one (Playwright needs ext for MIME)
     const hasExt = /\.(png|jpe?g|gif|pdf)$/i.test(name);
     const finalName = hasExt ? name : `${name}.${ext()}`;
     return resolveSafePath(OUTPUT_DIR, finalName);
@@ -221,539 +229,27 @@ function fail(err: unknown): {
   return { content: [{ type: "text", text: `❌ ${msg}` }], isError: true };
 }
 
-// ─── Tool 1: Terminal ──────────────────────────────────────
-server.tool(
-  "capture_terminal",
-  "Generate a styled terminal screenshot from text lines. Prefix with '$ ' for command prompts.",
-  {
-    title: z.string().min(1).describe("Window title shown in the terminal title bar"),
-    lines: z
-      .array(z.string())
-      .min(1)
-      .describe("Lines to render. '$ ' prefix = command prompt, others = output"),
-    output: z.string().optional().describe("Output filename (default: auto-generated)"),
-  },
-  async ({ title, lines, output }) => {
-    try {
-      const p = outPath("terminal", output);
-      await captureTerminal(title, lines, p, config);
-      return ok(p);
-    } catch (e) {
-      return fail(e);
-    }
-  },
-);
+// ─── Register all tools ──────────────────────────────────────
+const toolDeps = {
+  outPath,
+  ok,
+  fail,
+  config,
+};
 
-// ─── Tool 2: Code ── with line range support ────────────────
-server.tool(
-  "capture_code",
-  "Generate a syntax-highlighted code screenshot using Shiki (50+ languages).",
-  {
-    code: z.string().min(1).describe("Source code to render"),
-    language: z.string().default("text").describe("Programming language for highlighting"),
-    title: z.string().default("code").describe("Window title"),
-    startLine: z.number().int().min(1).optional().describe("First line number to show in the gutter"),
-    endLine: z.number().int().min(1).optional().describe("Last line number to show in the gutter"),
-    output: z.string().optional().describe("Output filename (default: auto-generated)"),
-  },
-  async ({ code, language, title, startLine, endLine, output }) => {
-    try {
-      const p = outPath("code", output);
-      await captureCode(code, language, title, p, config, startLine, endLine);
-      return ok(p);
-    } catch (e) {
-      return fail(e);
-    }
-  },
-);
-
-// ─── Tool 3: Browser ────────────────────────────────────────
-server.tool(
-  "capture_browser",
-  "Take a screenshot of a URL using headless Chromium.",
-  {
-    url: z.string().url().describe("URL to capture"),
-    fullPage: z.boolean().default(false).describe("Capture full scrollable page"),
-    width: z.number().int().min(320).max(3840).default(1280).describe("Viewport width (px)"),
-    height: z.number().int().min(240).max(4096).default(800).describe("Viewport height (px)"),
-    output: z.string().optional().describe("Output filename (default: auto-generated)"),
-  },
-  async ({ url, fullPage, width, height, output }) => {
-    try {
-      validateUrl(url, config.ssrfProtection);
-      const p = outPath("browser", output);
-      await captureBrowser(url, p, fullPage, width, height, config);
-      logger.audit({ event: AuditEventType.CaptureBrowser, severity: "info", detail: `URL: ${url}`, source: "capture_browser" });
-      return ok(p);
-    } catch (e) {
-      return fail(e);
-    }
-  },
-);
-
-// ─── Tool 4: File ── with line range support ────────────────
-server.tool(
-  "capture_file",
-  "Read a file and generate a syntax-highlighted screenshot based on its extension.",
-  {
-    filePath: z.string().min(1).describe("Absolute path to the file to capture"),
-    startLine: z.number().int().min(1).optional().describe("First line number to capture (1-indexed, inclusive)"),
-    endLine: z.number().int().min(1).optional().describe("Last line number to capture (1-indexed, inclusive)"),
-    output: z.string().optional().describe("Output filename (default: auto-generated)"),
-  },
-  async ({ filePath: fp, startLine, endLine, output }) => {
-    try {
-      const p = outPath("file", output);
-      await captureFile(fp, p, config, startLine, endLine);
-      return ok(p);
-    } catch (e) {
-      return fail(e);
-    }
-  },
-);
-
-// ─── Tool 5: Markdown ───────────────────────────────────────
-server.tool(
-  "capture_markdown",
-  "Render Markdown as a styled document screenshot.",
-  {
-    markdown: z.string().min(1).describe("Markdown content to render"),
-    title: z.string().default("document").describe("Document title"),
-    output: z.string().optional().describe("Output filename (default: auto-generated)"),
-  },
-  async ({ markdown, title, output }) => {
-    try {
-      const p = outPath("markdown", output);
-      await captureMarkdown(markdown, title, p, config);
-      return ok(p);
-    } catch (e) {
-      return fail(e);
-    }
-  },
-);
-
-// ─── Tool 6: HTML ───────────────────────────────────────────
-server.tool(
-  "capture_html",
-  "Render arbitrary HTML as a screenshot.",
-  {
-    html: z.string().min(1).describe("HTML content to render"),
-    title: z.string().default("html").describe("Description (for logging)"),
-    output: z.string().optional().describe("Output filename (default: auto-generated)"),
-  },
-  async ({ html, title, output }) => {
-    try {
-      const p = outPath("html", output);
-      await captureHtml(html, title, p, config);
-      return ok(p);
-    } catch (e) {
-      return fail(e);
-    }
-  },
-);
-
-// ─── Tool 7: Diff ───────────────────────────────────────────
-server.tool(
-  "capture_diff",
-  "Render a git diff with color-coded additions and deletions.",
-  {
-    diff: z.string().min(1).describe("Diff content (git diff / unified diff format)"),
-    output: z.string().optional().describe("Output filename (default: auto-generated)"),
-  },
-  async ({ diff, output }) => {
-    try {
-      const p = outPath("diff", output);
-      await captureDiff(diff, p, config);
-      return ok(p);
-    } catch (e) {
-      return fail(e);
-    }
-  },
-);
-
-// ─── Tool 8: PDF ────────────────────────────────────────────
-server.tool(
-  "capture_pdf",
-  "Convert a URL to a PDF document using headless Chromium.",
-  {
-    url: z.string().url().describe("URL to convert to PDF"),
-    fullPage: z.boolean().default(true).describe("Include all content"),
-    width: z.number().int().min(320).max(3840).default(1280).describe("Viewport width"),
-    height: z.number().int().min(240).max(4096).default(800).describe("Viewport height"),
-    output: z.string().optional().describe("Output filename (default: auto-generated)"),
-  },
-  async ({ url, fullPage, width, height, output }) => {
-    try {
-      validateUrl(url, config.ssrfProtection);
-      const filename = output || `pdf-${Date.now()}.pdf`;
-      const hasExt = /\.(pdf)$/i.test(filename);
-      const finalName = hasExt ? filename : `${filename}.pdf`;
-      const p = resolveSafePath(OUTPUT_DIR, finalName);
-      await capturePdf(url, p, fullPage, width, height, config);
-      logger.audit({ event: AuditEventType.CapturePdf, severity: "info", detail: `URL: ${url}`, source: "capture_pdf" });
-      return ok(p);
-    } catch (e) {
-      return fail(e);
-    }
-  },
-);
-
-// ─── Tool 9: Batch ──────────────────────────────────────────
-server.tool(
-  "capture_batch",
-  "Capture multiple items in a single call. Each capture is processed sequentially.",
-  {
-    captures: z.array(z.object({
-      type: z.enum(["terminal", "code", "file", "browser", "markdown", "html", "diff"]),
-      params: z.record(z.string(), z.any()).describe("Parameters for the capture type"),
-      caption: z.string().optional().describe("Optional caption/label for the capture"),
-    })).min(1).max(10),
-    output: z.string().optional().describe("Output directory (default: SNAPMCP_DIR)"),
-  },
-  async ({ captures, output }) => {
-    try {
-      const results: { type: string; path: string; caption?: string }[] = [];
-
-      for (const cap of captures) {
-        const prefix = cap.type;
-        const p = path.join(OUTPUT_DIR, `${prefix}-${Date.now()}.${ext()}`);
-
-        switch (cap.type) {
-          case "terminal": {
-            const { title, lines } = cap.params as TerminalCaptureParams;
-            await captureTerminal(title || "terminal", lines || [], p, config);
-            break;
-          }
-          case "code": {
-            const { code, language, title } = cap.params as CodeCaptureParams;
-            await captureCode(code || "", language || "text", title || "code", p, config);
-            break;
-          }
-          case "file": {
-            const { filePath } = cap.params as FileCaptureParams;
-            await captureFile(filePath || "", p, config);
-            break;
-          }
-          case "browser": {
-            const { url, fullPage, width, height } = cap.params as BrowserCaptureParams;
-            await captureBrowser(url || "about:blank", p, fullPage || false, width || 1280, height || 800, config);
-            break;
-          }
-          case "markdown": {
-            const { markdown, title } = cap.params as MarkdownCaptureParams;
-            await captureMarkdown(markdown || "", title || "document", p, config);
-            break;
-          }
-          case "html": {
-            const { html, title } = cap.params as HtmlCaptureParams;
-            await captureHtml(html || "", title || "html", p, config);
-            break;
-          }
-          case "diff": {
-            const { diff } = cap.params as DiffCaptureParams;
-            await captureDiff(diff || "", p, config);
-            break;
-          }
-        }
-
-        results.push({ type: cap.type, path: p, caption: cap.caption });
-      }
-
-      runCleanup(config);
-
-      const summary = results.map(r =>
-        `  ${r.caption ? `[${r.caption}] ` : ""}${r.type}: ${r.path}`
-      ).join("\n");
-
-      return { content: [{ type: "text", text: `✅ Batch complete (${results.length} captures):\n${summary}` }] };
-    } catch (e) {
-      return fail(e);
-    }
-  },
-);
-
-// ─── Tool 10: Sequence ──────────────────────────────────────
-server.tool(
-  "capture_sequence",
-  "Capture each step of a process as individual files + optional compiled GIF.",
-  {
-    steps: z.array(z.object({
-      type: z.enum(["terminal", "code", "file", "browser", "markdown", "diff", "html"]),
-      params: z.record(z.string(), z.any()).describe("Parameters for the capture type"),
-      stepNumber: z.number().int().min(1).optional().describe("Step number label"),
-      label: z.string().optional().describe("Label for this step"),
-    })).min(1).max(60),
-    compileGif: z.boolean().default(false).describe("Compile frames into an animated GIF"),
-    frameDelay: z.number().int().min(10).max(5000).default(800).describe("Frame delay in ms"),
-    loop: z.boolean().default(true).describe("Whether the GIF loops"),
-    output: z.string().optional().describe("Output directory (default: SNAPMCP_DIR)"),
-  },
-  async ({ steps, compileGif, frameDelay, loop, output }) => {
-    try {
-      const results: { stepNumber?: number; label?: string; type: string; path: string }[] = [];
-
-      for (const step of steps) {
-        const prefix = step.type;
-        const p = path.join(OUTPUT_DIR, `${prefix}-${Date.now()}.${ext()}`);
-
-        switch (step.type) {
-          case "terminal": {
-            const { title, lines } = step.params as TerminalCaptureParams;
-            await captureTerminal(title || "step", lines || [], p, config);
-            break;
-          }
-          case "code": {
-            const { code, language, title } = step.params as CodeCaptureParams;
-            await captureCode(code || "", language || "text", title || "step", p, config);
-            break;
-          }
-          case "file": {
-            const { filePath } = step.params as FileCaptureParams;
-            await captureFile(filePath || "", p, config);
-            break;
-          }
-          case "browser": {
-            const { url, fullPage, width, height } = step.params as BrowserCaptureParams;
-            await captureBrowser(url || "about:blank", p, fullPage || false, width || 1280, height || 800, config);
-            break;
-          }
-          case "markdown": {
-            const { markdown, title } = step.params as MarkdownCaptureParams;
-            await captureMarkdown(markdown || "", title || "step", p, config);
-            break;
-          }
-          case "html": {
-            const { html, title } = step.params as HtmlCaptureParams;
-            await captureHtml(html || "", title || "step", p, config);
-            break;
-          }
-          case "diff": {
-            const { diff } = step.params as DiffCaptureParams;
-            await captureDiff(diff || "", p, config);
-            break;
-          }
-        }
-
-        results.push({ stepNumber: step.stepNumber, label: step.label, type: step.type, path: p });
-      }
-
-      // Optionally compile into GIF
-      let gifPath: string | undefined;
-      if (compileGif && results.length >= 2) {
-        gifPath = path.join(OUTPUT_DIR, `sequence-${Date.now()}.gif`);
-        const frames: GifFrame[] = results.map(r => ({
-          filePath: r.path,
-          delay: Math.round(frameDelay / 10), // ms → centiseconds
-        }));
-        await createGif(frames, gifPath);
-      }
-
-      runCleanup(config);
-
-      const summary = results.map(r =>
-        `  ${r.label ? `[${r.label}] ` : ""}${r.stepNumber ? `Step ${r.stepNumber}: ` : ""}${r.type}: ${r.path}`
-      ).join("\n");
-
-      const gifNote = gifPath ? `\n  GIF compiled: ${gifPath}` : "";
-      return { content: [{ type: "text", text: `✅ Sequence complete (${results.length} steps):\n${summary}${gifNote}` }] };
-    } catch (e) {
-      return fail(e);
-    }
-  },
-);
-
-// ─── Tool 11: GIF ────────────────────────────────────────────
-server.tool(
-  "capture_gif",
-  "Create an animated GIF from sequential captures.",
-  {
-    title: z.string().default("animation").describe("Name for the GIF"),
-    captures: z.array(z.object({
-      type: z.enum(["terminal", "code", "file", "browser", "markdown", "diff", "html"]),
-      params: z.record(z.string(), z.any()).describe("Parameters for the capture type"),
-      label: z.string().optional().describe("Optional label for the capture"),
-    })).min(2).max(60),
-    frameDelay: z.number().int().min(10).max(5000).default(800).describe("Frame delay in ms"),
-    loop: z.boolean().default(true).describe("Whether the GIF loops"),
-    output: z.string().optional().describe("Output filename for the GIF"),
-  },
-  async ({ title, captures, frameDelay, loop, output }) => {
-    try {
-      // Capture each frame
-      const framePaths: string[] = [];
-      for (const cap of captures) {
-        const prefix = cap.type;
-        const p = path.join(OUTPUT_DIR, `${prefix}-${Date.now()}.${ext()}`);
-
-        switch (cap.type) {
-          case "terminal": {
-            const { title: t, lines } = cap.params as TerminalCaptureParams;
-            await captureTerminal(t || "frame", lines || [], p, config);
-            break;
-          }
-          case "code": {
-            const { code, language, title: t } = cap.params as CodeCaptureParams;
-            await captureCode(code || "", language || "text", t || "frame", p, config);
-            break;
-          }
-          case "file": {
-            const { filePath } = cap.params as FileCaptureParams;
-            await captureFile(filePath || "", p, config);
-            break;
-          }
-          case "browser": {
-            const { url, fullPage, width, height } = cap.params as BrowserCaptureParams;
-            await captureBrowser(url || "about:blank", p, fullPage || false, width || 1280, height || 800, config);
-            break;
-          }
-          case "markdown": {
-            const { markdown, title: t } = cap.params as MarkdownCaptureParams;
-            await captureMarkdown(markdown || "", t || "frame", p, config);
-            break;
-          }
-          case "html": {
-            const { html, title: t } = cap.params as HtmlCaptureParams;
-            await captureHtml(html || "", t || "frame", p, config);
-            break;
-          }
-          case "diff": {
-            const { diff } = cap.params as DiffCaptureParams;
-            await captureDiff(diff || "", p, config);
-            break;
-          }
-        }
-        framePaths.push(p);
-      }
-
-      // Compile into GIF
-      const gifOutput = output
-        ? resolveSafePath(OUTPUT_DIR, output)
-        : path.join(OUTPUT_DIR, `${title}-${Date.now()}.gif`);
-
-      const frames: GifFrame[] = framePaths.map(fp => ({
-        filePath: fp,
-        delay: Math.round(frameDelay / 10), // ms → centiseconds
-      }));
-      const result = await createGif(frames, gifOutput, { loop });
-
-      runCleanup(config);
-      return ok(result);
-    } catch (e) {
-      return fail(e);
-    }
-  },
-);
-
-// ─── Tool 12: Document ───────────────────────────────────────
-server.tool(
-  "capture_to_document",
-  "Create a document (Markdown/HTML/PDF) with embedded step-by-step captures.",
-  {
-    title: z.string().min(1).describe("Document title"),
-    captures: z.array(z.object({
-      type: z.enum(["terminal", "code", "file", "browser", "markdown", "html", "diff"]),
-      params: z.record(z.string(), z.any()).describe("Parameters for the capture type"),
-      caption: z.string().optional().describe("Caption for this capture"),
-    })).min(1).max(30),
-    format: z.enum(["markdown", "html", "pdf"]).default("markdown").describe("Output document format"),
-    includeTimestamps: z.boolean().default(false).describe("Include timestamps in document"),
-    output: z.string().optional().describe("Output filename (default: auto-generated)"),
-  },
-  async ({ title, captures, format, includeTimestamps, output }) => {
-    try {
-      // First capture all steps as images
-      const capturedPaths: { imagePath: string; caption?: string }[] = [];
-
-      for (const cap of captures) {
-        const prefix = cap.type;
-        const p = path.join(OUTPUT_DIR, `${prefix}-${Date.now()}.${ext()}`);
-
-        switch (cap.type) {
-          case "terminal": {
-            const { title: t, lines } = cap.params as TerminalCaptureParams;
-            await captureTerminal(t || "step", lines || [], p, config);
-            break;
-          }
-          case "code": {
-            const { code, language, title: t } = cap.params as CodeCaptureParams;
-            await captureCode(code || "", language || "text", t || "step", p, config);
-            break;
-          }
-          case "file": {
-            const { filePath } = cap.params as FileCaptureParams;
-            await captureFile(filePath || "", p, config);
-            break;
-          }
-          case "browser": {
-            const { url, fullPage, width, height } = cap.params as BrowserCaptureParams;
-            await captureBrowser(url || "about:blank", p, fullPage || false, width || 1280, height || 800, config);
-            break;
-          }
-          case "markdown": {
-            const { markdown, title: t } = cap.params as MarkdownCaptureParams;
-            await captureMarkdown(markdown || "", t || "step", p, config);
-            break;
-          }
-          case "html": {
-            const { html, title: t } = cap.params as HtmlCaptureParams;
-            await captureHtml(html || "", t || "step", p, config);
-            break;
-          }
-          case "diff": {
-            const { diff } = cap.params as DiffCaptureParams;
-            await captureDiff(diff || "", p, config);
-            break;
-          }
-        }
-        capturedPaths.push({ imagePath: p, caption: cap.caption });
-      }
-
-      // Build document sections from captured images
-      const sections: DocumentSection[] = capturedPaths.map(cp => ({
-        imagePath: cp.imagePath,
-        caption: cp.caption,
-      }));
-
-      const docExt = format === "markdown" ? "md" : format === "html" ? "html" : "pdf";
-      const docOutput = output
-        ? resolveSafePath(OUTPUT_DIR, output)
-        : path.join(OUTPUT_DIR, `document-${Date.now()}.${docExt}`);
-
-      await createDocument(
-        { title, sections, format: format as DocumentFormat, includeTimestamps, outputPath: docOutput },
-        config,
-      );
-
-      runCleanup(config);
-      return { content: [{ type: "text", text: `✅ Document saved: ${docOutput} (${captures.length} captures, ${format})` }] };
-    } catch (e) {
-      return fail(e);
-    }
-  },
-);
-
-// ─── Tool 13: Hint ───────────────────────────────────────────
-server.tool(
-  "snapmcp-hint",
-  "Return a helpful hint about configuring and using snapmcp.",
-  {
-    topic: z.string().optional().describe("Optional topic: init, doctor, browser, themes, output"),
-  },
-  async ({ topic }) => {
-    const hints: Record<string, string> = {
-      init: "Run `snapmcp init` to configure output directory, theme, and browser profile interactively.",
-      doctor: "Run `snapmcp doctor` to diagnose your system setup and verify all dependencies.",
-      browser: "Set SNAPMCP_CHROME_EXECUTABLE to your Chrome/Chromium path to use your real browser profile for captures.",
-      themes: "Set SNAPMCP_THEME to one of 27 themes: dracula, nord, catppuccin-mocha, tokyo-night, and more.",
-      output: "Set SNAPMCP_DIR to control where captures are saved (default: ./snapshots).",
-    };
-
-    const generic = "Need help configuring snapmcp? Run `snapmcp init` to set up your output directory, terminal theme, and browser profile interactively.";
-    const text = topic && hints[topic] ? hints[topic] : generic;
-
-    return { content: [{ type: "text", text }] };
-  },
-);
+registerTerminalTool(server, toolDeps);
+registerCodeTool(server, toolDeps);
+registerBrowserTool(server, toolDeps);
+registerFileTool(server, toolDeps);
+registerMarkdownTool(server, toolDeps);
+registerHtmlTool(server, toolDeps);
+registerDiffTool(server, toolDeps);
+registerPdfTool(server, toolDeps);
+registerBatchTool(server, toolDeps);
+registerSequenceTool(server, toolDeps);
+registerGifTool(server, toolDeps);
+registerDocumentTool(server, toolDeps);
+registerHintTool(server);
 
 // ─── Startup ────────────────────────────────────────────────
 async function main() {
@@ -809,9 +305,9 @@ async function main() {
   if (BRAND.ascii) {
     console.error(ansiBold(BRAND.ascii));
   } else {
-    console.error(ansiBold(BANNER));
+    console.error(ansiBold(banner()));
   }
-  const toolList = ["capture_terminal", "capture_code", "capture_browser", "capture_file", "capture_markdown", "capture_html", "capture_diff", "capture_pdf", "capture_batch", "capture_sequence", "capture_gif", "capture_to_document"];
+  const toolList = ["capture_terminal", "capture_code", "capture_browser", "capture_file", "capture_markdown", "capture_html", "capture_diff", "capture_pdf", "capture_batch", "capture_sequence", "capture_gif", "capture_to_document", "snapmcp-hint"];
   console.error(ansiPri(`  v${VERSION}`));
   console.error(ansiSec(`  ${toolList.join(" · ")}`));
   logger.info(`  Mode:     stdio`);
@@ -829,6 +325,11 @@ async function main() {
     process.exit(0);
   });
   process.on("SIGTERM", async () => {
+    await closeBrowser();
+    closeAuditLog();
+    process.exit(0);
+  });
+  process.on("SIGHUP", async () => {
     await closeBrowser();
     closeAuditLog();
     process.exit(0);

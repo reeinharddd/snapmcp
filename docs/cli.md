@@ -100,7 +100,7 @@ Prints the installed version number.
 
 ```bash
 snapmcp --version
-snapmcp v2.2.4
+snapmcp v2.3.0
 ```
 
 ## Quick Start

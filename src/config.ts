@@ -35,7 +35,7 @@ export interface SnapConfig {
   maxFileSize: number;
   /** Enable startup security checks */
   securityChecks: boolean;
-  /** SSRF protection opt-in (default: false — no blocking) */
+  /** SSRF protection opt-in (default: true — blocking enabled) */
   ssrfProtection: boolean;
   /* ── Visual options ── */
   /** Padding inside the capture viewport (px) */
@@ -85,7 +85,7 @@ const DEFAULTS: SnapConfig = {
   allowedPaths: [],
   maxFileSize: 5_000_000,
   securityChecks: true,
-  ssrfProtection: false,
+  ssrfProtection: true,
   padding: 32,
   shadow: "none",
   windowChrome: false,
@@ -107,7 +107,7 @@ export function loadConfig(): SnapConfig {
     cleanupMax: Math.max(0, envInt("CLEANUP_MAX", DEFAULTS.cleanupMax)),
     logLevel: env("LOG_LEVEL", DEFAULTS.logLevel),
     allowedPaths: allowedPathsRaw
-      ? allowedPathsRaw.split(";").map((p) => p.trim()).filter(Boolean)
+      ? allowedPathsRaw.split(/[;,]/).map((p) => p.trim()).filter(Boolean)
       : [],
     maxFileSize: Math.max(1024, envInt("MAX_FILE_SIZE", DEFAULTS.maxFileSize)),
     securityChecks: envBool("SECURITY_CHECKS", DEFAULTS.securityChecks),
@@ -117,6 +117,9 @@ export function loadConfig(): SnapConfig {
     windowChrome: envBool("WINDOW_CHROME", DEFAULTS.windowChrome),
     borderRadius: Math.max(0, Math.min(32, envInt("BORDER_RADIUS", DEFAULTS.borderRadius))),
     badge: envBool("BADGE", DEFAULTS.badge),
+    chromeExecutable: env("CHROME_EXECUTABLE", "") || undefined,
+    chromeChannel: env("CHROME_CHANNEL", "") || undefined,
+    chromeProfile: env("CHROME_PROFILE", "") || undefined,
   };
 
   const terminalColors = detectTerminalColors();
@@ -177,8 +180,12 @@ function envBool(key: string, fallback: boolean): boolean {
 }
 
 function parseShadow(v: string): ShadowLevel {
-  const valid: ShadowLevel[] = ["none", "soft", "medium", "strong"];
-  return valid.includes(v as ShadowLevel) ? (v as ShadowLevel) : "soft";
+  const map: Record<string, ShadowLevel> = {
+    none: "none", soft: "soft", sm: "soft",
+    medium: "medium", md: "medium",
+    strong: "strong", lg: "strong",
+  };
+  return map[v.toLowerCase()] ?? "none";
 }
 
 function clamp(n: number, min: number, max: number): number {

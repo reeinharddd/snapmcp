@@ -32,7 +32,7 @@ jobs:
         run: bun run build
 
       - name: Unit tests
-        run: bun test tests/highlighter.test.ts tests/cli.test.ts tests/config.test.ts tests/security.test.ts tests/gif.test.ts tests/document.test.ts tests/capture-file-range.test.ts tests/renderer.test.ts
+        run: bun test tests/highlighter.test.ts tests/cli.test.ts tests/config.test.ts tests/security.test.ts tests/gif.test.ts tests/document.test.ts tests/capture-file-range.test.ts tests/renderer.test.ts tests/terminal.test.ts tests/browser.test.ts tests/logger.test.ts tests/brand.test.ts tests/register.test.ts tests/setup-shared.test.ts
 
       - name: Integration tests (Linux only)
         if: runner.os == 'Linux'
