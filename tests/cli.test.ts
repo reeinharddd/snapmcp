@@ -189,47 +189,31 @@ describe("cliInit", () => {
 /* ─── cliTest ──────────────────────────────────────────────── */
 
 describe("cliTest", () => {
-  it("throws when Chromium is not available", { timeout: 5_000 }, async () => {
+  it("rejects when the Chromium executable cannot be launched", { timeout: 5_000 }, async () => {
     const { cliTest } = await import("../src/cli.js")
     const { loadConfig } = await import("../src/config.js")
 
-    // Quick way to check if Chromium is available — if not, the
-    // test should reject with a Playwright-related error
-    const home = process.env.HOME || process.env.USERPROFILE || ""
-    const cacheDir =
-      process.env.PLAYWRIGHT_BROWSERS_PATH || `${home}/.cache/ms-playwright`
-    let chromiumAvailable = false
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "snapmcp-test-test-"))
+    const oldDir = process.env.SNAPMCP_DIR
+    const oldExe = process.env.SNAPMCP_CHROME_EXECUTABLE
+    // Point at a nonexistent binary so the launch fails deterministically
+    // in every environment (CI installs Chromium via bun, so "availability"
+    // checks are unreliable).
+    process.env.SNAPMCP_CHROME_EXECUTABLE = "/nonexistent/chrome-binary"
+    process.env.SNAPMCP_DIR = tmpDir
     try {
-      chromiumAvailable =
-        fs.existsSync(cacheDir) ||
-        (process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE !== undefined &&
-          fs.existsSync(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE))
-    } catch {
-      chromiumAvailable = false
+      const config = loadConfig()
+      await assert.rejects(
+        () => cliTest(config),
+        /chromium|playwright|browser/i,
+        "cliTest should reject when the Chromium executable cannot be launched",
+      )
+    } finally {
+      if (oldExe === undefined) delete process.env.SNAPMCP_CHROME_EXECUTABLE
+      else process.env.SNAPMCP_CHROME_EXECUTABLE = oldExe
+      if (oldDir === undefined) delete process.env.SNAPMCP_DIR
+      else process.env.SNAPMCP_DIR = oldDir
+      fs.rmSync(tmpDir, { recursive: true, force: true })
     }
-
-    if (!chromiumAvailable) {
-      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "snapmcp-test-test-"))
-      const oldDir = process.env.SNAPMCP_DIR
-      process.env.SNAPMCP_DIR = tmpDir
-      try {
-        const config = loadConfig()
-        await assert.rejects(
-          () => cliTest(config),
-          /chromium|playwright|browser/i,
-          "cliTest should reject when Chromium is not available",
-        )
-      } finally {
-        if (oldDir === undefined) {
-          delete process.env.SNAPMCP_DIR
-        } else {
-          process.env.SNAPMCP_DIR = oldDir
-        }
-        fs.rmSync(tmpDir, { recursive: true, force: true })
-      }
-    }
-    // If Chromium IS available, cliTest should succeed — we skip
-    // verifying the success path here since it's slow and requires
-    // the full Playwright stack (tested by integration tests)
   })
 })
