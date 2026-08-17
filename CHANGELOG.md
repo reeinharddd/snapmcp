@@ -5,6 +5,12 @@ All notable changes to snapmcp are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.1] - 2026-08-17
+
+### Changed
+- Bumped marked 15→18 and typescript 5→7 (native compiler; explicit "types": ["node"] in tsconfig)
+- Dependabot now uses the bun ecosystem (keeps bun.lock in sync)
+
 ## [2.3.0] - 2026-08-17
 
 ### Security (hardening)
