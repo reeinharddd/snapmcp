@@ -195,14 +195,15 @@ describe("cliTest", () => {
 
     // Quick way to check if Chromium is available — if not, the
     // test should reject with a Playwright-related error
+    const home = process.env.HOME || process.env.USERPROFILE || ""
+    const cacheDir =
+      process.env.PLAYWRIGHT_BROWSERS_PATH || `${home}/.cache/ms-playwright`
     let chromiumAvailable = false
     try {
-      const { execSync } = await import("node:child_process")
-      execSync("npx playwright install chromium --dry-run", {
-        stdio: "pipe",
-        timeout: 10_000,
-      })
-      chromiumAvailable = true
+      chromiumAvailable =
+        fs.existsSync(cacheDir) ||
+        (process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE !== undefined &&
+          fs.existsSync(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE))
     } catch {
       chromiumAvailable = false
     }
