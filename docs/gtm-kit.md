@@ -71,5 +71,5 @@ Preparado desde el análisis de mercado (firecrawl). Copia/pega estas descripcio
 |--------|-----|--------------|
 | GitHub stars | 0 | 500 |
 | npm downloads/mo | ~700 | 5K |
-| Registry listings | 0 | Official + PulseMCP + Smithery + Glama |
+| Registry listings | 1 (official, io.github.reeinharddd/snapmcp v2.3.2) + PR awesome-list #12359 | Official + PulseMCP + Smithery + Glama |
 | Third-party mentions | 0 | 3+ |
