@@ -1,7 +1,7 @@
 ---
 title: "Why I built an all-in-one visual MCP server (and when NOT to use Playwright)"
 published: false
-description: "snapmcp: real terminal colors, Shiki syntax, visual diffs, PDFs and GIFs for AI documentation agents — one MCP server, zero heavy deps, SSRF protection on by default."
+description: "snapmcp: real terminal colors, Shiki syntax, visual diffs, PDFs and GIFs for AI documentation agents — one MCP server, SSRF protection on by default, renders with your system Chrome."
 tags: [mcp, ai, agents, claude]
 cover_image: https://raw.githubusercontent.com/reeinharddd/snapmcp/main/brand/logo/snapmcp-logo-horizontal.svg
 ---
@@ -26,7 +26,7 @@ Before, a documentation workflow needed several servers:
 
 That's five configs to maintain, five installs to keep working, five SSRF surfaces to worry about.
 
-snapmcp replaces that with one server, 13 tools, and zero heavy dependencies.
+snapmcp replaces that with one server and 13 tools — rendered with your system Chrome, or an auto-installed Chromium.
 
 ## What it does
 
