@@ -9,16 +9,17 @@ Preparado desde el análisis de mercado (firecrawl). Copia/pega estas descripcio
 > **snapmcp — The visual documentation MCP server.**
 > When Playwright's structured snapshots aren't enough: real terminal colors,
 > syntax-highlighted code, visual diffs, PDFs and GIFs — one MCP server, 13 tools,
-> zero heavy dependencies, SSRF protection on by default.
+> rendered with your system Chrome or an auto-installed Chromium, SSRF protection on by default.
 
 ## Registry submissions
 
 ### 1. registry.modelcontextprotocol.io (oficial)
 - Name: `snapmcp`
-- Description: `All-in-one visual capture MCP server: terminal (real colors), code (Shiki), browser screenshots, markdown, diffs, PDFs, GIFs. 13 tools, zero heavy deps, SSRF protection by default.`
+- Description: `All-in-one visual capture MCP server: terminal (real colors), code (Shiki), browser screenshots, markdown, diffs, PDFs, GIFs. 13 tools, SSRF protection by default.`
 - Tags: `screenshot, visual, terminal, code, documentation, pdf`
 - URL: https://github.com/reeinharddd/snapmcp
-- Form: https://registry.modelcontextprotocol.io (submit via GitHub PR to modelcontextprotocol/servers, `registry/` dir)
+- Method: official CLI — `mcp-publisher login github` (device flow) then `mcp-publisher publish` from the repo root.
+  Verify: `curl 'https://registry.modelcontextprotocol.io/v0.1/servers?search=snapmcp'`
 
 ### 2. glama.ai/mcp/servers
 - Name: `snapmcp`
@@ -30,8 +31,8 @@ Preparado desde el análisis de mercado (firecrawl). Copia/pega estas descripcio
 - Tags: `screenshot`, `terminal`, `code`, `pdf`, `gif`, `documentation`
 - GitHub link: https://github.com/reeinharddd/snapmcp
 
-### 4. pulse.mcp.so
-- Same metadata as mcp.so
+### 4. PulseMCP (pulsemcp.com) — no manual submission needed
+- PulseMCP aggregates from the official registry via ETL; once listed upstream, it appears within ~24h.
 
 ### 5. mcpservers.org
 - Same metadata; category: `Visual Capture` / `Documentation`
@@ -63,3 +64,12 @@ Preparado desde el análisis de mercado (firecrawl). Copia/pega estas descripcio
 - Top-50 MCP server in at least one registry
 - 3+ third-party blog posts/videos mentioning snapmcp
 - If no traction after 6 months of aggressive GTM: consider pivot or sunset
+
+## Status tracker (2026-08-20)
+
+| Metric | Now | Target (6mo) |
+|--------|-----|--------------|
+| GitHub stars | 0 | 500 |
+| npm downloads/mo | ~700 | 5K |
+| Registry listings | 1 (official, io.github.reeinharddd/snapmcp v2.3.2) + PR awesome-list #12359 | Official + PulseMCP + Smithery + Glama |
+| Third-party mentions | 0 | 3+ |
