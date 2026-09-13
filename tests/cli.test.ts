@@ -141,6 +141,51 @@ describe("cliDoctor", () => {
       else process.env.SNAPMCP_FORMAT = oldFormat
     }
   })
+
+  it("emits machine-readable JSON on stdout when json=true", { timeout: 15_000 }, async () => {
+    const { cliDoctor } = await import("../src/cli.js")
+    const { loadConfig } = await import("../src/config.js")
+    const config = loadConfig()
+
+    let output = ""
+    const origWrite = process.stdout.write.bind(process.stdout)
+    process.stdout.write = ((chunk: unknown) => {
+      output += String(chunk)
+      return true
+    }) as typeof process.stdout.write
+    try {
+      const result = await cliDoctor(config, true)
+      const parsed = JSON.parse(output) as {
+        status: string
+        checks: { name: string; status: string; message: string }[]
+      }
+      assert.equal(parsed.status, result.status, "JSON status should match result")
+      assert.deepEqual(parsed.checks, result.checks, "JSON checks should match result")
+      assert.ok(parsed.checks.length > 0, "JSON output should include checks")
+    } finally {
+      process.stdout.write = origWrite
+    }
+  })
+
+  it("does not emit the pretty report when json=true", { timeout: 15_000 }, async () => {
+    const { cliDoctor } = await import("../src/cli.js")
+    const { loadConfig } = await import("../src/config.js")
+    const config = loadConfig()
+
+    let output = ""
+    const origWrite = process.stdout.write.bind(process.stdout)
+    process.stdout.write = ((chunk: unknown) => {
+      output += String(chunk)
+      return true
+    }) as typeof process.stdout.write
+    try {
+      await cliDoctor(config, true)
+      assert.doesNotMatch(output, /Doctor Report/, "JSON mode should not print the report banner")
+      assert.doesNotMatch(output, /snapmcp — Doctor/, "JSON mode should not print the report header")
+    } finally {
+      process.stdout.write = origWrite
+    }
+  })
 })
 
 /* ─── cliInit ──────────────────────────────────────────────── */
