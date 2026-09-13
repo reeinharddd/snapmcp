@@ -111,7 +111,10 @@ export async function cliInit(config: SnapConfig): Promise<void> {
  * and the Shiki syntax highlighter. Returns a structured result
  * and logs a formatted report to stderr.
  */
-export async function cliDoctor(config: SnapConfig): Promise<DoctorResult> {
+export async function cliDoctor(
+  config: SnapConfig,
+  json = false,
+): Promise<DoctorResult> {
   const checks: DoctorCheck[] = []
 
   /* 1. Node.js version */
@@ -261,6 +264,11 @@ export async function cliDoctor(config: SnapConfig): Promise<DoctorResult> {
   const hasError = checks.some((c) => c.status === "error")
   const hasWarn = checks.some((c) => c.status === "warn")
   const status: DoctorResult["status"] = hasError ? "error" : hasWarn ? "warn" : "ok"
+
+  if (json) {
+    process.stdout.write(JSON.stringify({ status, checks }, null, 2) + "\n")
+    return { status, checks }
+  }
 
   /* Log report */
   logger.info("")

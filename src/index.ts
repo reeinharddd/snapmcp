@@ -18,7 +18,7 @@
  *
  * CLI commands:
  *  snapmcp init          → interactive setup wizard
- *  snapmcp doctor        → system diagnostics
+ *  snapmcp doctor        → system diagnostics (--json for CI)
  *  snapmcp test          → test capture verification
  *
  * Configuration via SNAPMCP_* env vars (see README or src/config.ts).
@@ -96,6 +96,7 @@ function showHelp(): void {
     snapmcp --setup            Install Chromium + create output dir
     snapmcp init               Interactive setup wizard
     snapmcp doctor             System diagnostics
+    snapmcp doctor --json      System diagnostics (JSON output)
     snapmcp test               Run test capture
 
   TOOLS (12)
@@ -274,8 +275,8 @@ async function main() {
     process.exit(0);
   }
   if (args.includes("doctor")) {
-    const result = await cliDoctor(config);
-    process.exit(result.status === "ok" ? 0 : 1);
+    const result = await cliDoctor(config, args.includes("--json"));
+    process.exit(result.status === "error" ? 1 : 0);
   }
   if (args.includes("test")) {
     await cliTest(config);
