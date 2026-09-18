@@ -45,5 +45,12 @@
     "pathTraversalProtection": true,
     "inputLimits": true,
     "allowlistRequired": true
-  }
+  },
+  "relatedServers": [
+    "microsoft/playwright-mcp",
+    "ChromeDevTools/chrome-devtools-mcp",
+    "mozilla/firefox-devtools-mcp",
+    "HurleySk/can-see",
+    "kmoulder/screen-capture-mcp"
+  ]
 }
