@@ -1,8 +1,8 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { 
-  captureTerminal, captureCode, captureFile, 
-  captureBrowser, captureMarkdown, captureHtml, captureDiff 
+import {
+  captureTerminal, captureCode, captureFile,
+  captureBrowser, captureMarkdown, captureHtml, captureDiff
 } from "../renderer.js";
 import { createGif, type GifFrame } from "../gif.js";
 import { runCleanup } from "../renderer.js";
@@ -15,72 +15,132 @@ interface ToolDeps {
   config: import("../config.js").SnapConfig;
 }
 
+// Common fields for all step types
+const StepCommon = {
+  stepNumber: z.number().int().min(1).optional().describe("Step number label (auto-assigned if omitted)"),
+  label: z.string().max(100).optional().describe("Optional label for this step"),
+};
+
+// Discriminated union for step parameters - include common fields in each variant
+const TerminalParams = z.object({
+  type: z.literal("terminal"),
+  title: z.string().max(100).optional().describe("Window title (default: 'step')"),
+  lines: z.array(z.string()).min(1).max(1000).describe("Lines to render. Prefix with '$ ' for prompts."),
+  ...StepCommon,
+});
+
+const CodeParams = z.object({
+  type: z.literal("code"),
+  code: z.string().min(1).max(200_000).describe("Source code to render"),
+  language: z.string().default("text").describe("Programming language (typescript, python, rust, go, etc.)"),
+  title: z.string().max(100).optional().describe("Window title (default: 'step')"),
+  startLine: z.number().int().min(1).optional().describe("First line number (1-indexed)"),
+  endLine: z.number().int().min(1).optional().describe("Last line number (1-indexed, inclusive)"),
+  ...StepCommon,
+});
+
+const FileParams = z.object({
+  type: z.literal("file"),
+  filePath: z.string().min(1).describe("Absolute path to file (must be in SNAPMCP_ALLOWED_PATHS)"),
+  startLine: z.number().int().min(1).optional().describe("First line number (1-indexed)"),
+  endLine: z.number().int().min(1).optional().describe("Last line number (1-indexed, inclusive)"),
+  ...StepCommon,
+});
+
+const BrowserParams = z.object({
+  type: z.literal("browser"),
+  url: z.string().url().describe("URL to capture (http/https, SSRF protected)"),
+  fullPage: z.boolean().default(false).describe("Capture full scrollable page"),
+  width: z.number().int().min(320).max(3840).default(1280).describe("Viewport width (px)"),
+  height: z.number().int().min(240).max(4096).default(800).describe("Viewport height (px)"),
+  ...StepCommon,
+});
+
+const MarkdownParams = z.object({
+  type: z.literal("markdown"),
+  markdown: z.string().min(1).max(200_000).describe("Markdown content (GFM supported)"),
+  title: z.string().max(100).optional().describe("Document title (default: 'step')"),
+  ...StepCommon,
+});
+
+const HtmlParams = z.object({
+  type: z.literal("html"),
+  html: z.string().min(1).max(200_000).describe("HTML content (external resources blocked)"),
+  title: z.string().max(100).optional().describe("Description for logging (default: 'step')"),
+  ...StepCommon,
+});
+
+const DiffParams = z.object({
+  type: z.literal("diff"),
+  diff: z.string().min(1).max(500_000).describe("Unified diff content (git diff format)"),
+  ...StepCommon,
+});
+
+const StepSchema = z.discriminatedUnion("type", [
+  TerminalParams, CodeParams, FileParams, BrowserParams,
+  MarkdownParams, HtmlParams, DiffParams,
+]);
+
 export function registerSequenceTool(server: McpServer, { outPath, ok, fail, config }: ToolDeps): void {
   server.tool(
     "capture_sequence",
-    "Capture each step of a process as individual files + optional compiled GIF.",
+    "Capture each step of a process as individual image files + optional compiled GIF. Each step has full type-specific parameters plus stepNumber and label for documentation. Use for CI/CD pipeline visualization, deployment steps, tutorial sequences. Maximum 60 steps.",
     {
-      steps: z.array(z.object({
-        type: z.enum(["terminal", "code", "file", "browser", "markdown", "diff", "html"]),
-        params: z.record(z.string(), z.any()).describe("Parameters for the capture type"),
-        stepNumber: z.number().int().min(1).optional().describe("Step number label"),
-        label: z.string().optional().describe("Label for this step"),
-      })).min(1).max(60),
-      compileGif: z.boolean().default(false).describe("Compile frames into an animated GIF"),
-      frameDelay: z.number().int().min(10).max(5000).default(800).describe("Frame delay in ms"),
-      loop: z.boolean().default(true).describe("Whether the GIF loops"),
-      output: z.string().optional().describe("Output directory (default: SNAPMCP_DIR)"),
+      steps: z.array(StepSchema).min(1).max(60).describe("Array of steps to capture. Each step specifies its capture type, type-specific parameters, plus optional stepNumber and label."),
+      compileGif: z.boolean().default(false).describe("Compile frames into an animated GIF (requires at least 2 steps)"),
+      frameDelay: z.number().int().min(10).max(5000).default(800).describe("Frame delay in milliseconds for GIF (10-5000). Default 800ms."),
+      loop: z.boolean().default(true).describe("Whether the GIF loops infinitely"),
+      output: z.string().optional().describe("Output directory (default: SNAPMCP_DIR). Steps saved as individual files, GIF as sequence-<timestamp>.gif"),
     },
     async ({ steps, compileGif, frameDelay, loop, output }) => {
       try {
-        const OUTPUT_DIR = config.outputDir;
+        const OUTPUT_DIR = output ? path.resolve(config.outputDir, output) : config.outputDir;
         const results: { stepNumber?: number; label?: string; type: string; path: string }[] = [];
-        
-        for (const step of steps) {
+
+        for (let i = 0; i < steps.length; i++) {
+          const step = steps[i];
           const prefix = step.type;
           const p = path.join(OUTPUT_DIR, `${prefix}-${Date.now()}.${config.format === "jpeg" ? "jpg" : "png"}`);
-          
+
           switch (step.type) {
             case "terminal": {
-              const { title, lines } = step.params as { title?: string; lines?: string[] };
-              await captureTerminal(title || "step", lines || [], p, config);
+              await captureTerminal(step.title || "step", step.lines, p, config);
               break;
             }
             case "code": {
-              const { code, language, title } = step.params as { code?: string; language?: string; title?: string };
-              await captureCode(code || "", language || "text", title || "step", p, config);
+              await captureCode(step.code, step.language, step.title || "step", p, config, step.startLine, step.endLine);
               break;
             }
             case "file": {
-              const { filePath } = step.params as { filePath?: string };
-              await captureFile(filePath || "", p, config);
+              await captureFile(step.filePath, p, config, step.startLine, step.endLine);
               break;
             }
             case "browser": {
-              const { url, fullPage, width, height } = step.params as { url?: string; fullPage?: boolean; width?: number; height?: number };
-              await captureBrowser(url || "about:blank", p, fullPage || false, width || 1280, height || 800, config);
+              await captureBrowser(step.url, p, step.fullPage, step.width, step.height, config);
               break;
             }
             case "markdown": {
-              const { markdown, title } = step.params as { markdown?: string; title?: string };
-              await captureMarkdown(markdown || "", title || "step", p, config);
+              await captureMarkdown(step.markdown, step.title || "step", p, config);
               break;
             }
             case "html": {
-              const { html, title } = step.params as { html?: string; title?: string };
-              await captureHtml(html || "", title || "step", p, config);
+              await captureHtml(step.html, step.title || "step", p, config);
               break;
             }
             case "diff": {
-              const { diff } = step.params as { diff?: string };
-              await captureDiff(diff || "", p, config);
+              await captureDiff(step.diff, p, config);
               break;
             }
           }
-          
-          results.push({ stepNumber: step.stepNumber, label: step.label, type: step.type, path: p });
+
+          results.push({
+            stepNumber: step.stepNumber ?? (i + 1),
+            label: step.label,
+            type: step.type,
+            path: p,
+          });
         }
-        
+
         // Optionally compile into GIF
         let gifPath: string | undefined;
         if (compileGif && results.length >= 2) {
@@ -91,13 +151,13 @@ export function registerSequenceTool(server: McpServer, { outPath, ok, fail, con
           }));
           await createGif(frames, gifPath, { loop });
         }
-        
+
         runCleanup(config);
-        
+
         const summary = results.map(r =>
           `  ${r.label ? `[${r.label}] ` : ""}${r.stepNumber ? `Step ${r.stepNumber}: ` : ""}${r.type}: ${r.path}`
         ).join("\n");
-        
+
         const gifNote = gifPath ? `\n  GIF compiled: ${gifPath}` : "";
         return ok(`✅ Sequence complete (${results.length} steps):\n${summary}${gifNote}`);
       } catch (e) {
