@@ -1,0 +1,49 @@
+{
+  "name": "snapmcp",
+  "description": "All-in-one MCP server for visual captures: terminal screenshots, syntax-highlighted code, visual diffs, PDFs, GIFs, and markdown documents.",
+  "version": "2.3.2",
+  "license": "MIT",
+  "repository": "https://github.com/reeinharddd/snapmcp",
+  "homepage": "https://github.com/reeinharddd/snapmcp",
+  "keywords": ["mcp", "screenshot", "terminal", "code", "documentation", "visual", "diff", "pdf", "gif"],
+  "categories": ["documentation-access", "developer-tools", "image-and-video-processing"],
+  "tools": [
+    "capture_terminal",
+    "capture_code",
+    "capture_browser",
+    "capture_file",
+    "capture_markdown",
+    "capture_html",
+    "capture_diff",
+    "capture_pdf",
+    "capture_batch",
+    "capture_gif",
+    "capture_sequence",
+    "capture_to_document",
+    "snapmcp-hint"
+  ],
+  "environmentVariables": {
+    "SNAPMCP_DIR": "./captures",
+    "SNAPMCP_THEME": "auto-detected",
+    "SNAPMCP_FORMAT": "png",
+    "SNAPMCP_QUALITY": "90",
+    "SNAPMCP_ALLOWED_PATHS": "(deny-all)",
+    "SNAPMCP_SHADOW": "none",
+    "SNAPMCP_BADGE": "false",
+    "SNAPMCP_PADDING": "32",
+    "SNAPMCP_BORDER_RADIUS": "0",
+    "SNAPMCP_WINDOW_CHROME": "false",
+    "SNAPMCP_CHROME_CHANNEL": "stable",
+    "SNAPMCP_CHROME_PROFILE": "",
+    "SNAPMCP_SSRF_PROTECTION": "true",
+    "SNAPMCP_CHROME_EXECUTABLE": ""
+  },
+  "entrypoint": "node dist/index.js",
+  "transport": "stdio",
+  "security": {
+    "ssrfProtection": true,
+    "pathTraversalProtection": true,
+    "inputLimits": true,
+    "allowlistRequired": true
+  }
+}
