@@ -12,10 +12,10 @@ interface ToolDeps {
 export function registerDiffTool(server: McpServer, { outPath, ok, fail, config }: ToolDeps): void {
   server.tool(
     "capture_diff",
-    "Render a git diff with color-coded additions and deletions.",
+    "Render a git diff with color-coded additions (green) and deletions (red). Parses unified diff format (output of `git diff`, `diff -u`). Shows file headers, line numbers, and context lines. Ideal for PR reviews, migration guides, and change documentation. Maximum input 500KB.",
     {
-      diff: z.string().min(1).describe("Diff content (git diff / unified diff format)"),
-      output: z.string().optional().describe("Output filename (default: auto-generated)"),
+      diff: z.string().min(1).max(500_000).describe("Diff content in unified diff format (e.g., output of 'git diff' or 'diff -u'). Must include file headers (---/+++) and hunks (@@ -... +... @@). Maximum 500KB."),
+      output: z.string().optional().describe("Output filename (default: auto-generated as 'diff-<timestamp>.png' or '.jpeg' based on SNAPMCP_FORMAT). Include extension to override format."),
     },
     async ({ diff, output }) => {
       try {

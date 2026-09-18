@@ -18,7 +18,7 @@
       "environmentVariables": [
         {
           "name": "SNAPMCP_DIR",
-          "description": "Output directory for captures",
+          "description": "Output directory for captures (default: ./captures)",
           "isRequired": false,
           "default": "./captures",
           "format": "string",
@@ -26,7 +26,7 @@
         },
         {
           "name": "SNAPMCP_THEME",
-          "description": "Shiki syntax highlighting theme (27 built-in themes, auto-detected terminal theme when unset)",
+          "description": "Shiki syntax highlighting theme (27 built-in: dracula, nord, catppuccin-mocha, tokyo-night, github-dark-dimmed, etc.). Auto-detects terminal theme when unset.",
           "isRequired": false,
           "format": "string",
           "isSecret": false
@@ -49,7 +49,7 @@
         },
         {
           "name": "SNAPMCP_SHADOW",
-          "description": "Drop shadow level: none, soft, medium, strong",
+          "description": "Drop shadow level: none, soft, medium, strong (aliases: sm, md, lg)",
           "isRequired": false,
           "default": "none",
           "format": "string",
@@ -79,7 +79,7 @@
         },
         {
           "name": "SNAPMCP_CHROME_PROFILE",
-          "description": "Chrome profile directory to use for browser captures (persistent context)",
+          "description": "Chrome profile directory to use for browser captures (persistent context with cookies/extensions)",
           "isRequired": false,
           "format": "string",
           "isSecret": false
@@ -91,51 +91,55 @@
     "list": [
       {
         "name": "capture_terminal",
-        "description": "Terminal output with syntax-colored prompts (auto-detects real terminal theme)"
+        "description": "Generate a styled terminal screenshot from text lines with real terminal theme colors. Auto-detects Kitty, GNOME, Alacritty, WezTerm themes for authentic prompt colors. Max 1000 lines."
       },
       {
         "name": "capture_code",
-        "description": "Syntax-highlighted code via Shiki (50+ languages, 27 themes)"
+        "description": "Generate a syntax-highlighted code screenshot using Shiki (50+ languages, 27 themes). Renders with line numbers, theme-aware colors, optional window chrome. Max 200KB input."
       },
       {
         "name": "capture_browser",
-        "description": "Full-page or viewport screenshot of a URL"
+        "description": "Take a screenshot of a URL using headless Chromium. Uses system Chrome profile when available for authenticated sessions. SSRF protection on by default. Full-page or viewport capture."
       },
       {
         "name": "capture_file",
-        "description": "File to auto-detected language syntax-highlighted screenshot"
+        "description": "Read a file and generate a syntax-highlighted screenshot with auto language detection from extension. Requires SNAPMCP_ALLOWED_PATHS allowlist. Max 5MB file size."
       },
       {
         "name": "capture_markdown",
-        "description": "Rendered markdown as a styled document"
+        "description": "Render Markdown as a styled document screenshot using GitHub-flavored Markdown. Supports tables, task lists, code blocks with syntax highlighting. Max 200KB input."
       },
       {
         "name": "capture_html",
-        "description": "Arbitrary HTML snippet rendered as image"
+        "description": "Render arbitrary HTML as a screenshot with full CSS support. External scripts/iframes/stylesheets blocked for security. Max 200KB input."
       },
       {
         "name": "capture_diff",
-        "description": "Git diffs with green additions / red deletions"
+        "description": "Render a git diff with color-coded additions (green) and deletions (red). Parses unified diff format (git diff output). Max 500KB input."
       },
       {
         "name": "capture_pdf",
-        "description": "URL to PDF document"
+        "description": "Convert a URL to a PDF document using headless Chromium. Full-page or viewport rendering. Uses system Chrome profile for authenticated pages. SSRF protection enabled."
       },
       {
         "name": "capture_batch",
-        "description": "Batch capture multiple items in a single call"
+        "description": "Capture multiple items in a single call (max 10). Each capture uses typed parameters via discriminated union (terminal, code, file, browser, markdown, html, diff). Saves individual files."
       },
       {
         "name": "capture_gif",
-        "description": "Animated GIF from multiple screenshots"
+        "description": "Create an animated GIF from sequential captures (2-60 frames). Each frame uses typed capture parameters. Configurable frame delay (10-5000ms) and loop. Max canvas 8192x8192."
       },
       {
         "name": "capture_sequence",
-        "description": "Side-by-side animated sequence"
+        "description": "Capture process steps as individual files + optional compiled GIF (max 60 steps). Each step has typed params plus stepNumber and label. Use for pipeline/tutorial visualization."
       },
       {
         "name": "capture_to_document",
-        "description": "Multi-section markdown document render"
+        "description": "Create a document (Markdown/HTML/PDF) with embedded step-by-step captures (max 30). Each capture has typed params and optional caption. HTML embeds images as base64; PDF is print-quality."
+      },
+      {
+        "name": "snapmcp-hint",
+        "description": "Return contextual help for snapmcp configuration and usage. Topics: init, doctor, browser, themes, output, security, gif, document, batch."
       }
     ]
   }

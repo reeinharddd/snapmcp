@@ -12,11 +12,11 @@ interface ToolDeps {
 export function registerMarkdownTool(server: McpServer, { outPath, ok, fail, config }: ToolDeps): void {
   server.tool(
     "capture_markdown",
-    "Render Markdown as a styled document screenshot.",
+    "Render Markdown as a styled document screenshot using GitHub-flavored Markdown. Supports tables, task lists, code blocks with syntax highlighting, mermaid diagrams (as text), and HTML. Renders with the configured Shiki theme and document styling. Maximum input 200KB.",
     {
-      markdown: z.string().min(1).describe("Markdown content to render"),
-      title: z.string().default("document").describe("Document title"),
-      output: z.string().optional().describe("Output filename (default: auto-generated)"),
+      markdown: z.string().min(1).max(200_000).describe("Markdown content to render. Supports GFM: tables, task lists, fenced code blocks, strikethrough, autolinks. Maximum 200KB."),
+      title: z.string().max(100).default("document").describe("Document title shown in the window title bar and as H1 if not present in markdown."),
+      output: z.string().optional().describe("Output filename (default: auto-generated as 'markdown-<timestamp>.png' or '.jpeg' based on SNAPMCP_FORMAT). Include extension to override format."),
     },
     async ({ markdown, title, output }) => {
       try {

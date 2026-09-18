@@ -1,11 +1,11 @@
 {
   "name": "snapmcp",
-  "description": "All-in-one MCP server for visual captures: terminal screenshots, syntax-highlighted code, visual diffs, PDFs, GIFs, and markdown documents.",
-  "version": "2.3.2",
+  "description": "All-in-one MCP server for visual captures: terminal screenshots with real theme colors, syntax-highlighted code (50+ langs, 27 themes), visual diffs, PDFs, GIFs, and markdown documents. Built-in SSRF protection, path traversal prevention, input limits. 13 typed tools with discriminated unions for complex operations.",
+  "version": "2.3.3",
   "license": "MIT",
   "repository": "https://github.com/reeinharddd/snapmcp",
   "homepage": "https://github.com/reeinharddd/snapmcp",
-  "keywords": ["mcp", "screenshot", "terminal", "code", "documentation", "visual", "diff", "pdf", "gif"],
+  "keywords": ["mcp", "screenshot", "terminal", "code", "documentation", "visual", "diff", "pdf", "gif", "playwright", "shiki", "chromium"],
   "categories": ["documentation-access", "developer-tools", "image-and-video-processing"],
   "tools": [
     "capture_terminal",
