@@ -14,13 +14,13 @@ interface ToolDeps {
 export function registerPdfTool(server: McpServer, { outPath, ok, fail, config }: ToolDeps): void {
   server.tool(
     "capture_pdf",
-    "Convert a URL to a PDF document using headless Chromium.",
+    "Convert a URL to a PDF document using headless Chromium. Renders the full page (including lazy-loaded content) or viewport to a print-quality PDF. Uses system Chrome profile when available for authenticated pages. SSRF protection enabled by default (blocks private IPs, localhost). Supports custom viewport for responsive PDFs.",
     {
-      url: z.string().url().describe("URL to convert to PDF"),
-      fullPage: z.boolean().default(true).describe("Include all content"),
-      width: z.number().int().min(320).max(3840).default(1280).describe("Viewport width"),
-      height: z.number().int().min(240).max(4096).default(800).describe("Viewport height"),
-      output: z.string().optional().describe("Output filename (default: auto-generated)"),
+      url: z.string().url().describe("URL to convert to PDF (http/https). Must pass SSRF validation: no private IPs, localhost, or DNS-rebinding. Redirects are validated."),
+      fullPage: z.boolean().default(true).describe("Include all page content (true) or only viewport (false). Full page prints the entire scrollable document."),
+      width: z.number().int().min(320).max(3840).default(1280).describe("Viewport width in pixels (320-3840) for responsive rendering."),
+      height: z.number().int().min(240).max(4096).default(800).describe("Viewport height in pixels (240-4096) for responsive rendering."),
+      output: z.string().optional().describe("Output filename (default: auto-generated as 'pdf-<timestamp>.pdf'). Must end in .pdf."),
     },
     async ({ url, fullPage, width, height, output }) => {
       try {
