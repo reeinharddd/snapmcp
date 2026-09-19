@@ -223,7 +223,7 @@ describe("MCP server protocol", () => {
         "capture_pdf",
         "capture_sequence",
         "capture_terminal",
-        "capture_to_document",
+        "capture_document",
         "snapmcp-hint",
       ];
       assert.deepEqual(names, expected.sort());

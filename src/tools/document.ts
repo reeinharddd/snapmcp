@@ -83,7 +83,7 @@ const CaptureWithCaption = z.discriminatedUnion("type", [
 
 export function registerDocumentTool(server: McpServer, { outPath, ok, fail, config }: ToolDeps): void {
   server.tool(
-    "capture_to_document",
+    "capture_document",
     "Create a document (Markdown/HTML/PDF) with embedded step-by-step captures. Each capture is rendered as an image and embedded in the document with optional captions. Output formats: markdown (with image references), HTML (self-contained with base64 images), or PDF (print-quality). Maximum 30 captures per document.",
     {
       title: z.string().min(1).max(200).describe("Document title"),

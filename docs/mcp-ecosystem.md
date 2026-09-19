@@ -446,7 +446,7 @@ Prepare this metadata once, submit it everywhere:
 - [ ] **Tool list**: capture_terminal, capture_code, capture_file,
       capture_browser, capture_markdown, capture_diff, capture_html,
       capture_pdf, capture_gif, capture_sequence, capture_batch,
-      capture_to_document, snapmcp-hint
+      capture_document, snapmcp-hint
 - [ ] **Transport type**: stdio (via npx)
 - [ ] **Auth method**: None (public, no API key required)
 - [ ] **Config snippet**: see mcp.so section above

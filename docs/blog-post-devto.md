@@ -41,7 +41,7 @@ snapmcp replaces that with one server and 13 tools — rendered with your system
 | `capture_pdf` | URL → PDF document |
 | `capture_batch` | Multiple captures in one call |
 | `capture_gif` / `capture_sequence` | Animated GIFs from your captures |
-| `capture_to_document` | A multi-section document with captures embedded |
+| `capture_document` | A multi-section document with captures embedded |
 
 ## The setup that sells it
 

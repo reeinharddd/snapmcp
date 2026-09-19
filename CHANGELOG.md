@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security (hardening)
 - **SSRF protection now ON by default** — `SNAPMCP_SSRF_PROTECTION` defaults to `true` (was opt-in); the README/config docs updated to match
 - **Real DNS-based SSRF blocking** — `validateUrl` now resolves hostnames and blocks private/loopback/link-local IPs, closing hostname-obfuscation bypasses (nip.io, localtest.me, DNS rebinding); IPv6 ranges (`::1`, `fc00::/7`, `fe80::/10`, `::ffff:v4`) and trailing-dot FQDNs (`localhost.`) covered; per-hostname DNS cache keeps the hot path cheap
-- **URL validation moved to capture entry points** — `captureBrowser`, `capturePdf` and the 4 composite tools (`capture_batch`, `capture_gif`, `capture_sequence`, `capture_to_document`) now validate every URL; `file://` reads via browser tools are blocked
+- **URL validation moved to capture entry points** — `captureBrowser`, `capturePdf` and the 4 composite tools (`capture_batch`, `capture_gif`, `capture_sequence`, `capture_document`) now validate every URL; `file://` reads via browser tools are blocked
 - **Per-request route guard** — when SSRF protection is on, every subrequest/redirect of a rendered page is re-validated and aborted if it targets a private network (closes `capture_html`/`capture_markdown` SSRF via hostile JS, and 302 redirects to internal IPs)
 - **Path allowlist hardened** — `SNAPMCP_ALLOWED_PATHS` uses `realpath` + boundary-aware prefix matching (no more `/tmp/allowed` matching `/tmp/allowed-evil`), supports comma or semicolon separators, and no longer leaks the full config in error messages
 

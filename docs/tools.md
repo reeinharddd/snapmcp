@@ -471,7 +471,7 @@ Capture each step of a process as individual image files, with an optional compi
 
 ---
 
-### 12. capture_to_document
+### 12. capture_document
 
 Create a self-contained document (Markdown, HTML, or PDF) with embedded captures. Each capture is taken as a screenshot, then embedded as a base64 data URI in the output document. Supports up to 30 sections.
 
@@ -489,7 +489,7 @@ Create a self-contained document (Markdown, HTML, or PDF) with embedded captures
 
 ```json
 {
-  "name": "capture_to_document",
+  "name": "capture_document",
   "arguments": {
     "title": "API Deployment Report",
     "format": "html",
