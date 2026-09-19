@@ -1,7 +1,7 @@
 {
   "name": "snapmcp",
   "mcpName": "io.github.reeinharddd/snapmcp",
-  "version": "2.3.3",
+  "version": "2.3.4",
   "description": "All-in-one MCP server for visual captures: terminal, code, browser, markdown, diffs, HTML, and PDF — via Playwright",
   "keywords": [
     "mcp",
@@ -58,7 +58,7 @@
     "shiki": "4.4.3"
   },
   "devDependencies": {
-    "@types/node": "26.5.1",
+    "@types/node": "26.6.1",
     "typescript": "7"
   },
   "engines": {
@@ -67,5 +67,13 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "overrides": {
+    "@hono/node-server": ">=1.19.15",
+    "body-parser": ">=2.3.0",
+    "fast-uri": ">=3.1.6",
+    "hono": ">=4.13.5",
+    "ip-address": ">=10.3.1",
+    "qs": ">=6.16.0"
   }
 }

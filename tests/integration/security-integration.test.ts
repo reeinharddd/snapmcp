@@ -44,17 +44,11 @@ class McpSecurityServer {
     this.ready = new Promise<void>((resolve) => {
       this.proc.stderr!.on("data", (chunk: Buffer) => {
         stderrData += chunk.toString();
-        // The server is ready once we see any of these markers
-        if (
-          stderrData.includes("Pre-warming") ||
-          stderrData.includes("Mode:") ||
-          stderrData.includes("Format:")
-        ) {
+        if (stderrData.includes("Syntax highlighter ready")) {
           resolve();
         }
       });
-      // Timeout fallback — highlighter pre-warm can be slow
-      setTimeout(() => resolve(), 15_000);
+      setTimeout(() => resolve(), 20_000);
     });
 
     this.proc.stdout!.on("data", (chunk: Buffer) => {

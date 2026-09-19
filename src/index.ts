@@ -295,6 +295,7 @@ async function main() {
   try {
     logger.info("Pre-warming syntax highlighter...");
     await getHighlighter();
+    logger.info("Syntax highlighter ready");
   } catch (err) {
     logger.warn("Failed to pre-warm syntax highlighter:", err);
   }

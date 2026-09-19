@@ -70,35 +70,35 @@ const THEMES = [
   "snazzy-light",
 ];
 
-let _initialized = false;
+let _highlighterPromise: Promise<void> | null = null;
 
 /**
  * Lazily initialize and return the shared highlighter instance.
  * The highlighter is created once and reused for all captures.
  */
 export async function getHighlighter(): Promise<void> {
-  if (_initialized) return;
+  if (_highlighterPromise) return _highlighterPromise;
 
-  await getSingletonHighlighter({
-    themes: THEMES,
-    langs: LANGUAGES,
-  });
+  _highlighterPromise = (async () => {
+    await getSingletonHighlighter({
+      themes: THEMES,
+      langs: LANGUAGES,
+    });
+  })();
 
-  _initialized = true;
+  return _highlighterPromise;
 }
 
 /**
  * Highlight code using the shared highlighter.
- * Must call getHighlighter() at least once before this.
+ * Initializes the highlighter on first call if needed.
  */
 export async function highlightCode(
   code: string,
   lang: string,
   theme: string,
 ): Promise<string> {
-  if (!_initialized) {
-    await getHighlighter();
-  }
+  await getHighlighter();
 
   const highlighter = await getSingletonHighlighter({
     themes: THEMES,
