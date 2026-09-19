@@ -19,7 +19,7 @@
     "capture_batch",
     "capture_gif",
     "capture_sequence",
-    "capture_to_document",
+    "capture_document",
     "snapmcp-hint"
   ],
   "environmentVariables": {

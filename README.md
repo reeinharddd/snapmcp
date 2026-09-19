@@ -126,7 +126,7 @@ Different tools for different jobs. Playwright MCP drives a browser through toke
 | Git diff → visual red/green image | ✅ `capture_diff` | ❌ |
 | URL → PDF document | ✅ `capture_pdf` | ❌ |
 | Animated GIF from captures | ✅ `capture_gif` (zero-dep gifenc) | ❌ |
-| Markdown → styled document | ✅ `capture_markdown`, `capture_to_document` | ❌ |
+| Markdown → styled document | ✅ `capture_markdown`, `capture_document` | ❌ |
 | Browser page screenshot | ✅ `capture_browser` (full-page or viewport) | ✅ |
 | Browser **automation** (click, fill, navigate) | ❌ screenshots only | ✅ accessibility-tree driven, token-efficient — the right tool for this |
 
@@ -147,7 +147,7 @@ Most documentation pipelines pair them: Playwright MCP to *interact*, snapmcp to
 | `capture_batch` | Batch capture multiple items in one call |
 | `capture_gif` | Animated GIF from multiple screenshots |
 | `capture_sequence` | Side-by-side animated sequence |
-| `capture_to_document` | Multi-section markdown document render |
+| `capture_document` | Create document (MD/HTML/PDF) with embedded captures |
 | `snapmcp-hint` | Server capability hints for MCP clients |
 
 ## Use cases

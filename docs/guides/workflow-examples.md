@@ -10,7 +10,7 @@ visual diffs.
 
 ```json
 {
-  "name": "capture_to_document",
+  "name": "capture_document",
   "arguments": {
     "title": "PR #142: Add dark mode toggle",
     "format": "markdown",
@@ -185,7 +185,7 @@ explanations.
 
 ```json
 {
-  "name": "capture_to_document",
+  "name": "capture_document",
   "arguments": {
     "title": "Getting Started with React + TypeScript",
     "format": "html",
@@ -278,7 +278,7 @@ Document security findings with terminal evidence, code, and browser captures.
 
 ```json
 {
-  "name": "capture_to_document",
+  "name": "capture_document",
   "arguments": {
     "title": "Security Audit Report - Q3 2024",
     "format": "pdf",
@@ -375,12 +375,12 @@ Postman collections, or developer portal.
 
 | Use Case | Tool(s) | Output Format |
 |----------|---------|---------------|
-| PR description | `capture_to_document` | Markdown (`.md`) |
+| PR description | `capture_document` | Markdown (`.md`) |
 | Design review | `create_gif` | GIF (`.gif`) |
 | Pipeline docs | `create_sequence` | Images + GIF |
-| Tutorials | `capture_to_document` | HTML/Markdown/PDF |
+| Tutorials | `capture_document` | HTML/Markdown/PDF |
 | Code review | `capture_batch` | Individual images |
-| Security audit | `capture_to_document` | PDF |
+| Security audit | `capture_document` | PDF |
 | API docs | `create_sequence` | Images |
 
 ---

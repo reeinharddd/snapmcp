@@ -301,7 +301,7 @@ is Linux-specific. On macOS/Windows, it falls back to env vars and OS-level dark
 | `capture_batch` | `captures`, `output?` | `PNG/JPEG[]` | Batch capture multiple items |
 | `capture_sequence` | `steps`, `compileGif?`, `frameDelay?`, `loop?` | `PNG[] + GIF` | Step sequence + optional GIF animation |
 | `capture_gif` | `captures`, `frameDelay?`, `loop?` | `GIF` | Multi-frame animated GIF |
-| `capture_to_document` | `title`, `captures`, `format?`, `includeTimestamps?` | `MD/HTML/PDF` | Multi-section document with embedded captures |
+| `capture_document` | `title`, `captures`, `format?`, `includeTimestamps?` | `MD/HTML/PDF` | Multi-section document with embedded captures |
 | `snapmcp-hint` | — | JSON | Server capability hints for MCP clients |
 
 ### CLI Commands

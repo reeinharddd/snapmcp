@@ -14,7 +14,7 @@
  *  capture_batch         → multi-capture batch                  → PNG/JPEG
  *  capture_sequence      → step-by-step sequence + GIF          → PNG/GIF
  *  capture_gif           → animated GIF from captures           → GIF
- *  capture_to_document   → document with embedded captures      → MD/HTML/PDF
+ *  capture_document   → document with embedded captures      → MD/HTML/PDF
  *
  * CLI commands:
  *  snapmcp init          → interactive setup wizard
@@ -111,7 +111,7 @@ function showHelp(): void {
     capture_batch        Multi-capture batch (up to 10)
     capture_sequence     Step-by-step sequence + optional GIF
     capture_gif          Animated GIF from 2-60 captures
-    capture_to_document  Document (MD/HTML/PDF) with embedded captures
+    capture_document  Document (MD/HTML/PDF) with embedded captures
 
   CLI
     init                 Interactive setup wizard
@@ -309,7 +309,7 @@ async function main() {
   } else {
     console.error(ansiBold(banner()));
   }
-  const toolList = ["capture_terminal", "capture_code", "capture_browser", "capture_file", "capture_markdown", "capture_html", "capture_diff", "capture_pdf", "capture_batch", "capture_sequence", "capture_gif", "capture_to_document", "snapmcp-hint"];
+  const toolList = ["capture_terminal", "capture_code", "capture_browser", "capture_file", "capture_markdown", "capture_html", "capture_diff", "capture_pdf", "capture_batch", "capture_sequence", "capture_gif", "capture_document", "snapmcp-hint"];
   console.error(ansiPri(`  v${VERSION}`));
   console.error(ansiSec(`  ${toolList.join(" · ")}`));
   logger.info(`  Mode:     stdio`);
