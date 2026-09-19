@@ -65,19 +65,11 @@ class McpServerProcess {
     this.ready = new Promise<void>((resolve) => {
       this.proc.stderr!.on("data", (chunk: Buffer) => {
         stderrData += chunk.toString();
-        // The server is ready once we see the Shiki pre-warm log
-        // or any banner line
-        if (
-          stderrData.includes("Pre-warming") ||
-          stderrData.includes("snapmcp v2") ||
-          stderrData.includes("Mode:") ||
-          stderrData.includes("Format:")
-        ) {
+        if (stderrData.includes("Syntax highlighter ready")) {
           resolve();
         }
       });
-      // Timeout fallback — highlighter pre-warm can take 5-10s
-      setTimeout(() => resolve(), 15_000);
+      setTimeout(() => resolve(), 20_000);
     });
 
     // Collect stdout (JSON-RPC responses)

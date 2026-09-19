@@ -93,13 +93,18 @@ const DEFAULTS: SnapConfig = {
   badge: false,
 };
 
+function validateTheme(theme: string): string {
+  if (THEME_LIST.includes(theme as typeof THEME_LIST[number])) return theme;
+  return detectTerminalTheme().theme;
+}
+
 export function loadConfig(): SnapConfig {
   const allowedPathsRaw = env("ALLOWED_PATHS", "");
   const config: SnapConfig = {
     outputDir: env("DIR", DEFAULTS.outputDir),
     format: env("FORMAT", DEFAULTS.format) === "jpeg" ? "jpeg" : "png",
     quality: clamp(envInt("QUALITY", DEFAULTS.quality), 1, 100),
-    theme: env("THEME", detectTerminalTheme().theme), /* THEME: auto-detected */
+    theme: validateTheme(env("THEME", detectTerminalTheme().theme)),
     font: env("FONT", DEFAULTS.font),
     fontSize: env("FONT_SIZE", DEFAULTS.fontSize),
     timeout: Math.max(1000, envInt("TIMEOUT", DEFAULTS.timeout)),
