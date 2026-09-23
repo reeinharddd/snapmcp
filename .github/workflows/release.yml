@@ -21,7 +21,14 @@ jobs:
       - run: bun run build
       - name: Configure npm token
         run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
-      - run: npm publish --access public
+      - name: Publish to npm (skip if version already published)
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if npm view "snapmcp@${PKG_VERSION}" version >/dev/null 2>&1; then
+            echo "snapmcp@${PKG_VERSION} already on npm — skipping publish"
+          else
+            npm publish --access public
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
