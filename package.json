@@ -50,12 +50,12 @@
     "postinstall": "bun run scripts/postinstall.ts"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.30.0",
+    "@modelcontextprotocol/sdk": "1.31.0",
     "fast-png": "^8.0.0",
     "gifenc": "^1.0.3",
     "marked": "18",
     "playwright": "1.63.0",
-    "shiki": "4.4.3"
+    "shiki": "4.5.0"
   },
   "devDependencies": {
     "@types/node": "26.6.1",
