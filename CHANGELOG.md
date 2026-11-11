@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.3.6] - 2026-11-10
 
 ### Changed
+- Reworked the release pipeline: the tag now drives npm publication with provenance, GitHub Release creation, and automatic MCP Registry publication through the official `mcp-publisher` CLI authenticated with GitHub OIDC
+- Switched npm authentication to Trusted Publishing (OIDC) with the `NPM_TOKEN` secret kept only as a fallback, so no long-lived write token is required once a trusted publisher is configured
+- Added a manual `workflow_dispatch` trigger to the release workflow so a failed publish can be retried without moving the tag
 - Consolidated the release metadata and documentation on version `2.3.6` while keeping the public MCP surface at exactly 13 tools: 12 capture/document tools plus `snapmcp-hint`
 - Made saved-path results the documented result contract across primitive and composite tools, so MCP responses do not carry image bytes
 - Documented the actual flat discriminated-union schemas: `capture_batch.captures`, `capture_sequence.steps`, `capture_gif.captures`, and `capture_document.captures` now use `{ "type": ..., ...fields }` entries without a nested `params` object

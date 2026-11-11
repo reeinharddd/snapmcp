@@ -3,10 +3,29 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  # Manual trigger so a release can be re-published after a transient npm or
+  # registry failure without moving the tag.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (defaults to package.json)"
+        required: false
+        type: string
 
 permissions:
   contents: write
   packages: write
+  # Required for npm Trusted Publishing (OIDC) and for the MCP Registry
+  # GitHub OIDC exchange.
+  id-token: write
+
+env:
+  # Pinned so the release always runs against a known npm CLI. Trusted
+  # Publishing needs npm 11.5.1 or later.
+  NPM_VERSION: 12.2.2
+  # Pinned release of the official MCP Registry publisher CLI.
+  MCP_PUBLISHER_VERSION: 1.8.9
+  MCP_PUBLISHER_SHA256: 4d527ca8f1ced0394c962dc925c2a4a4addef441cbefd62501c875e9481823a8
 
 jobs:
   npm-publish:
@@ -20,7 +39,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Install build dependencies
         run: npm install --ignore-scripts --no-audit --no-fund
@@ -28,19 +47,48 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Configure npm token
-        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
+      - name: Install the pinned npm CLI
+        run: npm install --global "npm@${{ env.NPM_VERSION }}" && npm --version
+
+      - name: Resolve the version to publish
+        id: version
+        run: |
+          set -euo pipefail
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          REQUESTED="${{ inputs.version }}"
+          if [ -n "$REQUESTED" ] && [ "$REQUESTED" != "$PKG_VERSION" ]; then
+            echo "Requested version '$REQUESTED' does not match package.json version '$PKG_VERSION'" >&2
+            exit 1
+          fi
+          echo "version=${PKG_VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Configure npm authentication
+        # The token is only a fallback for repositories that have not migrated
+        # to Trusted Publishing yet. When the package has a trusted publisher
+        # configured, npm exchanges the GitHub OIDC token instead and this
+        # secret is never used.
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -n "$NPM_TOKEN" ]; then
+            echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc
+            echo "npm_auth=token-fallback"
+          else
+            echo "npm_auth=oidc-only"
+          fi
 
       - name: Publish to npm (skip if version already published)
-        run: |
-          PKG_VERSION="$(node -p "require('./package.json').version")"
-          if npm view "snapmcp@${PKG_VERSION}" version >/dev/null 2>&1; then
-            echo "snapmcp@${PKG_VERSION} already on npm — skipping publish"
-          else
-            npm publish --access public
-          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          PKG_VERSION="${{ steps.version.outputs.version }}"
+          if npm view "snapmcp@${PKG_VERSION}" version >/dev/null 2>&1; then
+            echo "snapmcp@${PKG_VERSION} already on npm — skipping publish"
+            exit 0
+          fi
+          npm publish --access public --provenance
 
   github-release:
     name: Create GitHub Release
@@ -68,3 +116,43 @@ jobs:
           files: |
             dist/**
             package.json
+
+  registry-publish:
+    name: Publish to the MCP Registry
+    needs: npm-publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Download the MCP Registry publisher
+        run: |
+          set -euo pipefail
+          curl -sSL -o "$RUNNER_TEMP/mcp-publisher.tar.gz" \
+            "https://github.com/modelcontextprotocol/registry/releases/download/v${{ env.MCP_PUBLISHER_VERSION }}/mcp-publisher_linux_amd64.tar.gz"
+          ACTUAL="$(sha256sum "$RUNNER_TEMP/mcp-publisher.tar.gz" | cut -d' ' -f1)"
+          echo "expected=${{ env.MCP_PUBLISHER_SHA256 }}"
+          echo "actual=${ACTUAL}"
+          if [ "$ACTUAL" != "${{ env.MCP_PUBLISHER_SHA256 }}" ]; then
+            echo "mcp-publisher checksum mismatch" >&2
+            exit 1
+          fi
+          tar xzf "$RUNNER_TEMP/mcp-publisher.tar.gz" -C "$RUNNER_TEMP"
+          install -m 0755 "$RUNNER_TEMP/mcp-publisher" /usr/local/bin/mcp-publisher
+          mcp-publisher --version
+
+      - name: Log in to the MCP Registry with GitHub OIDC
+        run: mcp-publisher login github-oidc
+
+      - name: Publish server.json
+        run: |
+          set -euo pipefail
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          SERVER_JSON_VERSION="$(node -p "require('./server.json').version")"
+          if [ "$PKG_VERSION" != "$SERVER_JSON_VERSION" ]; then
+            echo "server.json version '$SERVER_JSON_VERSION' does not match package.json version '$PKG_VERSION'" >&2
+            exit 1
+          fi
+          mcp-publisher validate ./server.json
+          mcp-publisher publish ./server.json
