@@ -88,13 +88,18 @@ describe("detectChrome", () => {
     });
     const originalPath = process.env.PATH;
     try {
-      process.env.PATH = "/usr/local/bin:/usr/bin";
-      fs.existsSync = (p) => p === "/usr/bin/google-chrome-stable";
+      // Build the fixture with the host path separator so the test behaves the
+      // same on Windows runners.
+      const firstDir = path.join(path.sep, "usr", "local", "bin");
+      const secondDir = path.join(path.sep, "usr", "bin");
+      process.env.PATH = [firstDir, secondDir].join(path.delimiter);
+      const expected = path.join(secondDir, "google-chrome-stable");
+      fs.existsSync = (p) => p === expected;
       fs.accessSync = () => {};
 
       const result = detectChrome();
       assert.equal(result.found, true);
-      assert.equal(result.executablePath, "/usr/bin/google-chrome-stable");
+      assert.equal(result.executablePath, expected);
       assert.equal(result.channel, "chrome");
     } finally {
       if (originalPath === undefined) delete process.env.PATH;
@@ -244,12 +249,17 @@ describe("tryPath and tryWhich", () => {
   it("should resolve a binary from PATH without spawning a shell", () => {
     const originalPath = process.env.PATH;
     try {
-      process.env.PATH = "/usr/local/bin:/usr/bin";
-      fs.existsSync = (p) => p === "/usr/bin/test";
+      // Build the fixture with the host path separator so the test behaves the
+      // same on Windows runners.
+      const firstDir = path.join(path.sep, "usr", "local", "bin");
+      const secondDir = path.join(path.sep, "usr", "bin");
+      process.env.PATH = [firstDir, secondDir].join(path.delimiter);
+      const expected = path.join(secondDir, "test");
+      fs.existsSync = (p) => p === expected;
       fs.accessSync = () => {};
 
       const result = tryWhich("test");
-      assert.equal(result, "/usr/bin/test");
+      assert.equal(result, expected);
     } finally {
       if (originalPath === undefined) delete process.env.PATH;
       else process.env.PATH = originalPath;
@@ -259,7 +269,9 @@ describe("tryPath and tryWhich", () => {
   it("should return null when the binary is not on PATH", () => {
     const originalPath = process.env.PATH;
     try {
-      process.env.PATH = "/usr/local/bin:/usr/bin";
+      const firstDir = path.join(path.sep, "usr", "local", "bin");
+      const secondDir = path.join(path.sep, "usr", "bin");
+      process.env.PATH = [firstDir, secondDir].join(path.delimiter);
       fs.existsSync = () => false;
 
       const result = tryWhich("invalid");
