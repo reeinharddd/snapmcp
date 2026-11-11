@@ -1,165 +1,136 @@
 # Tools Reference
 
-> **snapmcp v2.3.0** — All 13 MCP tools for visual captures.
+> snapmcp 2.3.6 exposes exactly 13 MCP tools: 12 capture/document tools and one discovery tool.
 
-Each tool is registered via `server.tool()` in `src/index.ts` and backed by a capture function in `src/renderer.ts` (images), `src/gif.ts` (animations), or `src/document.ts` (documents). Tools communicate over stdio using the Model Context Protocol.
+The 12 capture/document tools return saved file paths and short text summaries rather than image bytes. `snapmcp-hint` returns text guidance. Generated files are confined to `SNAPMCP_DIR`.
 
-All image-producing tools respect `SNAPMCP_FORMAT` (png/jpeg), `SNAPMCP_QUALITY`, `SNAPMCP_THEME`, `SNAPMCP_PADDING`, `SNAPMCP_SHADOW`, `SNAPMCP_WINDOW_CHROME`, and `SNAPMCP_BORDER_RADIUS` from [configuration.md](configuration.md) or the per-tool `opts` parameter.
+## Common rules and limits
 
----
+| Area | Limit or behavior |
+|---|---|
+| Terminal | 1,000 lines and 1 MB of text |
+| Code | 200 KB |
+| Markdown | 200 KB |
+| HTML | 200 KB |
+| Diff | 500 KB |
+| File | 5 MB by default |
+| Batch | 1 to 10 items |
+| Sequence | 1 to 60 steps |
+| GIF | 2 to 60 PNG frames; canvas up to 8,192 by 8,192 |
+| Document | 1 to 30 captures; 25 MB per embedded image; 75 MB total embedded images |
+| URLs | HTTP(S) only |
+| File reads | Denied unless `SNAPMCP_ALLOWED_PATHS` is configured |
+| Output | Confined to `SNAPMCP_DIR`, including composite outputs |
 
-## Shared Options
+## Flat capture unions
 
-### ScreenshotOptions
+`capture_batch`, `capture_sequence`, `capture_gif`, and `capture_document` accept discriminated unions. The `type` field and its type-specific fields are siblings. There is no nested `params` property.
 
-These options control the visual appearance of rendered captures. They are accepted by all image-producing tools.
+### Primitive variants
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `format` | `"png" | "jpeg"` | `"png"` | Output image format |
-| `quality` | `number 1-100` | `90` | JPEG quality (only applies when format is jpeg) |
-| `padding` | `number` | `32` | Inner padding in pixels around the content |
-| `theme` | `string` | auto-detected | Shiki syntax theme name (27 themes available) |
-| `windowChrome` | `boolean` | `false` | Show a macOS-style title bar frame |
-| `shadow` | `boolean` | `false` | Render a drop shadow behind the window |
-| `borderRadius` | `number 0-32` | `0` | Window corner radius in pixels |
+| `type` | Type-specific fields |
+|---|---|
+| `terminal` | `title?` (up to 100 characters), `lines` (1 to 1,000) |
+| `code` | `code` (up to 200 KB), `language?`, `title?` (up to 100 characters), `startLine?`, `endLine?` |
+| `file` | `filePath`, `startLine?`, `endLine?` |
+| `browser` | `url`, `fullPage?`, `width?` (320 to 3,840), `height?` (240 to 4,096) |
+| `markdown` | `markdown` (up to 200 KB), `title?` (up to 100 characters) |
+| `html` | `html` (up to 200 KB), `title?` (up to 100 characters) |
+| `diff` | `diff` (up to 500 KB) |
 
-### PdfOptions
+`startLine` and `endLine` are 1-indexed and inclusive. `capture_sequence` steps may also include `stepNumber?` (integer, at least 1) and `label?` (up to 100 characters). `capture_document` captures may also include `caption?` (up to 200 characters).
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `fullPage` | `boolean` | `true` | Capture all scrollable content |
-| `width` | `number 320-3840` | `1280` | Viewport width in pixels |
-| `height` | `number 240-4096` | `800` | Viewport height in pixels |
+Example:
 
-### CaptureItem
+```json
+{
+  "captures": [
+    {
+      "type": "terminal",
+      "title": "build",
+      "lines": ["$ npm run build", "Build complete"]
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "code": "export const ready = true;",
+      "startLine": 1,
+      "endLine": 1
+    }
+  ]
+}
+```
 
-A polymorphic type used by batch, sequence, and GIF tools. Each item describes one capture to produce.
+## Tool reference
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `type` | `"terminal" | "code" | "file" | "browser" | "markdown" | "html" | "diff"` | yes | Which capture tool to use |
-| `params` | `Record<string, any>` | yes | Parameters forwarded to the underlying tool |
-| `caption` | `string` | no | Visible label for this capture (batch/document only) |
-| `label` | `string` | no | Internal label for this capture (sequence/GIF only) |
+### 1. `capture_terminal`
 
-### SequenceOptions
+Render terminal lines as a PNG or JPEG. A line beginning with `$ ` is a user prompt; a line beginning with `# ` is a root prompt. Terminal palette detection is heuristic and reads common terminal configurations when available. It does not parse ANSI escape sequences.
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `compileGif` | `boolean` | `false` | Compile all frames into an animated GIF after capturing |
-| `frameDelay` | `number 10-5000` | `800` | Delay between frames in milliseconds |
-| `loop` | `boolean` | `true` | Whether the compiled GIF loops |
+| Parameter | Type | Required | Description |
+|---|---|:---:|---|
+| `title` | string | yes | Terminal title, up to 100 characters |
+| `lines` | string[] | yes | 1 to 1,000 terminal lines |
+| `output` | string | no | Output filename inside `SNAPMCP_DIR` |
 
-### GifOptions
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `frameDelay` | `number 10-5000` | `800` | Delay between frames in milliseconds |
-| `loop` | `boolean` | `true` | Whether the GIF loops |
-
-### DocumentSection
-
-Describes one section in a generated document.
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `title` | `string` | no | Section heading |
-| `description` | `string` | no | Descriptive text rendered as a paragraph |
-| `imagePath` | `string` | no | Path to an existing PNG capture to embed |
-| `caption` | `string` | no | Visible caption below the image |
-| `code` | `string` | no | Optional code block to include |
-| `codeLanguage` | `string` | no | Language for syntax highlighting in code blocks |
-
----
-
-## Tool Reference
-
-### 1. capture_terminal
-
-Generate a styled terminal screenshot from text lines. Lines prefixed with `$ ` are rendered as command prompts (green), other lines as output.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `title` | `string` | yes | — | Window title shown in the terminal title bar |
-| `lines` | `string[]` | yes | — | Lines to render. `$ ` prefix = command prompt |
-| `opts` | `ScreenshotOptions` | no | — | Visual rendering options |
-
-**Example:**
+Example:
 
 ```json
 {
   "name": "capture_terminal",
   "arguments": {
-    "title": "deploy output",
+    "title": "git log",
     "lines": [
-      "$ git push origin main",
-      "Enumerating objects: 42, done.",
-      "Counting objects: 100% (42/42), done.",
-      "$ npm run build",
-      "> build@1.0.0 build /app",
-      "✓ Compiled successfully in 2.3s"
+      "$ git log --oneline -3",
+      "a1b2c3d fix: handle null values",
+      "e4f5g6h feat: add discovery hints",
+      "# "
     ]
   }
 }
 ```
 
-**Example output:**
+### 2. `capture_code`
 
-<img src="assets/tool-example.png" alt="capture_terminal example" width="500"/>
+Render source code with Shiki syntax highlighting. Shiki supports 300+ bundled languages and 27 built-in themes. `startLine` and `endLine` are 1-indexed and inclusive; the selected range is rendered and receives line numbers.
 
+| Parameter | Type | Required | Description |
+|---|---|:---:|---|
+| `code` | string | yes | Source text, up to 200 KB |
+| `language` | string | no | Shiki language identifier; defaults to `text` |
+| `title` | string | no | Display title; defaults to `code` |
+| `startLine` | integer | no | First line to render, 1-indexed and inclusive |
+| `endLine` | integer | no | Last line to render, 1-indexed and inclusive |
+| `output` | string | no | Output filename inside `SNAPMCP_DIR` |
 
----
-
-### 2. capture_code
-
-Render source code with syntax highlighting using Shiki (50+ languages, 27 themes). Supports optional line number gutters.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `code` | `string` | yes | — | Source code to render |
-| `language` | `string` | no | `"text"` | Programming language for highlighting |
-| `title` | `string` | no | `"code"` | Window title |
-| `startLine` | `number` | no | — | First line number to show in the gutter |
-| `endLine` | `number` | no | — | Last line number to show in the gutter |
-| `opts` | `ScreenshotOptions` | no | — | Visual rendering options |
-
-**Example:**
+Example:
 
 ```json
 {
   "name": "capture_code",
   "arguments": {
-    "code": "function fibonacci(n: number): number {\n  if (n <= 1) return n;\n  return fibonacci(n - 1) + fibonacci(n - 2);\n}",
     "language": "typescript",
-    "title": "fibonacci.ts",
+    "title": "src/index.ts",
+    "code": "export const version = \"2.3.6\";\n",
     "startLine": 1,
-    "endLine": 5
+    "endLine": 1
   }
 }
 ```
 
----
+### 3. `capture_browser`
 
-### 3. capture_browser
-
-Take a screenshot of a URL using headless Chromium. Uses the system Chrome installation when available (auto-detected on Linux, macOS, and Windows), falling back to bundled Playwright Chromium.
-
-**Parameters:**
+Capture an HTTP(S) URL as a full-page or viewport PNG/JPEG. SSRF protection is default-on. The URL and each browser request are validated, including redirects and subresources.
 
 | Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `url` | `string` | yes | — | URL to capture |
-| `fullPage` | `boolean` | no | `false` | Capture full scrollable page |
-| `width` | `number` | no | `1280` | Viewport width in pixels (min: 320, max: 3840) |
-| `height` | `number` | no | `800` | Viewport height in pixels (min: 240, max: 4096) |
-| `opts` | `ScreenshotOptions` | no | — | Visual rendering options |
+|---|---|:---:|---|---|
+| `url` | string | yes | — | HTTP(S) URL |
+| `fullPage` | boolean | no | `false` | Capture the full scrollable page |
+| `width` | integer | no | `1280` | Viewport width, 320 to 3,840 pixels |
+| `height` | integer | no | `800` | Viewport height, 240 to 4,096 pixels |
+| `output` | string | no | auto | Output filename inside `SNAPMCP_DIR` |
 
-**Example:**
+Example:
 
 ```json
 {
@@ -173,24 +144,18 @@ Take a screenshot of a URL using headless Chromium. Uses the system Chrome insta
 }
 ```
 
----
+### 4. `capture_file`
 
-### 4. capture_file
+Read a regular file, map its extension to a language, and render an inclusive line range as a highlighted PNG/JPEG. File reads are deny-all until `SNAPMCP_ALLOWED_PATHS` is configured. Allowed paths are resolved before the boundary check.
 
-Read a file from disk, auto-detect its language from the extension, and render a syntax-highlighted screenshot. Supports optional line range slicing.
+| Parameter | Type | Required | Description |
+|---|---|:---:|---|
+| `filePath` | string | yes | Path that must resolve inside the allowlist |
+| `startLine` | integer | no | First line to render, 1-indexed and inclusive |
+| `endLine` | integer | no | Last line to render, 1-indexed and inclusive |
+| `output` | string | no | Output filename inside `SNAPMCP_DIR` |
 
-**Supported extensions:** py, js, ts, tsx, jsx, sql, json, yml, yaml, md, html, css, sh, bash, zsh, go, c, cpp, cs, java, rb, php, rs, swift, kt, kts, toml, xml, txt, dockerfile, tf, diff, patch
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `path` | `string` | yes | — | Absolute path to the file to capture |
-| `startLine` | `number` | no | — | First line number to capture (1-indexed, inclusive) |
-| `endLine` | `number` | no | — | Last line number to capture (1-indexed, inclusive) |
-| `opts` | `ScreenshotOptions` | no | — | Visual rendering options |
-
-**Example:**
+Example:
 
 ```json
 {
@@ -203,131 +168,58 @@ Read a file from disk, auto-detect its language from the extension, and render a
 }
 ```
 
----
+### 5. `capture_markdown`
 
-### 5. capture_markdown
+Render GitHub-flavored Markdown as a PNG/JPEG document. Tables, task lists, fenced code blocks, strikethrough, and autolinks are supported. Raw HTML in Markdown is escaped.
 
-Render Markdown content as a styled document screenshot. Supports headings, lists, code blocks, tables, blockquotes, and inline formatting.
+| Parameter | Type | Required | Description |
+|---|---|:---:|---|
+| `markdown` | string | yes | Markdown content, up to 200 KB |
+| `title` | string | no | Document title; defaults to `document` |
+| `output` | string | no | Output filename inside `SNAPMCP_DIR` |
 
-**Parameters:**
+### 6. `capture_html`
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `markdown` | `string` | yes | — | Markdown content to render |
-| `title` | `string` | no | `"document"` | Document title |
-| `opts` | `ScreenshotOptions` | no | — | Visual rendering options |
+Render HTML and CSS as a PNG/JPEG in an isolated context with JavaScript disabled and network resources blocked. The DOM sanitizer removes active elements, event handlers, unsafe URL schemes, external references, and external CSS imports. Inline styles, `<style>` tags, and embedded data images are supported.
 
-**Example:**
+The sanitizer and CSP are defense in depth, not a guarantee of perfect sanitizer safety.
 
-```json
-{
-  "name": "capture_markdown",
-  "arguments": {
-    "markdown": "# API Design\n\n## Endpoints\n\n- `GET /users` — list users\n- `POST /users` — create user\n\n## Authentication\n\nAll requests require a Bearer token.",
-    "title": "API Reference"
-  }
-}
-```
+| Parameter | Type | Required | Description |
+|---|---|:---:|---|
+| `html` | string | yes | HTML content, up to 200 KB |
+| `title` | string | no | Description used in the title area; defaults to `html` |
+| `output` | string | no | Output filename inside `SNAPMCP_DIR` |
 
----
+### 7. `capture_diff`
 
-### 6. capture_html
+Render a unified diff as a PNG/JPEG, with additions highlighted in green and deletions in red.
 
-Render arbitrary HTML as a screenshot. Useful for custom UI mockups, charts, or any HTML content that needs pixel-perfect rendering.
+| Parameter | Type | Required | Description |
+|---|---|:---:|---|
+| `diff` | string | yes | Unified diff content, up to 500 KB |
+| `output` | string | no | Output filename inside `SNAPMCP_DIR` |
 
-**Parameters:**
+### 8. `capture_pdf`
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `html` | `string` | yes | — | HTML content to render |
-| `title` | `string` | no | `"html"` | Description (for logging) |
-| `opts` | `ScreenshotOptions` | no | — | Visual rendering options |
-
-**Example:**
-
-```json
-{
-  "name": "capture_html",
-  "arguments": {
-    "html": "<div style='padding:2rem;font-family:sans-serif'><h1 style='color:#06b6d4'>Hello</h1><p>Rendered from raw HTML.</p></div>",
-    "title": "custom card"
-  }
-}
-```
-
----
-
-### 7. capture_diff
-
-Render a git diff with color-coded additions (green) and deletions (red). Accepts standard unified diff format.
-
-**Parameters:**
+Print a complete HTTP(S) URL document to a PDF with Chromium. The PDF contains the complete paginated document; there is no `fullPage` versus print-mode switch. SSRF protection is default-on.
 
 | Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `diff` | `string` | yes | — | Diff content in git diff / unified diff format |
-| `opts` | `ScreenshotOptions` | no | — | Visual rendering options |
+|---|---|:---:|---|---|
+| `url` | string | yes | — | HTTP(S) URL |
+| `width` | integer | no | `1280` | Rendering viewport width, 320 to 3,840 pixels |
+| `height` | integer | no | `800` | Rendering viewport height, 240 to 4,096 pixels |
+| `output` | string | no | auto | `.pdf` filename inside `SNAPMCP_DIR` |
 
-**Example:**
+### 9. `capture_batch`
 
-```json
-{
-  "name": "capture_diff",
-  "arguments": {
-    "diff": "--- a/src/main.ts\n+++ b/src/main.ts\n@@ -1,3 +1,4 @@\n-const x = 1;\n-console.log(x);\n+const x = 42;\n+const y = x * 2;\n+console.log(y);"
-  }
-}
-```
+Capture up to 10 independent items in one call. Every item uses one of the flat primitive variants. Items are processed sequentially and each result is saved as an individual image.
 
-**Example output:**
+| Parameter | Type | Required | Description |
+|---|---|:---:|---|
+| `captures` | capture union[] | yes | 1 to 10 flat capture items |
+| `output` | string | no | Output subdirectory confined to `SNAPMCP_DIR` |
 
-<img src="assets/diff-example.png" alt="capture_diff example" width="500"/>
-
-
----
-
-### 8. capture_pdf
-
-Convert a URL to a PDF document using headless Chromium. Useful for generating printable documentation, reports, or archiving web pages.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `url` | `string` | yes | — | URL to convert to PDF |
-| `fullPage` | `boolean` | no | `true` | Include all content |
-| `width` | `number` | no | `1280` | Viewport width in pixels (min: 320, max: 3840) |
-| `height` | `number` | no | `800` | Viewport height in pixels (min: 240, max: 4096) |
-| `opts` | `PdfOptions` | no | — | PDF rendering options |
-
-**Example:**
-
-```json
-{
-  "name": "capture_pdf",
-  "arguments": {
-    "url": "https://example.com/docs",
-    "fullPage": true,
-    "width": 1280,
-    "height": 800
-  }
-}
-```
-
----
-
-### 9. capture_batch
-
-Capture multiple items in a single call. Each capture is processed sequentially. Supports up to 10 items per batch. Each item follows the `CaptureItem` schema with a `type` and `params` object matching the corresponding tool's parameters.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `captures` | `CaptureItem[]` | yes | — | Array of captures to process (max: 10) |
-| `opts` | `ScreenshotOptions` | no | — | Visual rendering options applied to all items |
-
-**Example:**
+Example:
 
 ```json
 {
@@ -336,224 +228,81 @@ Capture multiple items in a single call. Each capture is processed sequentially.
     "captures": [
       {
         "type": "terminal",
-        "params": {
-          "title": "install",
-          "lines": ["$ npm install", "+ react@18.2.0", "+ typescript@5.3.0"]
-        },
-        "caption": "Dependency install"
+        "title": "install",
+        "lines": ["$ npm install", "added 42 packages"]
       },
       {
-        "type": "code",
-        "params": {
-          "code": "console.log('hello');",
-          "language": "javascript",
-          "title": "hello.js"
-        },
-        "caption": "Entry point"
-      },
-      {
-        "type": "browser",
-        "params": {
-          "url": "https://example.com",
-          "fullPage": false
-        },
-        "caption": "Landing page"
+        "type": "diff",
+        "diff": "--- a/src/index.ts\n+++ b/src/index.ts\n@@ -1 +1 @@\n-old\n+new"
       }
     ]
   }
 }
 ```
 
----
+### 10. `capture_sequence`
 
-### 10. capture_gif
-
-Create an animated GIF from 2 to 60 sequential captures. Each frame is captured first as a PNG image, then compiled into an animated GIF using gifenc + fast-png (zero heavyweight dependencies).
-
-**Parameters:**
+Capture up to 60 ordered process steps. Each step is saved as an individual image in order. With `compileGif: true`, the steps are also compiled into a GIF. This tool does not create a side-by-side composite.
 
 | Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `title` | `string` | no | `"animation"` | Name for the GIF |
-| `captures` | `CaptureItem[]` | yes | — | Array of captures to compile as frames (min: 2, max: 60) |
-| `frameDelay` | `number` | no | `800` | Delay between frames in milliseconds (min: 10, max: 5000) |
-| `loop` | `boolean` | no | `true` | Whether the GIF loops |
-| `output` | `string` | no | auto-generated | Output filename for the GIF |
+|---|---|:---:|---|---|
+| `steps` | step union[] | yes | — | 1 to 60 ordered flat capture items |
+| `compileGif` | boolean | no | `false` | Also compile a GIF; requires at least two steps |
+| `frameDelay` | integer | no | `800` | GIF frame delay, 10 to 5,000 milliseconds |
+| `loop` | boolean | no | `true` | `true` repeats forever; `false` plays once |
+| `output` | string | no | auto | Output subdirectory confined to `SNAPMCP_DIR` |
 
-**Example:**
+### 11. `capture_gif`
 
-```json
-{
-  "name": "capture_gif",
-  "arguments": {
-    "title": "build pipeline",
-    "captures": [
-      {
-        "type": "terminal",
-        "params": { "title": "step 1", "lines": ["$ npm run lint", "✓ All checks passed"] },
-        "label": "lint"
-      },
-      {
-        "type": "terminal",
-        "params": { "title": "step 2", "lines": ["$ npm run test", "PASS  tests/  (42 tests)", "✓ All tests passed"] },
-        "label": "test"
-      },
-      {
-        "type": "terminal",
-        "params": { "title": "step 3", "lines": ["$ npm run build", "✓ Build complete"] },
-        "label": "build"
-      }
-    ],
-    "frameDelay": 1200,
-    "loop": true
-  }
-}
-```
-
----
-
-### 11. capture_sequence
-
-Capture each step of a process as individual image files, with an optional compiled GIF. Supports up to 60 steps. Each step can be a different capture type and receives a step number and optional label.
-
-**Parameters:**
+Render 2 to 60 captures as PNG frames and compile them into a GIF. Intermediate PNG frames are removed after encoding. `loop: true` repeats forever; `loop: false` plays once.
 
 | Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `steps` | `CaptureItem[]` | yes | — | Array of step captures (min: 1, max: 60), each may include `stepNumber` and `label` |
-| `compileGif` | `boolean` | no | `false` | Compile all frames into an animated GIF after capturing |
-| `frameDelay` | `number` | no | `800` | Delay between frames in milliseconds (min: 10, max: 5000) |
-| `loop` | `boolean` | no | `true` | Whether the compiled GIF loops |
-| `output` | `string` | no | auto-generated | Output directory |
+|---|---|:---:|---|---|
+| `title` | string | no | `animation` | Name used in the default filename, up to 100 characters |
+| `captures` | capture union[] | yes | — | 2 to 60 flat capture frames |
+| `frameDelay` | integer | no | `800` | Frame delay, 10 to 5,000 milliseconds |
+| `loop` | boolean | no | `true` | `true` repeats forever; `false` plays once |
+| `output` | string | no | auto | `.gif` filename inside `SNAPMCP_DIR` |
 
-**Example:**
+### 12. `capture_document`
 
-```json
-{
-  "name": "capture_sequence",
-  "arguments": {
-    "steps": [
-      {
-        "type": "code",
-        "params": {
-          "code": "// Step 1: Define types\ntype User = { id: string; name: string; };\nconst users: User[] = [];",
-          "language": "typescript",
-          "title": "types.ts"
-        },
-        "stepNumber": 1,
-        "label": "Types"
-      },
-      {
-        "type": "code",
-        "params": {
-          "code": "// Step 2: Add CRUD functions\nfunction addUser(user: User) {\n  users.push(user);\n}",
-          "language": "typescript",
-          "title": "crud.ts"
-        },
-        "stepNumber": 2,
-        "label": "Functions"
-      },
-      {
-        "type": "terminal",
-        "params": {
-          "title": "test run",
-          "lines": ["$ npm test", "PASS  src/users.test.ts", "✓ 3 tests passed"]
-        },
-        "stepNumber": 3,
-        "label": "Verify"
-      }
-    ],
-    "compileGif": true,
-    "frameDelay": 1500
-  }
-}
-```
+Generate up to 30 captioned captures and embed them in a document. Embedded images are limited to 25 MB each and 75 MB total; exceeding a limit fails the call instead of silently producing an incomplete document.
 
----
-
-### 12. capture_document
-
-Create a self-contained document (Markdown, HTML, or PDF) with embedded captures. Each capture is taken as a screenshot, then embedded as a base64 data URI in the output document. Supports up to 30 sections.
-
-**Parameters:**
+- `markdown` writes a Markdown document with embedded data-URI image references.
+- `html` writes a self-contained HTML document with embedded images.
+- `pdf` writes a print-quality PDF with the generated captures embedded.
 
 | Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `title` | `string` | yes | — | Document title (becomes the top-level heading) |
-| `captures` | `CaptureItem[]` | yes | — | Array of captures to include as sections (min: 1, max: 30) |
-| `format` | `"markdown" | "html" | "pdf"` | no | `"markdown"` | Output document format |
-| `includeTimestamps` | `boolean` | no | `false` | Include a timestamp in the document |
-| `output` | `string` | no | auto-generated | Output filename (.md, .html, or .pdf) |
+|---|---|:---:|---|---|
+| `title` | string | yes | — | Document title, 1 to 200 characters |
+| `captures` | document capture union[] | yes | — | 1 to 30 flat captures, each with optional `caption` |
+| `format` | enum | no | `markdown` | `markdown`, `html`, or `pdf` |
+| `includeTimestamps` | boolean | no | `false` | Include capture timestamps |
+| `output` | string | no | auto | Output filename; its extension must match the selected format |
 
-**Example:**
+### 13. `snapmcp-hint`
 
-```json
-{
-  "name": "capture_document",
-  "arguments": {
-    "title": "API Deployment Report",
-    "format": "html",
-    "includeTimestamps": true,
-    "captures": [
-      {
-        "type": "terminal",
-        "params": {
-          "title": "build",
-          "lines": ["$ npm run build", "✓ Build succeeded in 4.2s"]
-        },
-        "caption": "Build step"
-      },
-      {
-        "type": "terminal",
-        "params": {
-          "title": "deploy",
-          "lines": ["$ npx wrangler deploy", "✨ Deployment complete"]
-        },
-        "caption": "Deployment"
-      },
-      {
-        "type": "browser",
-        "params": {
-          "url": "https://api.example.com/health",
-          "fullPage": false
-        },
-        "caption": "Health check"
-      }
-    ]
-  }
-}
-```
+Find the right tool by natural-language intent, or request concise setup, security, browser, token, or agent guidance.
 
----
+| Parameter | Type | Required | Description |
+|---|---|:---:|---|
+| `query` | string | no | Natural-language intent, up to 200 characters |
+| `topic` | string | no | Legacy named topic, up to 50 characters |
 
-### 13. snapmcp-hint
-
-Return a helpful hint about configuring and using snapmcp. No parameters required. Accepts an optional topic string to scope the hint.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `topic` | `string` | no | — | Optional topic: `init`, `doctor`, `browser`, `themes`, `output` |
-
-**Example:**
+Example:
 
 ```json
 {
   "name": "snapmcp-hint",
   "arguments": {
-    "topic": "themes"
+    "query": "printable report with embedded screenshots"
   }
 }
 ```
 
-**Response:** `"Set SNAPMCP_THEME to one of 27 themes: dracula, nord, catppuccin-mocha, tokyo-night, and more."`
+## Related
 
----
-
-## Next Steps
-
-- [Getting Started](getting-started.md) — installation and configuration
-- [Configuration Reference](configuration.md) — all environment variables and options
-- [CLI Reference](cli.md) — snapmcp init, doctor, test commands
-- [ARCHITECTURE.md](../ARCHITECTURE.md) — internal module map and design decisions
+- [Agent Guide](agents.md) for selection and discovery workflows
+- [Configuration](configuration.md) for environment variables
+- [CLI Reference](cli.md) for capability discovery from a shell
+- [Security Policy](../SECURITY.md) for enforced controls and limits

@@ -11,6 +11,7 @@ import { GIFEncoder, quantize, applyPalette } from "gifenc/dist/gifenc.esm.js"
 import { decode } from "fast-png"
 import fs from "node:fs"
 import path from "node:path"
+import { TOOL_LIMITS } from "./capabilities.js"
 
 // ─── Error ────────────────────────────────────────────────────
 
@@ -22,9 +23,9 @@ export class GifError extends Error {
 }
 
 // ─── Limits ───────────────────────────────────────────────────
-const GIF_MAX_FRAMES = 60;
-const GIF_MAX_DIM = 8192;
-const GIF_MAX_PIXELS = 67_108_864; // 8192 × 8192
+const GIF_MAX_FRAMES = TOOL_LIMITS.gif.maxFrames;
+const GIF_MAX_DIM = TOOL_LIMITS.gif.maxDimension;
+const GIF_MAX_PIXELS = TOOL_LIMITS.gif.maxPixels;
 
 function enforceCanvasLimits(width: number, height: number): void {
   if (width > GIF_MAX_DIM || height > GIF_MAX_DIM) {
@@ -39,6 +40,7 @@ function enforceCanvasLimits(width: number, height: number): void {
 
 export interface GifFrame {
   filePath: string
+  /** Frame delay in milliseconds. */
   delay?: number
 }
 
@@ -74,7 +76,7 @@ export async function createGif(
   const canvasHeight = options?.height ?? Math.max(...metas.map(m => m.png.height));
   enforceCanvasLimits(canvasWidth, canvasHeight);
 
-  const gif = new GIFEncoder(canvasWidth, canvasHeight, { loop });
+  const gif = new GIFEncoder();
 
   try {
     // Pass 2: decode + emit one frame at a time — peak memory = one frame
@@ -82,7 +84,7 @@ export async function createGif(
     for (const { frame } of metas) {
       const png = readPng(frame.filePath);
       enforceCanvasLimits(Math.max(canvasWidth, png.width), Math.max(canvasHeight, png.height));
-      const delay = (frame.delay ?? 80) * 10; // centiseconds → ms
+      const delay = frame.delay ?? 800; // milliseconds
       let data = png.data;
       let w = png.width;
       let h = png.height;
@@ -116,7 +118,13 @@ export async function createGif(
         flatPalette[i * 3 + 1] = palette[i][1];
         flatPalette[i * 3 + 2] = palette[i][2];
       }
-      gif.writeFrame(idxData, w, h, { delay, palette: flatPalette, transparent: false });
+      gif.writeFrame(idxData, w, h, {
+        delay,
+        palette: flatPalette,
+        transparent: false,
+        // gifenc writes the Netscape loop extension on the first frame only.
+        repeat: loop ? 0 : -1,
+      });
     }
 
     gif.finish();

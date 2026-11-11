@@ -1,68 +1,65 @@
-# SnapMCP — Social content (draft, 2026-08-20)
+# snapmcp Social Content Drafts
 
-Status: draft. Publicar tras listing en el registry oficial + blog post en Dev.to.
+These drafts describe snapmcp 2.3.6 accurately. They are drafts and have not been published.
 
----
+## X/Twitter thread
 
-## X/Twitter thread (5 tweets)
+### Post 1
 
-**Tweet 1**
-Your coding agent can describe a page, but can it show one? SnapMCP is an MCP
-server that turns agent output into pixel-faithful images: real terminal colors,
-Shiki-highlighted code, visual diffs, PDFs and GIFs.
+Your coding agent can describe a terminal, code sample, diff, or web page. snapmcp lets it create the visual artifact: screenshots, PDFs, GIFs, ordered walkthroughs, and captioned documents.
 
-**Tweet 2**
-The gap: Playwright MCP reads pages through token-efficient a11y snapshots
-(great for *interacting*). But a README needs images humans want to read.
-snapmcp renders them: terminal with your actual theme, diff with true red/green.
+### Post 2
 
-**Tweet 3**
-13 tools, one server. capture_terminal, capture_code, capture_browser,
-capture_markdown, capture_diff, capture_pdf, capture_gif, capture_batch...
-SSRF protection on by default. Uses your system Chrome — or auto-installs Chromium.
+Browser automation and visual documentation are different jobs. Use a browser MCP server to click and navigate. Use snapmcp when a person needs to read the result in a README, tutorial, PR, or report.
 
-**Tweet 4**
-Setup in one minute:
+### Post 3
+
+snapmcp has exactly 13 tools: terminal, code, browser, file, Markdown, HTML, diff, PDF, batch, sequence, GIF, document, and hint. No redundant capture feature.
+
+### Post 4
+
+Capture results are saved file paths, not image bytes; the hint tool returns text. Inputs are bounded, file reads are deny-all by default, output stays inside `SNAPMCP_DIR`, and SSRF checks are on by default.
+
+### Post 5
+
+Setup is explicit:
+
+```bash
 npm install -g snapmcp
--> add "snapmcp" to your MCP client
--> "capture a terminal shot of git log --oneline -5"
-Images land in ./captures. That's it.
+snapmcp init
+```
 
-**Tweet 5**
-Playwright to interact. snapmcp to document. Docs: github.com/reeinharddd/snapmcp
-#MCP #AI #Agents #DevTools
+Node.js 20 is primary. Bun is optional. Agents can discover the right tool with `snapmcp-hint` or `snapmcp://capabilities`.
 
-(GIF attached: demo of a terminal capture, then a diff. From assets/demo-*.png.)
+### Post 6
 
----
+Playwright to interact. snapmcp to document.
 
-## Reddit post (r/mcp + r/ClaudeCode)
+Repository: https://github.com/reeinharddd/snapmcp
 
-**Title:** I built an MCP server that produces the images your agent docs are missing
+## Reddit draft
+
+**Title:** I built an MCP server for the visual artifacts coding-agent documentation is missing
 
 **Body:**
-Coding agents are great at describing things, but the docs they generate still
-need real visuals. I kept hitting the same wall: terminal screenshots with
-actual colors, syntax-highlighted code, visual diffs, PDFs, GIFs — no single
-MCP server did it.
 
-So I built snapmcp:
-- 13 capture tools (terminal, code, browser, markdown, HTML, diff, PDF, batch, GIF, sequence, document)
-- Real terminal theme detection (Kitty, GNOME, Alacritty, WezTerm, Xfce4, LXTerminal)
-- Shiki highlighting, 50+ languages, 27 themes
-- SSRF protection + file allowlist + input limits on by default
-- Uses your system Chrome, or auto-installs Chromium at first setup
+Coding agents are good at describing changes, but READMEs, tutorials, PR descriptions, and QA reports often need images intended for people.
 
-Honest positioning: if your agent needs to *click* buttons, use Playwright MCP.
-If it needs to *show* something in docs/PRs, snapmcp is the complement.
+I built snapmcp as a focused visual documentation MCP server:
 
-npm: snapmcp | GitHub: github.com/reeinharddd/snapmcp
-Happy to answer setup questions (Claude Code / Cursor / VS Code / OpenCode).
+- exactly 13 tools for terminal output, code, browser pages, Markdown, HTML, diffs, PDFs, GIFs, ordered sequences, and captioned documents;
+- Shiki highlighting for 300+ bundled languages and 27 themes;
+- inclusive code and file line ranges;
+- saved-path results instead of image bytes;
+- bounded inputs, deny-all file reads, output confinement, and default-on SSRF checks;
+- Node.js 20 primary and npm/npx support without Bun.
 
----
+The boundary is explicit: URL tools accept HTTP(S), SSRF checks block private and local targets, but Chromium does not pin the DNS-resolved address, so hostile targets still need network isolation. Synthetic HTML and Markdown are isolated and sanitized as defense in depth, not as a guarantee of perfect sanitizer safety.
 
-## DEV.to / Hashnode meta
+Repository: https://github.com/reeinharddd/snapmcp
 
-- Source: docs/blog-post-devto.md (frontmatter listo, cover SVG verificado HTTP 200)
-- Title: "Why I built an all-in-one visual MCP server (and when NOT to use Playwright)"
-- tags: mcp, ai, agents, claude
+## Blog metadata
+
+- Source: [blog-post-devto.md](blog-post-devto.md)
+- Suggested title: "Why visual documentation needs a focused MCP server"
+- Suggested tags: mcp, ai, agents, developer-tools, documentation

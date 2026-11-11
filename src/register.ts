@@ -11,6 +11,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import {
+  applyEdits,
+  modify,
+  parse,
+  printParseErrorCode,
+  type JSONPath,
+  type ParseError,
+} from "jsonc-parser";
 import { ask, CHECK, WARN, CROSS, STEP, TEAL, BLUE, GRAY } from "./setup-shared.js";
 
 /* ─── Types ───────────────────────────────────────────────── */
@@ -34,6 +42,47 @@ export interface RegistrationResult {
 /* ─── Known client definitions ────────────────────────────── */
 
 /**
+ * Return the candidate paths for the user's global OpenCode config.
+ * OpenCode supports both JSON and JSONC. XDG_CONFIG_HOME is checked first,
+ * followed by the documented ~/.config fallback.
+ */
+export function openCodeConfigCandidates(): string[] {
+  const roots: string[] = [];
+  const xdgConfigHome = process.env.XDG_CONFIG_HOME?.trim();
+  if (xdgConfigHome) roots.push(path.join(path.resolve(xdgConfigHome), "opencode"));
+  roots.push(path.join(os.homedir(), ".config", "opencode"));
+
+  const uniqueRoots = [...new Set(roots.map((root) => path.resolve(root)))];
+  return uniqueRoots.flatMap((root) => [
+    path.join(root, "opencode.jsonc"),
+    path.join(root, "opencode.json"),
+  ]);
+}
+
+/**
+ * Find the global OpenCode config to target.
+ *
+ * OpenCode merges `opencode.json` and `opencode.jsonc` when both exist, so
+ * preferring a file that already registers snapmcp avoids creating a duplicate
+ * entry. Otherwise JSONC wins because it preserves comments and formatting.
+ */
+export function findOpenCodeConfigPath(): string | null {
+  const existing = openCodeConfigCandidates().filter((candidate) => fs.existsSync(candidate));
+  if (existing.length === 0) return null;
+
+  for (const candidate of existing) {
+    try {
+      const raw = fs.readFileSync(candidate, "utf-8");
+      if (hasSnapmcp(parseClientConfig(raw, candidate), "opencode")) return candidate;
+    } catch {
+      // Unreadable or malformed configs are reported during registration.
+    }
+  }
+
+  return existing[0]!;
+}
+
+/**
  * Build list of known MCP client config file paths.
  * Each entry is checked for existence at call time.
  */
@@ -42,13 +91,15 @@ function knownClients(): McpClientConfig[] {
   const clients: McpClientConfig[] = [];
 
   /* 1. OpenCode */
-  const opencodePath = path.join(home, ".config", "opencode", "opencode.json");
-  clients.push({
-    name: "OpenCode",
-    configPath: opencodePath,
-    format: "opencode",
-    exists: fs.existsSync(opencodePath),
-  });
+  const opencodePath = findOpenCodeConfigPath();
+  if (opencodePath) {
+    clients.push({
+      name: "OpenCode",
+      configPath: opencodePath,
+      format: "opencode",
+      exists: true,
+    });
+  }
 
   /* 2. Claude Desktop */
   const claudePath = path.join(home, ".config", "Claude", "claude_desktop_config.json");
@@ -119,40 +170,63 @@ export function detectMcpClients(): McpClientConfig[] {
 const SNAPMCP_COMMAND = "npx";
 const SNAPMCP_ARGS = ["-y", "snapmcp"];
 
-/**
- * Detect top-level section keys that hold MCP server definitions,
- * depending on the client format.
- */
-function mcpSectionKey(format: McpClientConfig["format"]): string {
-  switch (format) {
-    case "opencode":   return "mcp";
-    case "claude-desktop":
-    case "windsurf":
-    case "cursor":     return "mcpServers";
-    case "vscode-cline": return "cline.mcpServers";
-  }
+function asObject(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  return value as Record<string, unknown>;
 }
 
 /**
- * Check if snapmcp already exists in the config JSON.
+ * Check if snapmcp already exists in the config object.
  */
 export function hasSnapmcp(config: Record<string, unknown>, format: McpClientConfig["format"]): boolean {
   switch (format) {
     case "opencode": {
-      const section = (config["mcp"] as Record<string, unknown>) || {};
-      return "snapmcp" in section;
+      const mcp = asObject(config["mcp"]);
+      const servers = asObject(mcp?.["servers"]);
+      // Also recognize the deprecated V1 location so init does not create a
+      // duplicate server while an existing configuration is being migrated.
+      return (
+        (servers !== undefined && Object.hasOwn(servers, "snapmcp")) ||
+        (mcp !== undefined && Object.hasOwn(mcp, "snapmcp"))
+      );
     }
     case "claude-desktop":
     case "windsurf":
     case "cursor": {
-      const section = (config["mcpServers"] as Record<string, unknown>) || {};
-      return "snapmcp" in section;
+      const section = asObject(config["mcpServers"]);
+      return section !== undefined && Object.hasOwn(section, "snapmcp");
     }
     case "vscode-cline": {
-      const section = (config["cline"] as Record<string, unknown>) || {};
-      const servers = (section["mcpServers"] as Record<string, unknown>) || {};
-      return "snapmcp" in servers;
+      const section = asObject(config["cline"]);
+      const servers = asObject(section?.["mcpServers"]);
+      return servers !== undefined && Object.hasOwn(servers, "snapmcp");
     }
+  }
+}
+
+function snapmcpEntry(format: McpClientConfig["format"]): Record<string, unknown> {
+  if (format === "opencode") {
+    return {
+      type: "local",
+      command: [SNAPMCP_COMMAND, ...SNAPMCP_ARGS],
+    };
+  }
+  return {
+    command: SNAPMCP_COMMAND,
+    args: SNAPMCP_ARGS,
+  };
+}
+
+function snapmcpConfigPath(format: McpClientConfig["format"]): JSONPath {
+  switch (format) {
+    case "opencode":
+      return ["mcp", "servers", "snapmcp"];
+    case "claude-desktop":
+    case "windsurf":
+    case "cursor":
+      return ["mcpServers", "snapmcp"];
+    case "vscode-cline":
+      return ["cline", "mcpServers", "snapmcp"];
   }
 }
 
@@ -160,39 +234,76 @@ export function hasSnapmcp(config: Record<string, unknown>, format: McpClientCon
  * Add snapmcp entry to the config object (mutates in-place).
  */
 export function addSnapmcpEntry(config: Record<string, unknown>, format: McpClientConfig["format"]): void {
-  const snapmcpEntry = {
-    command: SNAPMCP_COMMAND,
-    args: SNAPMCP_ARGS,
-  };
+  const entry = snapmcpEntry(format);
 
   switch (format) {
     case "opencode": {
-      const section = (config["mcp"] as Record<string, unknown>) || {};
-      section["snapmcp"] = {
-        enabled: true,
-        type: "local",
-        command: [SNAPMCP_COMMAND, ...SNAPMCP_ARGS],
-      };
-      config["mcp"] = section;
+      const mcp = asObject(config["mcp"]) ?? {};
+      const servers = asObject(mcp["servers"]) ?? {};
+      servers["snapmcp"] = entry;
+      mcp["servers"] = servers;
+      config["mcp"] = mcp;
       break;
     }
     case "claude-desktop":
     case "windsurf":
     case "cursor": {
-      const section = (config["mcpServers"] as Record<string, unknown>) || {};
-      section["snapmcp"] = { ...snapmcpEntry };
+      const section = asObject(config["mcpServers"]) ?? {};
+      section["snapmcp"] = entry;
       config["mcpServers"] = section;
       break;
     }
     case "vscode-cline": {
-      const section = (config["cline"] as Record<string, unknown>) || {};
-      const servers = (section["mcpServers"] as Record<string, unknown>) || {};
-      servers["snapmcp"] = { ...snapmcpEntry };
+      const section = asObject(config["cline"]) ?? {};
+      const servers = asObject(section["mcpServers"]) ?? {};
+      servers["snapmcp"] = entry;
       section["mcpServers"] = servers;
       config["cline"] = section;
       break;
     }
   }
+}
+
+/** Parse a JSON/JSONC client config and reject malformed input. */
+function parseClientConfig(raw: string, configPath: string): Record<string, unknown> {
+  const errors: ParseError[] = [];
+  const parsed = parse(raw, errors, {
+    allowTrailingComma: true,
+    allowEmptyContent: false,
+  });
+  if (errors.length > 0) {
+    const first = errors[0]!;
+    throw new Error(
+      `Invalid JSON/JSONC in ${configPath} at offset ${first.offset}: ${printParseErrorCode(first.error)}`,
+    );
+  }
+  const config = asObject(parsed);
+  if (!config) {
+    throw new Error(`MCP client config must contain a JSON object: ${configPath}`);
+  }
+  return config;
+}
+
+/**
+ * Add snapmcp to JSON/JSONC source text while preserving comments, trailing
+ * commas, and unrelated settings. The updated source is parsed again before
+ * it is returned so a malformed edit can never be written.
+ */
+export function addSnapmcpEntryToText(
+  raw: string,
+  format: McpClientConfig["format"],
+): string {
+  parseClientConfig(raw, "<client-config>");
+  const edits = modify(raw, snapmcpConfigPath(format), snapmcpEntry(format), {
+    formattingOptions: {
+      insertSpaces: true,
+      tabSize: 2,
+      eol: "\n",
+    },
+  });
+  const updated = applyEdits(raw, edits);
+  parseClientConfig(updated, "<updated-client-config>");
+  return updated;
 }
 
 /**
@@ -207,14 +318,16 @@ export function addSnapmcpEntry(config: Record<string, unknown>, format: McpClie
  * @param dryRun - If true, only show what would be done (no writes, no backup)
  * @returns Array of registration results
  */
-export async function registerSnapmcp(dryRun: boolean = false): Promise<RegistrationResult[]> {
-  const clients = detectMcpClients();
+export async function registerSnapmcp(
+  dryRun: boolean = false,
+  clients: McpClientConfig[] = detectMcpClients(),
+): Promise<RegistrationResult[]> {
   const results: RegistrationResult[] = [];
 
   for (const client of clients) {
     try {
       const raw = fs.readFileSync(client.configPath, "utf-8");
-      const config = JSON.parse(raw) as Record<string, unknown>;
+      const config = parseClientConfig(raw, client.configPath);
 
       if (hasSnapmcp(config, client.format)) {
         results.push({
@@ -254,11 +367,11 @@ export async function registerSnapmcp(dryRun: boolean = false): Promise<Registra
       const bakPath = client.configPath + ".bak";
       fs.copyFileSync(client.configPath, bakPath);
 
-      /* Add snapmcp entry */
-      addSnapmcpEntry(config, client.format);
+      /* Add snapmcp entry while preserving JSONC comments and formatting. */
+      const updated = addSnapmcpEntryToText(raw, client.format);
 
       /* Write updated config */
-      fs.writeFileSync(client.configPath, JSON.stringify(config, null, 2) + "\n");
+      fs.writeFileSync(client.configPath, updated);
 
       results.push({
         client: client.name,

@@ -17,10 +17,9 @@
  */
 
 import playwright from "playwright";
-import { marked } from "marked";
 import path from "path";
 import fs from "fs";
-import type { SnapConfig } from "./config.js";
+import { configForOutputPath, type SnapConfig } from "./config.js";
 import {
   resolveSafePath,
   validateTerminalLines,
@@ -34,7 +33,8 @@ import {
   type FileReadPolicy,
 } from "./security.js";
 import { highlightCode } from "./highlighter.js";
-import { detectChrome, ChromeProfile } from './browser.js';
+import { installSyntheticContent, markdownToSafeHtml } from "./synthetic.js";
+import { detectChrome, type ChromeProfile } from './browser.js';
 import { TerminalColors, terminalColorsToThemeOverrides } from './terminal.js';
 
 /* ─── Theme color definitions ─────────────────────────────── */
@@ -72,6 +72,7 @@ export interface ScreenshotOptions {
  */
 export interface PageScreenshotOptions {
   type?: 'png' | 'jpeg';
+  quality?: number;
   fullPage?: boolean;
   omitBackground?: boolean;
   clip?: { x: number; y: number; width: number; height: number };
@@ -391,8 +392,10 @@ pre{font-family:${theme.font};font-size:${theme.fontSize};line-height:${theme.li
 
 /* ── Terminal body builder ── */
 
-function renderPrompt(cmd: string, theme: ThemeColors): string {
-  return `<pre class="line"><span style="color:${theme.green}">user@host</span><span style="color:${theme.text}">:</span><span style="color:${theme.blue}">~</span><span style="color:${theme.text}">$ </span><span style="color:${theme.yellow}">${escHtml(cmd)}</span></pre>`;
+function renderPrompt(cmd: string, theme: ThemeColors, root = false): string {
+  const user = root ? "root" : "user";
+  const marker = root ? "#" : "$";
+  return `<pre class="line"><span style="color:${theme.green}">${user}@host</span><span style="color:${theme.text}">:</span><span style="color:${theme.blue}">~</span><span style="color:${theme.text}">${marker} </span><span style="color:${theme.yellow}">${escHtml(cmd)}</span></pre>`;
 }
 
 function colorizeOutputLine(text: string, theme: ThemeColors): string {
@@ -407,9 +410,11 @@ function colorizeOutputLine(text: string, theme: ThemeColors): string {
 
 function buildTerminalBody(lines: string[], theme: ThemeColors): string {
   return lines
-    .map((line) =>
-      line.startsWith("$ ") ? renderPrompt(line.slice(2), theme) : colorizeOutputLine(line, theme),
-    )
+    .map((line) => {
+      if (line.startsWith("$ ")) return renderPrompt(line.slice(2), theme, false);
+      if (line.startsWith("# ")) return renderPrompt(line.slice(2), theme, true);
+      return colorizeOutputLine(line, theme);
+    })
     .join("\n");
 }
 
@@ -501,6 +506,7 @@ body{background:${theme.bg};color:${theme.text};font-family:${theme.font};font-s
 
 let _browser: playwright.Browser | null = null;
 let _browserPromise: Promise<playwright.Browser> | null = null;
+let _persistentContext: playwright.BrowserContext | null = null;
 
 function launchOptions(config: SnapConfig): playwright.LaunchOptions {
   const opts: playwright.LaunchOptions = { headless: true };
@@ -512,14 +518,57 @@ function launchOptions(config: SnapConfig): playwright.LaunchOptions {
   return opts;
 }
 
+function findChromeProfile(profiles: ChromeProfile[] | undefined, requested: string): ChromeProfile | undefined {
+  const normalized = requested.trim().toLowerCase();
+  return profiles?.find(
+    (profile) =>
+      profile.key.toLowerCase() === normalized || profile.name.toLowerCase() === normalized,
+  );
+}
+
 async function launchBrowser(config: SnapConfig): Promise<playwright.Browser> {
   const opts = launchOptions(config);
+
   if (config.chromeProfile) {
-    const ctx = await playwright.chromium.launchPersistentContext(config.chromeProfile, opts);
-    const browser = ctx.browser();
+    const detected = detectChrome();
+    let userDataDir: string | undefined;
+    let profileKey: string | undefined;
+
+    if (path.isAbsolute(config.chromeProfile)) {
+      userDataDir = path.resolve(config.chromeProfile);
+    } else {
+      const profile = findChromeProfile(detected.profiles, config.chromeProfile);
+      if (!profile || !detected.userDataDir) {
+        throw new Error(
+          `Chrome profile "${config.chromeProfile}" was not found. Use a profile key such as "Default" or "Profile 1".`,
+        );
+      }
+      userDataDir = detected.userDataDir;
+      profileKey = profile.key;
+    }
+
+    if (!detected.executablePath) {
+      throw new Error("A system Chrome installation is required when SNAPMCP_CHROME_PROFILE is used");
+    }
+    if (!config.chromeExecutable && !config.chromeChannel) {
+      opts.executablePath = detected.executablePath;
+    }
+    if (profileKey) {
+      opts.args = [...(opts.args ?? []), `--profile-directory=${profileKey}`];
+    }
+
+    const context = await playwright.chromium.launchPersistentContext(userDataDir, {
+      ...opts,
+      viewport: { width: 1280, height: 800 },
+      deviceScaleFactor: config.deviceScale,
+      serviceWorkers: "block",
+    });
+    const browser = context.browser();
     if (!browser) throw new Error("Chromium closed immediately after launch");
+    _persistentContext = context;
     return browser;
   }
+
   return playwright.chromium.launch(opts);
 }
 
@@ -537,6 +586,25 @@ export async function getBrowser(config: SnapConfig): Promise<playwright.Browser
   return _browserPromise;
 }
 
+/**
+ * Return the persistent browser context used by explicit profile mode.
+ * Pages created from this context share the selected profile's storage.
+ */
+export async function getPersistentContext(
+  config: SnapConfig,
+): Promise<playwright.BrowserContext> {
+  if (!config.chromeProfile) {
+    throw new Error("Persistent browser context requested without SNAPMCP_CHROME_PROFILE");
+  }
+  await getBrowser(config);
+  if (!_persistentContext) {
+    throw new Error(
+      "The browser was already launched without profile mode; restart snapmcp with SNAPMCP_CHROME_PROFILE configured",
+    );
+  }
+  return _persistentContext;
+}
+
 export async function closeBrowser(): Promise<void> {
   const pending = _browserPromise;
   _browserPromise = null;
@@ -544,6 +612,7 @@ export async function closeBrowser(): Promise<void> {
     ? await pending.catch(() => null)
     : _browser;
   _browser = null;
+  _persistentContext = null;
   if (target) await target.close();
 }
 
@@ -556,7 +625,7 @@ export async function closeBrowser(): Promise<void> {
  * the initial validateUrl on the main URL cannot see.
  */
 async function installRouteGuard(page: playwright.Page, config: SnapConfig): Promise<void> {
-  if (!config.securityChecks || !config.ssrfProtection) return;
+  if (!config.ssrfProtection) return;
   await page.route("**/*", async (route) => {
     try {
       await assertSafeRequestUrl(route.request().url(), true);
@@ -564,6 +633,22 @@ async function installRouteGuard(page: playwright.Page, config: SnapConfig): Pro
     } catch {
       await route.abort("blockedbyclient");
     }
+  });
+}
+
+/** Synthetic captures never load network resources. */
+async function installSyntheticNetworkGuard(page: playwright.Page): Promise<void> {
+  await page.route("**/*", async (route) => {
+    try {
+      const protocol = new URL(route.request().url()).protocol;
+      if (protocol === "data:" || protocol === "blob:" || protocol === "about:") {
+        await route.continue();
+        return;
+      }
+    } catch {
+      // Block malformed URLs.
+    }
+    await route.abort("blockedbyclient");
   });
 }
 
@@ -577,14 +662,17 @@ async function screenshotHtml(
   minWidth = 400,
 ): Promise<void> {
   const browser = await getBrowser(config);
-  const page = await browser.newPage({
+  const context = await browser.newContext({
     viewport: { width: 1920, height: 1080 },
     deviceScaleFactor: config.deviceScale,
+    javaScriptEnabled: false,
+    serviceWorkers: "block",
   });
+  const page = await context.newPage();
 
   try {
-    await installRouteGuard(page, config);
-    await page.setContent(html, { waitUntil: "networkidle", timeout: config.timeout });
+    await installSyntheticNetworkGuard(page);
+    await installSyntheticContent(page, html);
 
     const box = await page.evaluate(
       ({ sel }) => {
@@ -632,6 +720,7 @@ async function screenshotHtml(
     await el.screenshot(opts);
   } finally {
     await page.close();
+    await context.close();
   }
 }
 
@@ -645,23 +734,35 @@ async function screenshotPage(
   height: number,
   config: SnapConfig,
 ): Promise<void> {
-  const browser = await getBrowser(config);
-  const page = await browser.newPage({
+  const persistent = config.chromeProfile
+    ? await getPersistentContext(config)
+    : null;
+  const context = persistent ?? await (await getBrowser(config)).newContext({
     viewport: { width, height },
     deviceScaleFactor: config.deviceScale,
+    // Playwright request interception does not cover service-worker traffic.
+    // Blocking workers keeps those requests inside the route guard's model.
+    serviceWorkers: "block",
   });
+  const page = await context.newPage();
 
   try {
+    if (persistent) {
+      await page.setViewportSize({ width, height });
+    }
     await installRouteGuard(page, config);
     await page.goto(url, { waitUntil: "networkidle", timeout: config.timeout });
 
     const screenshotOpts: PageScreenshotOptions = {
       fullPage,
-      ...(config.format === "jpeg" ? { type: "jpeg" as const } : {}),
+      ...(config.format === "jpeg"
+        ? { type: "jpeg" as const, quality: config.quality }
+        : {}),
     };
     await page.screenshot({ path: outputPath, ...screenshotOpts });
   } finally {
     await page.close();
+    if (!persistent) await context.close();
   }
 }
 
@@ -670,21 +771,64 @@ async function screenshotPage(
 async function capturePdfInternal(
   url: string,
   outputPath: string,
-  _fullPage: boolean,
   width: number,
   height: number,
   config: SnapConfig,
 ): Promise<string> {
-  const browser = await getBrowser(config);
-  const page = await browser.newPage({ viewport: { width, height } });
+  const persistent = config.chromeProfile
+    ? await getPersistentContext(config)
+    : null;
+  const context = persistent ?? await (await getBrowser(config)).newContext({
+    viewport: { width, height },
+    // Keep worker traffic visible to Playwright's request guard. Service
+    // workers are not intercepted by page.route(), so they are blocked here.
+    serviceWorkers: "block",
+  });
+  const page = await context.newPage();
 
   try {
+    if (persistent) {
+      await page.setViewportSize({ width, height });
+    }
     await installRouteGuard(page, config);
     await page.goto(url, { waitUntil: "networkidle", timeout: config.timeout });
     await page.pdf({ path: outputPath, format: "A4", printBackground: true });
   } finally {
     await page.close();
+    if (!persistent) await context.close();
   }
+  return outputPath;
+}
+
+/** Render trusted, generated HTML to a PDF in an isolated synthetic context. */
+export async function captureHtmlToPdf(
+  html: string,
+  outputPath: string,
+  config: SnapConfig,
+): Promise<string> {
+  const browser = await getBrowser(config);
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 1080 },
+    javaScriptEnabled: false,
+    serviceWorkers: "block",
+  });
+  const page = await context.newPage();
+
+  try {
+    await installSyntheticNetworkGuard(page);
+    await installSyntheticContent(page, html);
+    await page.emulateMedia({ media: "print" });
+    await page.pdf({
+      path: outputPath,
+      format: "A4",
+      printBackground: true,
+      margin: { top: "20mm", bottom: "20mm", left: "15mm", right: "15mm" },
+    });
+  } finally {
+    await page.close();
+    await context.close();
+  }
+
   return outputPath;
 }
 
@@ -699,7 +843,7 @@ function enforceCleanup(dir: string, maxFiles: number): void {
   try {
     const files = fs
       .readdirSync(dir)
-      .filter((f) => /\.(png|jpg|pdf)$/i.test(f))
+      .filter((f) => /\.(png|jpe?g|gif|pdf)$/i.test(f))
       .map((f) => ({ name: f, time: fs.statSync(path.join(dir, f)).mtimeMs }))
       .sort((a, b) => a.time - b.time);
 
@@ -711,12 +855,6 @@ function enforceCleanup(dir: string, maxFiles: number): void {
   } catch {
     // silently ignore cleanup errors
   }
-}
-
-/* ── Markdown → HTML ── */
-
-async function markdownToHtml(markdown: string): Promise<string> {
-  return marked.parse(markdown);
 }
 
 /* ── File read policy builder ── */
@@ -758,6 +896,7 @@ export async function captureTerminal(
   outputPath: string,
   config: SnapConfig,
 ): Promise<string> {
+  config = configForOutputPath(config, outputPath);
   if (config.securityChecks) validateTerminalLines(lines);
   const theme = resolveTheme(config);
 
@@ -791,6 +930,32 @@ export async function captureTerminal(
   return outputPath;
 }
 
+/** Slice a 1-indexed, inclusive line range from source code. */
+export function sliceCodeRange(
+  code: string,
+  startLine?: number,
+  endLine?: number,
+): { code: string; startLine: number } {
+  if (startLine === undefined && endLine === undefined) {
+    return { code, startLine: 1 };
+  }
+
+  const lines = code.split("\n");
+  const start = startLine ?? 1;
+  const end = endLine ?? lines.length;
+  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start) {
+    throw new Error(`Invalid line range: ${start}-${end}`);
+  }
+  if (end > lines.length) {
+    throw new Error(`Invalid line range: ${start}-${end} (code has ${lines.length} lines)`);
+  }
+
+  return {
+    code: lines.slice(start - 1, end).join("\n"),
+    startLine: start,
+  };
+}
+
 /** Capture syntax-highlighted code screenshot */
 export async function captureCode(
   code: string,
@@ -801,14 +966,16 @@ export async function captureCode(
   startLine?: number,
   endLine?: number,
 ): Promise<string> {
+  config = configForOutputPath(config, outputPath);
   if (config.securityChecks) validateCodeInput(code);
   const theme = resolveTheme(config);
-  const highlighted = await highlightCode(code, lang || "text", config.theme);
+  const range = sliceCodeRange(code, startLine, endLine);
+  const highlighted = await highlightCode(range.code, lang || "text", config.theme);
 
-  // Add line numbers if startLine is specified
+  // Add line numbers when an explicit range is requested.
   let bodyHtml = highlighted;
-  if (startLine !== undefined) {
-    bodyHtml = addLineNumbers(highlighted, startLine, theme);
+  if (startLine !== undefined || endLine !== undefined) {
+    bodyHtml = addLineNumbers(highlighted, range.startLine, theme);
   }
 
   const screenshotOpts: ScreenshotOptions = {
@@ -831,7 +998,8 @@ export async function captureBrowser(
   height: number,
   config: SnapConfig,
 ): Promise<string> {
-  if (config.securityChecks) await validateUrlResolve(url, config.ssrfProtection);
+  config = configForOutputPath(config, outputPath);
+  await validateUrlResolve(url, config.ssrfProtection);
   await screenshotPage(url, outputPath, fullPage, width, height, config);
   return outputPath;
 }
@@ -844,6 +1012,7 @@ export async function captureFile(
   startLine?: number,
   endLine?: number,
 ): Promise<string> {
+  config = configForOutputPath(config, outputPath);
   if (config.securityChecks) validateFileRead(filePath, filePolicy(config));
 
   let readPath = filePath;
@@ -862,22 +1031,17 @@ export async function captureFile(
     tf: "terraform", diff: "diff", patch: "diff",
   };
   const lang = langMap[ext] || "text";
-  const lines = code.split("\n");
 
-  // Apply line range slicing
-  let slicedCode = code;
   let displayTitle = path.basename(filePath);
   if (startLine !== undefined || endLine !== undefined) {
     const start = startLine ?? 1;
-    const end = endLine ?? lines.length;
-    if (start < 1 || end > lines.length || start > end) {
-      throw new Error(`Invalid line range: ${start}-${end} (file has ${lines.length} lines)`);
-    }
-    slicedCode = lines.slice(start - 1, end).join("\n");
+    const end = endLine ?? code.split("\n").length;
+    // Validate before rendering so invalid ranges fail with a useful message.
+    sliceCodeRange(code, start, end);
     displayTitle = `${path.basename(filePath)} (lines ${start}-${end})`;
   }
 
-  return captureCode(slicedCode, lang, displayTitle, outputPath, config, startLine, endLine);
+  return captureCode(code, lang, displayTitle, outputPath, config, startLine, endLine);
 }
 
 /** Capture markdown as a rendered document screenshot */
@@ -887,9 +1051,10 @@ export async function captureMarkdown(
   outputPath: string,
   config: SnapConfig,
 ): Promise<string> {
+  config = configForOutputPath(config, outputPath);
   if (config.securityChecks) validateMarkdownInput(markdown);
   const theme = resolveTheme(config);
-  const bodyHtml = await markdownToHtml(markdown);
+  const bodyHtml = await markdownToSafeHtml(markdown, title, config.theme);
   await screenshotHtml(documentTemplate(title, bodyHtml, theme), outputPath, config, ".document", 400);
   return outputPath;
 }
@@ -901,6 +1066,7 @@ export async function captureHtml(
   outputPath: string,
   config: SnapConfig,
 ): Promise<string> {
+  config = configForOutputPath(config, outputPath);
   if (config.securityChecks) validateHtmlInput(html);
   const theme = resolveTheme(config);
   await screenshotHtml(rawHtmlTemplate(html, theme), outputPath, config, "body", 400);
@@ -913,6 +1079,7 @@ export async function captureDiff(
   outputPath: string,
   config: SnapConfig,
 ): Promise<string> {
+  config = configForOutputPath(config, outputPath);
   if (config.securityChecks) validateDiffInput(diffText);
   const theme = resolveTheme(config);
 
@@ -932,13 +1099,12 @@ export async function captureDiff(
 export async function capturePdf(
   url: string,
   outputPath: string,
-  fullPage: boolean,
   width: number,
   height: number,
   config: SnapConfig,
 ): Promise<string> {
-  if (config.securityChecks) await validateUrlResolve(url, config.ssrfProtection);
-  return capturePdfInternal(url, outputPath, fullPage, width, height, config);
+  await validateUrlResolve(url, config.ssrfProtection);
+  return capturePdfInternal(url, outputPath, width, height, config);
 }
 
 /** Run cleanup on output directory */

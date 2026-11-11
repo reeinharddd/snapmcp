@@ -13,8 +13,9 @@ import path from "node:path"
 import type { SnapConfig } from "./config.js"
 import { logger } from "./logger.js"
 import { BRAND } from "./brand.js"
-import { getBrowser } from "./renderer.js"
-import { validateFileRead, type FileReadPolicy } from "./security.js"
+import { captureHtmlToPdf } from "./renderer.js"
+import { validateFileRead, LimitError } from "./security.js"
+import { TOOL_LIMITS } from "./capabilities.js"
 
 // ─── Types ─────────────────────────────────────────────────────
 
@@ -111,6 +112,7 @@ function writeMarkdown(
   config: SnapConfig,
 ): string {
   const lines: string[] = []
+  let embeddedBytes = 0
 
   lines.push(`# ${escapeMd(title)}`)
   lines.push("")
@@ -132,10 +134,12 @@ function writeMarkdown(
     }
 
     if (section.imagePath) {
-      const b64 = readImageBase64(section.imagePath, config)
-      if (b64) {
+      const remainingBytes = TOOL_LIMITS.document.maxEmbeddedTotalBytes - embeddedBytes
+      const image = readImageDataUri(section.imagePath, config, remainingBytes)
+      if (image) {
+        embeddedBytes += image.byteLength
         const caption = section.caption ? escapeMd(section.caption) : ""
-        lines.push(`![${caption}](${b64})`)
+        lines.push(`![${caption}](${image.dataUri})`)
         lines.push("")
         if (section.caption) {
           lines.push(`*${escapeMd(section.caption)}*`)
@@ -165,14 +169,14 @@ function escapeMd(text: string): string {
 
 // ─── HTML output ───────────────────────────────────────────────
 
-function writeHtml(
+function buildHtml(
   title: string,
   sections: DocumentSection[],
   includeTimestamps: boolean,
-  outputPath: string,
   config: SnapConfig,
 ): string {
   const parts: string[] = []
+  let embeddedBytes = 0
 
   parts.push("<!DOCTYPE html>")
   parts.push('<html lang="en">')
@@ -207,10 +211,12 @@ function writeHtml(
       parts.push(`<p>${escHtml(section.description)}</p>`)
     }
     if (section.imagePath) {
-      const b64 = readImageBase64(section.imagePath, config)
-      if (b64) {
+      const remainingBytes = TOOL_LIMITS.document.maxEmbeddedTotalBytes - embeddedBytes
+      const image = readImageDataUri(section.imagePath, config, remainingBytes)
+      if (image) {
+        embeddedBytes += image.byteLength
         parts.push("<figure>")
-        parts.push(`<img src="${b64}" alt="${escHtml(section.caption ?? "")}">`)
+        parts.push(`<img src="${image.dataUri}" alt="${escHtml(section.caption ?? "")}">`)
         if (section.caption) {
           parts.push(`<figcaption>${escHtml(section.caption)}</figcaption>`)
         }
@@ -225,7 +231,17 @@ function writeHtml(
 
   parts.push("</body></html>")
 
-  const html = parts.join("\n")
+  return parts.join("\n")
+}
+
+function writeHtml(
+  title: string,
+  sections: DocumentSection[],
+  includeTimestamps: boolean,
+  outputPath: string,
+  config: SnapConfig,
+): string {
+  const html = buildHtml(title, sections, includeTimestamps, config)
   fs.writeFileSync(outputPath, html, "utf-8")
   logger.info(`HTML document saved: ${outputPath}`)
   return outputPath
@@ -240,37 +256,10 @@ async function writePdf(
   outputPath: string,
   config: SnapConfig,
 ): Promise<string> {
-  // Generate HTML first, save to temp file
-  const tmpPath = outputPath.replace(/\.pdf$/i, ".html") || outputPath + ".html"
-  writeHtml(title, sections, includeTimestamps, tmpPath, config)
-
-  // Reuse the shared browser singleton — same lifecycle, closed by closeBrowser()
-  try {
-    const browser = await getBrowser(config)
-    const page = await browser.newPage({ viewport: { width: 1280, height: 1080 } })
-
-    try {
-      await page.goto(`file://${path.resolve(tmpPath)}`, {
-        waitUntil: "networkidle",
-        timeout: config.timeout,
-      })
-      await page.pdf({
-        path: outputPath,
-        format: "A4",
-        printBackground: true,
-        margin: { top: "20mm", bottom: "20mm", left: "15mm", right: "15mm" },
-      })
-    } finally {
-      await page.close()
-    }
-  } finally {
-    // Clean up the temp HTML file
-    try {
-      fs.unlinkSync(tmpPath)
-    } catch {
-      // ignore cleanup errors
-    }
-  }
+  // Build the document in memory. Avoiding a sibling .html temporary prevents
+  // the PDF output from being deleted when the output name has no .pdf suffix.
+  const html = buildHtml(title, sections, includeTimestamps, config)
+  await captureHtmlToPdf(html, outputPath, config)
 
   logger.info(`PDF document saved: ${outputPath}`)
   return outputPath
@@ -278,29 +267,81 @@ async function writePdf(
 
 // ─── Helpers ───────────────────────────────────────────────────
 
+interface EmbeddedImage {
+  dataUri: string;
+  mimeType: string;
+  byteLength: number;
+}
+
+/** Detect supported image formats from their file signatures. */
+function detectImageMime(data: Buffer): string | null {
+  if (data.length >= 8 && data.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    return "image/png";
+  }
+  if (data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff) {
+    return "image/jpeg";
+  }
+  if (data.length >= 6 && data.subarray(0, 6).toString("ascii") === "GIF87a") {
+    return "image/gif";
+  }
+  if (data.length >= 6 && data.subarray(0, 6).toString("ascii") === "GIF89a") {
+    return "image/gif";
+  }
+  if (
+    data.length >= 12 &&
+    data.subarray(0, 4).toString("ascii") === "RIFF" &&
+    data.subarray(8, 12).toString("ascii") === "WEBP"
+  ) {
+    return "image/webp";
+  }
+  return null;
+}
+
 /**
- * Read an image file and return a base64 data URI.
- * Restricted to allowed paths when configured; always enforces the size limit.
- * Returns null when the file cannot be read or is not allowed.
+ * Read an image file and return a base64 data URI with its real MIME type.
+ * Restricted to the output directory and configured allowlist. Missing or
+ * unsupported images are skipped, while embedding-limit violations fail
+ * loudly so a document can never be reported as complete when it is not.
  */
-function readImageBase64(filePath: string, config: SnapConfig): string | null {
+function readImageDataUri(
+  filePath: string,
+  config: SnapConfig,
+  remainingTotalBytes: number,
+): EmbeddedImage | null {
   try {
     if (config.securityChecks) {
-      if (config.allowedPaths.length > 0) {
-        validateFileRead(filePath, {
-          maxSize: config.maxFileSize,
-          allowedPaths: [config.outputDir, ...config.allowedPaths],
-        });
-      } else {
-        const st = fs.statSync(path.resolve(filePath));
-        if (!st.isFile() || st.size > config.maxFileSize) return null;
-      }
+      validateFileRead(filePath, {
+        maxSize: TOOL_LIMITS.document.maxEmbeddedImageBytes,
+        allowedPaths: [config.outputDir, ...config.allowedPaths],
+      });
     }
-    const resolved = path.resolve(filePath)
-    const data = fs.readFileSync(resolved)
-    const b64 = data.toString("base64")
-    return `data:image/png;base64,${b64}`
+    const resolved = fs.realpathSync(path.resolve(filePath));
+    const byteLength = fs.statSync(resolved).size;
+    if (byteLength > TOOL_LIMITS.document.maxEmbeddedImageBytes) {
+      throw new DocumentError(
+        `Image "${filePath}" exceeds the ${TOOL_LIMITS.document.maxEmbeddedImageBytes}-byte embedding limit`,
+      );
+    }
+    if (byteLength > remainingTotalBytes) {
+      throw new DocumentError(
+        `Embedded images exceed the ${TOOL_LIMITS.document.maxEmbeddedTotalBytes}-byte document limit`,
+      );
+    }
+    const data = fs.readFileSync(resolved);
+    const mimeType = detectImageMime(data);
+    if (!mimeType) return null;
+    return {
+      mimeType,
+      byteLength,
+      dataUri: `data:${mimeType};base64,${data.toString("base64")}`,
+    };
   } catch (err) {
+    if (err instanceof DocumentError) throw err;
+    if (err instanceof LimitError) {
+      throw new DocumentError(
+        `Image "${filePath}" exceeds the ${TOOL_LIMITS.document.maxEmbeddedImageBytes}-byte embedding limit`,
+      );
+    }
     logger.warn(`Cannot embed image, skipping: ${filePath} — ${(err as Error).message}`)
     return null
   }

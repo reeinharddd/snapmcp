@@ -144,7 +144,7 @@ describe("security — path traversal via MCP", () => {
     assert.ok(hasError, "Path traversal should be blocked");
   });
 
-  it("blocks path traversal in capture_diff output filename", async () => {
+  it("blocks encoded path traversal in capture_diff output filename", async () => {
     const response = await server.sendRequest("tools/call", {
       name: "capture_diff",
       arguments: {
@@ -152,8 +152,35 @@ describe("security — path traversal via MCP", () => {
         output: "..%2F..%2Fetc%2Fpasswd",
       },
     });
-    // URL-encoded paths may be handled differently — the key is server doesn't crash
-    assert.ok(response.result || response.error, "Server should respond");
+    const hasError = response.error ||
+      (response.result as { isError?: boolean })?.isError;
+    assert.ok(hasError, "Encoded path traversal should be blocked");
+  });
+
+  it("blocks traversal in composite batch output directories", async () => {
+    const response = await server.sendRequest("tools/call", {
+      name: "capture_batch",
+      arguments: {
+        captures: [{ type: "terminal", title: "test", lines: ["$ echo safe"] }],
+        output: "../escape",
+      },
+    });
+    const hasError = response.error ||
+      (response.result as { isError?: boolean })?.isError;
+    assert.ok(hasError, "Composite batch output traversal should be blocked");
+  });
+
+  it("blocks traversal in composite sequence output directories", async () => {
+    const response = await server.sendRequest("tools/call", {
+      name: "capture_sequence",
+      arguments: {
+        steps: [{ type: "terminal", title: "test", lines: ["$ echo safe"] }],
+        output: "../escape",
+      },
+    });
+    const hasError = response.error ||
+      (response.result as { isError?: boolean })?.isError;
+    assert.ok(hasError, "Composite sequence output traversal should be blocked");
   });
 
   it("allows normal output filename (even if capture fails for other reasons)", async () => {
@@ -172,6 +199,64 @@ describe("security — path traversal via MCP", () => {
       !text.toLowerCase().includes("traversal"),
       `Normal filename should not trigger traversal: ${text}`,
     );
+  });
+
+  it("denies file reads when no allowlist is configured", async () => {
+    const filePath = path.join(tmpDir, "deny-by-default.txt");
+    fs.writeFileSync(filePath, "secret");
+    const response = await server.sendRequest("tools/call", {
+      name: "capture_file",
+      arguments: { filePath },
+    });
+    const hasError = response.error ||
+      (response.result as { isError?: boolean })?.isError;
+    assert.ok(hasError, "File reads should be denied without an allowlist");
+  });
+});
+
+describe("security — URL protocol and credential enforcement via MCP", () => {
+  let tmpDir: string;
+  let server: McpSecurityServer;
+
+  before(async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "snapmcp-url-security-"));
+    server = new McpSecurityServer(tmpDir);
+    await server.waitForReady();
+  }, { timeout: 30_000 });
+
+  after(async () => {
+    if (server) await server.shutdown();
+    if (tmpDir) { try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ok */ } }
+  }, { timeout: 15_000 });
+
+  it("rejects about:blank for capture_browser", async () => {
+    const response = await server.sendRequest("tools/call", {
+      name: "capture_browser",
+      arguments: { url: "about:blank" },
+    });
+    const hasError = response.error ||
+      (response.result as { isError?: boolean })?.isError;
+    assert.ok(hasError, "about:blank should not be accepted as a browser URL");
+  });
+
+  it("rejects about:blank for capture_pdf", async () => {
+    const response = await server.sendRequest("tools/call", {
+      name: "capture_pdf",
+      arguments: { url: "about:blank" },
+    });
+    const hasError = response.error ||
+      (response.result as { isError?: boolean })?.isError;
+    assert.ok(hasError, "about:blank should not be accepted as a PDF URL");
+  });
+
+  it("rejects URLs with embedded credentials", async () => {
+    const response = await server.sendRequest("tools/call", {
+      name: "capture_browser",
+      arguments: { url: "https://user:password@example.com/" },
+    });
+    const hasError = response.error ||
+      (response.result as { isError?: boolean })?.isError;
+    assert.ok(hasError, "Embedded URL credentials should be rejected");
   });
 });
 

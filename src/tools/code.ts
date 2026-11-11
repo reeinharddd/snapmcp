@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { captureCode } from "../renderer.js";
+import { TOOL_LIMITS } from "../capabilities.js";
 
 interface ToolDeps {
   outPath: (prefix: string, name?: string) => string;
@@ -12,10 +13,10 @@ interface ToolDeps {
 export function registerCodeTool(server: McpServer, { outPath, ok, fail, config }: ToolDeps): void {
   server.tool(
     "capture_code",
-    "Generate a syntax-highlighted code screenshot using Shiki (50+ languages, 27 themes). Renders code with line numbers, theme-aware colors, and optional window chrome. Ideal for code documentation, tutorials, and sharing snippets with authentic IDE-like appearance.",
+    "Generate a syntax-highlighted code screenshot using Shiki (300+ bundled languages and 27 themes). Supports inclusive startLine/endLine ranges and optional window chrome. Ideal for code documentation, tutorials, and sharing snippets with an IDE-like appearance.",
     {
-      code: z.string().min(1).max(200_000).describe("Source code to render. Maximum 200KB."),
-      language: z.string().default("text").describe("Programming language for highlighting. Supports 50+ languages: typescript, javascript, python, rust, go, java, c, cpp, csharp, ruby, php, swift, kotlin, sql, json, yaml, markdown, html, css, bash, dockerfile, toml, xml, graphql, and many more. Use 'text' for plain text."),
+      code: z.string().min(1).max(TOOL_LIMITS.code.maxBytes).describe(`Source code to render. Maximum ${TOOL_LIMITS.code.maxBytes / 1_000}KB.`),
+      language: z.string().default("text").describe("Programming language for highlighting. Supports 300+ bundled Shiki languages, including typescript, javascript, python, rust, go, java, c, cpp, csharp, ruby, php, swift, kotlin, sql, json, yaml, markdown, html, css, bash, dockerfile, toml, xml, graphql, and many more. Use 'text' for plain text."),
       title: z.string().max(100).default("code").describe("Window title shown in the title bar (e.g., 'src/main.ts', 'example.py')"),
       startLine: z.number().int().min(1).optional().describe("First line number to show in the gutter (1-indexed). Use with endLine to show a code range."),
       endLine: z.number().int().min(1).optional().describe("Last line number to show in the gutter (1-indexed, inclusive). Must be >= startLine if both provided."),

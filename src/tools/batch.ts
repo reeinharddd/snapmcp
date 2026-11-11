@@ -5,7 +5,8 @@ import {
   captureBrowser, captureMarkdown, captureHtml, captureDiff
 } from "../renderer.js";
 import { runCleanup } from "../renderer.js";
-import path from "path";
+import { createOutputPath, resolveOutputDirectory } from "../output.js";
+import { TOOL_LIMITS } from "../capabilities.js";
 
 interface ToolDeps {
   outPath: (prefix: string, name?: string) => string;
@@ -17,11 +18,11 @@ interface ToolDeps {
 // Discriminated union for capture parameters - replaces black-box z.record(z.string(), z.any())
 const TerminalParams = z.object({
   title: z.string().max(100).optional().describe("Window title (default: 'terminal')"),
-  lines: z.array(z.string()).min(1).max(1000).describe("Lines to render. Prefix with '$ ' for prompts."),
+  lines: z.array(z.string()).min(1).max(TOOL_LIMITS.terminal.maxLines).describe("Lines to render. Prefix with '$ ' for prompts."),
 });
 
 const CodeParams = z.object({
-  code: z.string().min(1).max(200_000).describe("Source code to render"),
+  code: z.string().min(1).max(TOOL_LIMITS.code.maxBytes).describe("Source code to render"),
   language: z.string().default("text").describe("Programming language (typescript, python, rust, go, etc.)"),
   title: z.string().max(100).optional().describe("Window title (default: 'code')"),
   startLine: z.number().int().min(1).optional().describe("First line number (1-indexed)"),
@@ -37,22 +38,22 @@ const FileParams = z.object({
 const BrowserParams = z.object({
   url: z.string().url().describe("URL to capture (http/https, SSRF protected)"),
   fullPage: z.boolean().default(false).describe("Capture full scrollable page"),
-  width: z.number().int().min(320).max(3840).default(1280).describe("Viewport width (px)"),
-  height: z.number().int().min(240).max(4096).default(800).describe("Viewport height (px)"),
+  width: z.number().int().min(TOOL_LIMITS.browser.minWidth).max(TOOL_LIMITS.browser.maxWidth).default(1280).describe("Viewport width (px)"),
+  height: z.number().int().min(TOOL_LIMITS.browser.minHeight).max(TOOL_LIMITS.browser.maxHeight).default(800).describe("Viewport height (px)"),
 });
 
 const MarkdownParams = z.object({
-  markdown: z.string().min(1).max(200_000).describe("Markdown content (GFM supported)"),
+  markdown: z.string().min(1).max(TOOL_LIMITS.markdown.maxBytes).describe("Markdown content (GFM supported)"),
   title: z.string().max(100).optional().describe("Document title (default: 'document')"),
 });
 
 const HtmlParams = z.object({
-  html: z.string().min(1).max(200_000).describe("HTML content (external resources blocked)"),
+  html: z.string().min(1).max(TOOL_LIMITS.html.maxBytes).describe("HTML content (external resources blocked)"),
   title: z.string().max(100).optional().describe("Description for logging (default: 'html')"),
 });
 
 const DiffParams = z.object({
-  diff: z.string().min(1).max(500_000).describe("Unified diff content (git diff format)"),
+  diff: z.string().min(1).max(TOOL_LIMITS.diff.maxBytes).describe("Unified diff content (git diff format)"),
 });
 
 const CaptureParams = z.discriminatedUnion("type", [
@@ -68,19 +69,20 @@ const CaptureParams = z.discriminatedUnion("type", [
 export function registerBatchTool(server: McpServer, { outPath, ok, fail, config }: ToolDeps): void {
   server.tool(
     "capture_batch",
-    "Capture multiple items in a single call. Each capture is processed sequentially with its own parameters. Use for batch documentation generation (e.g., capture terminal output, code file, and browser screenshot together). Maximum 10 captures per call.",
+    `Capture multiple items in a single call. Each capture is processed sequentially with its own parameters. Use for batch documentation generation (e.g., capture terminal output, code file, and browser screenshot together). Maximum ${TOOL_LIMITS.batch.maxCaptures} captures per call.`,
     {
-      captures: z.array(CaptureParams).min(1).max(10).describe("Array of captures to process. Each capture specifies its type and type-specific parameters."),
+      captures: z.array(CaptureParams).min(1).max(TOOL_LIMITS.batch.maxCaptures).describe("Array of captures to process. Each capture specifies its type and type-specific parameters."),
       output: z.string().optional().describe("Output directory (default: SNAPMCP_DIR). Captures saved as individual files."),
     },
     async ({ captures, output }) => {
       try {
-        const OUTPUT_DIR = output ? path.resolve(config.outputDir, output) : config.outputDir;
+        const outputDir = resolveOutputDirectory(config.outputDir, output);
         const results: { type: string; path: string; caption?: string }[] = [];
+        const extension = config.format === "jpeg" ? "jpg" : "png";
 
         for (const cap of captures) {
           const prefix = cap.type;
-          const p = path.join(OUTPUT_DIR, `${prefix}-${Date.now()}.${config.format === "jpeg" ? "jpg" : "png"}`);
+          const p = createOutputPath(config.outputDir, outputDir, prefix, extension);
 
           switch (cap.type) {
             case "terminal": {

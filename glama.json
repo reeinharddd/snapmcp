@@ -1,12 +1,28 @@
 {
   "name": "snapmcp",
-  "description": "All-in-one MCP server for visual captures: terminal screenshots with real theme colors, syntax-highlighted code (50+ langs, 27 themes), visual diffs, PDFs, GIFs, and markdown documents. Built-in SSRF protection, path traversal prevention, input limits. 13 typed tools with discriminated unions for complex operations.",
-  "version": "2.3.3",
+  "description": "Visual documentation MCP server for agents: terminal output, Shiki-highlighted code for 300+ languages, HTTP(S) screenshots and PDFs, Markdown, HTML, diffs, GIFs, and captioned documents. Exactly 13 tools apply bounded inputs, deny-all file reads, output confinement, and default-on SSRF checks; capture tools return saved paths.",
+  "version": "2.3.6",
   "license": "MIT",
   "repository": "https://github.com/reeinharddd/snapmcp",
   "homepage": "https://github.com/reeinharddd/snapmcp",
-  "keywords": ["mcp", "screenshot", "terminal", "code", "documentation", "visual", "diff", "pdf", "gif", "playwright", "shiki", "chromium"],
-  "categories": ["documentation-access", "developer-tools", "image-and-video-processing"],
+  "keywords": [
+    "mcp",
+    "visual-documentation",
+    "screenshot",
+    "terminal",
+    "code",
+    "diff",
+    "pdf",
+    "gif",
+    "documentation",
+    "playwright",
+    "shiki"
+  ],
+  "categories": [
+    "documentation-access",
+    "developer-tools",
+    "image-and-video-processing"
+  ],
   "tools": [
     "capture_terminal",
     "capture_code",
@@ -17,14 +33,14 @@
     "capture_diff",
     "capture_pdf",
     "capture_batch",
-    "capture_gif",
     "capture_sequence",
+    "capture_gif",
     "capture_document",
     "snapmcp-hint"
   ],
   "environmentVariables": {
     "SNAPMCP_DIR": "./captures",
-    "SNAPMCP_THEME": "auto-detected",
+    "SNAPMCP_THEME": "detected terminal theme",
     "SNAPMCP_FORMAT": "png",
     "SNAPMCP_QUALITY": "90",
     "SNAPMCP_ALLOWED_PATHS": "(deny-all)",
@@ -33,18 +49,34 @@
     "SNAPMCP_PADDING": "32",
     "SNAPMCP_BORDER_RADIUS": "0",
     "SNAPMCP_WINDOW_CHROME": "false",
-    "SNAPMCP_CHROME_CHANNEL": "stable",
-    "SNAPMCP_CHROME_PROFILE": "",
+    "SNAPMCP_CHROME_CHANNEL": "",
+    "SNAPMCP_CHROME_EXECUTABLE": "",
+    "SNAPMCP_CHROME_PROFILE": "(unset; experimental)",
     "SNAPMCP_SSRF_PROTECTION": "true",
-    "SNAPMCP_CHROME_EXECUTABLE": ""
+    "SNAPMCP_SECURITY_CHECKS": "true"
   },
   "entrypoint": "node dist/index.js",
   "transport": "stdio",
+  "runtime": {
+    "node": ">=20",
+    "bun": "optional"
+  },
+  "discovery": {
+    "mcpTools": "tools/list",
+    "hintTool": "snapmcp-hint",
+    "mcpResource": "snapmcp://capabilities",
+    "cliCatalog": "snapmcp capabilities --json",
+    "cliSearch": "snapmcp search \"<intent>\" --json",
+    "agentGuide": "docs/agents.md",
+    "llms": "llms.txt"
+  },
   "security": {
-    "ssrfProtection": true,
-    "pathTraversalProtection": true,
+    "ssrfProtection": "default-on",
+    "fileAccess": "deny-all until SNAPMCP_ALLOWED_PATHS is configured, unless broader checks are disabled",
+    "outputConfinement": "SNAPMCP_DIR, including composite outputs",
+    "syntheticContent": "All synthetic captures: JavaScript disabled, network resources blocked, restrictive CSP; raw HTML DOM-sanitized",
     "inputLimits": true,
-    "allowlistRequired": true
+    "dnsRebindingLimit": "Chromium does not pin the DNS-resolved address; isolate hostile targets"
   },
   "relatedServers": [
     "microsoft/playwright-mcp",

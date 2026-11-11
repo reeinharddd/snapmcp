@@ -12,7 +12,11 @@ import os from "node:os";
 import { logger } from "./logger.js";
 
 export interface ChromeProfile {
+  /** Human-readable profile name from Chrome's Local State file. */
   name: string;
+  /** Chrome profile directory key, for example "Default" or "Profile 1". */
+  key: string;
+  /** Absolute path to the profile directory. */
   path: string;
   isDefault: boolean;
 }
@@ -21,6 +25,8 @@ export interface DetectedChrome {
   found: boolean;
   executablePath?: string;
   channel?: string;
+  /** Root user-data directory containing the detected profiles. */
+  userDataDir?: string;
   profiles?: ChromeProfile[];
 }
 
@@ -124,6 +130,7 @@ export function detectChromeProfiles(baseDir: string): ChromeProfile[] {
       const info = cache[key];
       profiles.push({
         name: info.name ?? key,
+        key,
         path: path.join(baseDir, key),
         isDefault: key === "Default",
       });
@@ -164,6 +171,7 @@ export function detectChrome(): DetectedChrome {
         found: true,
         executablePath: resolved,
         channel: "chrome",
+        userDataDir: getChromeProfileDir("chrome"),
         profiles: detectChromeProfiles(getChromeProfileDir("chrome")),
       };
     }
@@ -178,6 +186,7 @@ export function detectChrome(): DetectedChrome {
         found: true,
         executablePath: resolved,
         channel,
+        userDataDir: getChromeProfileDir(channel),
         profiles: detectChromeProfiles(getChromeProfileDir(channel)),
       };
     }
@@ -198,6 +207,7 @@ export function detectChrome(): DetectedChrome {
         found: true,
         executablePath: resolved,
         channel,
+        userDataDir: getChromeProfileDir(channel),
         profiles: detectChromeProfiles(getChromeProfileDir(channel)),
       };
     }
@@ -214,7 +224,8 @@ export function logChromeStatus(detected: DetectedChrome): void {
   if (detected.found) {
     const profileCount = detected.profiles?.length ?? 0;
     logger.info(
-      `[INFO] Chrome detected: ${detected.executablePath} (channel: ${detected.channel}, profiles: ${profileCount})`,
+      `[INFO] System browser detected: ${detected.executablePath} (channel: ${detected.channel}, profiles: ${profileCount}). ` +
+      "Playwright's bundled Chromium remains the default unless a browser or profile is selected explicitly.",
     );
   } else {
     logger.info(

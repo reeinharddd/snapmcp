@@ -1,0 +1,93 @@
+# snapmcp
+
+> Visual documentation MCP server for AI agents and developers. snapmcp renders terminal output, source code, HTTP(S) pages, Markdown, HTML, and diffs into PNG/JPEG, PDF, GIF, Markdown, and HTML artifacts. It exposes exactly 13 MCP tools. The 12 capture/document tools return saved file paths instead of image bytes; `snapmcp-hint` returns text guidance.
+
+## Use snapmcp when
+
+- a README, tutorial, PR, guide, report, or QA record needs a human-readable visual artifact;
+- terminal output or source code should be shown as a polished image;
+- a public HTTP(S) page needs a screenshot or print-style PDF;
+- several captures must be combined as a batch, ordered sequence, GIF, or captioned document;
+- an agent needs a compact way to choose among capture tools.
+
+## Do not use snapmcp when
+
+- the task is browser interaction such as clicking, filling forms, or accessibility-tree navigation; use a browser-automation MCP server;
+- the result should be raw structured data rather than a visual artifact;
+- the target is an untrusted site and the deployment has no network isolation; the built-in URL checks do not provide complete DNS-rebinding protection.
+
+## Tools
+
+- `capture_terminal`: terminal or CLI output, with `$ ` user prompts and `# ` root prompts; PNG/JPEG.
+- `capture_code`: Shiki-highlighted source code for 300+ bundled languages and 27 themes, with optional inclusive `startLine` and `endLine`; PNG/JPEG.
+- `capture_browser`: full-page or viewport screenshot of an HTTP(S) URL; PNG/JPEG.
+- `capture_file`: syntax-highlighted image of an allowlisted file with optional line range; PNG/JPEG.
+- `capture_markdown`: GitHub-flavored Markdown rendered as a document; PNG/JPEG.
+- `capture_html`: sanitized HTML/CSS rendered as a document; PNG/JPEG.
+- `capture_diff`: unified diff with additions and deletions highlighted; PNG/JPEG.
+- `capture_pdf`: complete HTTP(S) URL document rendered with Chromium print/PDF output; PDF.
+- `capture_batch`: up to 10 independent captures; image paths.
+- `capture_sequence`: up to 60 ordered step images plus an optional GIF; image/GIF paths.
+- `capture_gif`: animation from 2 to 60 captures; GIF.
+- `capture_document`: up to 30 captioned captures embedded in Markdown, HTML, or print-quality PDF; document path.
+- `snapmcp-hint`: natural-language tool search and concise agent, setup, security, and token guidance; text.
+
+There is no fourteenth capture tool. Composite tools accept flat discriminated unions: each entry has `type` and the fields for that type at the same level.
+
+## Quick selection
+
+- Terminal or CLI output: `capture_terminal`.
+- Source text already in context: `capture_code`.
+- File on disk: `capture_file` after `SNAPMCP_ALLOWED_PATHS` is configured.
+- Website or web app: `capture_browser`.
+- Markdown, HTML, or diff: `capture_markdown`, `capture_html`, or `capture_diff`.
+- URL as PDF: `capture_pdf`.
+- Independent images: `capture_batch`.
+- Ordered tutorial or walkthrough: `capture_sequence`.
+- Explicit animation: `capture_gif`.
+- Captioned report or guide: `capture_document`.
+- Unsure which tool to use: `snapmcp-hint` with a natural-language `query`.
+
+## Discovery
+
+- Canonical MCP catalog: `tools/list`.
+- Natural-language MCP search: `snapmcp-hint` with `query`.
+- Machine-readable MCP resource: `snapmcp://capabilities`.
+- CLI manifest: `snapmcp capabilities --json`.
+- CLI intent search: `snapmcp search "<intent>" --json`.
+- Static agent guidance: this file and the server instructions.
+
+## Safety and result limits
+
+- URL tools accept HTTP(S) only.
+- SSRF protection is default-on: private/local IPv4 and IPv6 literals, IPv4-mapped IPv6, localhost variants, and DNS-resolved private addresses are blocked; requests are revalidated.
+- Chromium does not pin the DNS-resolved address, so complete DNS-rebinding prevention is not guaranteed. Isolate hostile targets with network controls.
+- File reads are deny-all until `SNAPMCP_ALLOWED_PATHS` is configured.
+- Every output stays inside `SNAPMCP_DIR`; traversal and symlink escapes are rejected.
+- Synthetic captures render in an isolated browser context with JavaScript disabled, external network resources blocked, and a restrictive CSP. Markdown raw HTML is escaped and raw HTML input is DOM-sanitized. Sanitization is defense in depth, not a perfect-safety guarantee.
+- Limits: terminal 1,000 lines; code/Markdown/HTML 200 KB each; diff 500 KB; file 5 MB by default; batch 10; sequence 60; GIF 2 to 60 frames; document 30 captures with up to 25 MB per embedded image and 75 MB total.
+- Capture/document results are saved file paths, not image bytes; `snapmcp-hint` returns text guidance.
+- Browser profile use is experimental and never selected automatically: URL captures run in the explicitly selected persistent profile context, so profile cookies and session state can be sent to the target site; synthetic captures remain isolated.
+
+## Install and run
+
+Primary runtime: Node.js 20 or newer. Bun 1.2 or newer is optional. npm and npx work without Bun.
+
+```bash
+npm install -g snapmcp
+snapmcp init
+```
+
+`snapmcp init` explicitly installs Playwright Chromium. Package postinstall does not download Chromium. The reproducible browser default is bundled Playwright Chromium; select a system browser explicitly with `SNAPMCP_CHROME_EXECUTABLE`.
+
+## Documentation
+
+- Agent guide: https://github.com/reeinharddd/snapmcp/blob/main/docs/agents.md
+- Tool reference and schemas: https://github.com/reeinharddd/snapmcp/blob/main/docs/tools.md
+- Getting started: https://github.com/reeinharddd/snapmcp/blob/main/docs/getting-started.md
+- Configuration: https://github.com/reeinharddd/snapmcp/blob/main/docs/configuration.md
+- CLI reference: https://github.com/reeinharddd/snapmcp/blob/main/docs/cli.md
+- Security policy and limits: https://github.com/reeinharddd/snapmcp/blob/main/SECURITY.md
+- Architecture: https://github.com/reeinharddd/snapmcp/blob/main/ARCHITECTURE.md
+- Changelog: https://github.com/reeinharddd/snapmcp/blob/main/CHANGELOG.md
+- Repository: https://github.com/reeinharddd/snapmcp

@@ -1,121 +1,121 @@
 # Configuration Reference
 
-All configuration is done through environment variables. There is no config
-file. Set these before starting the MCP server or running CLI commands.
+snapmcp is configured with `SNAPMCP_*` environment variables. There is no required configuration file.
 
-## Environment Variables
+## Environment variables
 
 | Variable | Default | Description |
-|----------|---------|-------------|
-| `SNAPMCP_DIR` | `./captures` | Output directory for all captures |
+|---|---|---|
+| `SNAPMCP_DIR` | `./captures` | Root directory that confines every generated artifact |
 | `SNAPMCP_FORMAT` | `png` | Image format: `png` or `jpeg` |
-| `SNAPMCP_QUALITY` | `90` | JPEG quality (1-100, only used for JPEG) |
-| `SNAPMCP_THEME` | auto-detected | Shiki syntax highlighting theme (see list below) |
-| `SNAPMCP_FONT` | `Fira Code, JetBrains Mono, Consolas, monospace` | Font family for code/terminal captures |
-| `SNAPMCP_FONT_SIZE` | `14px` | Font size for code/terminal captures |
-| `SNAPMCP_TIMEOUT` | `30000` | Browser timeout in milliseconds |
-| `SNAPMCP_DEVICE_SCALE` | `2` | Device pixel ratio (2 = Retina quality) |
-| `SNAPMCP_PADDING` | `32` | Inner padding in pixels around content |
-| `SNAPMCP_SHADOW` | `none` | Shadow level: `none`, `soft`, `medium`, `strong` (aliases `sm`/`md`/`lg`; invalid values fall back to `none`) |
-| `SNAPMCP_WINDOW_CHROME` | `false` | Show macOS-style title bar on screenshots |
-| `SNAPMCP_BORDER_RADIUS` | `0` | Corner radius in pixels for the screenshot |
-| `SNAPMCP_BADGE` | `false` | Show footer badge with snapmcp branding |
-| `SNAPMCP_CHROME_EXECUTABLE` | `--` | Path to system Chrome binary |
-| `SNAPMCP_CHROME_CHANNEL` | `--` | Chrome channel: `stable`, `beta`, `dev`, `canary` |
-| `SNAPMCP_CHROME_PROFILE` | `--` | Chrome profile directory (persistent context) |
-| `SNAPMCP_SSRF_PROTECTION` | `true` | Block requests to private IP ranges (set `false` to disable) |
-| `SNAPMCP_ALLOWED_PATHS` | `(deny all)` | Comma- or semicolon-separated allowlist for file reads |
-| `SNAPMCP_MAX_FILE_SIZE` | `5242880` | Max file read size in bytes (5 MB) |
-| `SNAPMCP_LOG_FILE` | `--` | File path for the audit log |
-| `SNAPMCP_LOG_LEVEL` | `info` | Log level: `debug`, `info`, `warn`, `error` |
-| `SNAPMCP_CLEANUP_MAX` | `0` | Max files kept in output dir before auto-clean (0 = off) |
-| `SNAPMCP_SECURITY_CHECKS` | `true` | Enable security checks (`true`/`false`) |
+| `SNAPMCP_QUALITY` | `90` | JPEG quality from 1 to 100 |
+| `SNAPMCP_THEME` | detected terminal palette, then `dark-plus` | One of 27 built-in Shiki themes |
+| `SNAPMCP_FONT` | Ubuntu Mono and common monospace fallbacks | Font family for code and terminal captures |
+| `SNAPMCP_FONT_SIZE` | `14px` | Font size for code and terminal captures |
+| `SNAPMCP_TIMEOUT` | `30000` | Browser navigation timeout in milliseconds |
+| `SNAPMCP_DEVICE_SCALE` | `2` | Device pixel ratio |
+| `SNAPMCP_PADDING` | `32` | Inner padding in pixels |
+| `SNAPMCP_SHADOW` | `none` | `none`, `soft`, `medium`, or `strong`; `sm`, `md`, and `lg` are aliases |
+| `SNAPMCP_WINDOW_CHROME` | `false` | Show a macOS-style title bar |
+| `SNAPMCP_BORDER_RADIUS` | `0` | Corner radius from 0 to 32 pixels |
+| `SNAPMCP_BADGE` | `false` | Show the snapmcp footer badge |
+| `SNAPMCP_CHROME_EXECUTABLE` | unset | Explicit path to a system Chrome or Chromium binary |
+| `SNAPMCP_CHROME_CHANNEL` | unset | Playwright channel: `stable`, `beta`, `dev`, `canary`, `edge`, or `chromium` |
+| `SNAPMCP_CHROME_PROFILE` | unset | Experimental persistent Chromium user-data directory: detected profile key/name or absolute path |
+| `SNAPMCP_SSRF_PROTECTION` | `true` | Block private and local URL targets |
+| `SNAPMCP_SECURITY_CHECKS` | `true` | Enable the broader validation layer |
+| `SNAPMCP_ALLOWED_PATHS` | deny-all | Comma- or semicolon-separated file-read allowlist |
+| `SNAPMCP_MAX_FILE_SIZE` | `5000000` | Maximum file read size in bytes |
+| `SNAPMCP_LOG_FILE` | unset | Structured audit log path |
+| `SNAPMCP_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, or `error` |
+| `SNAPMCP_CLEANUP_MAX` | `0` | Maximum retained image/PDF files in the output root; `0` disables cleanup |
 
-## SNAPMCP_DIR
+## Output directory
 
-All captures go here unless you pass an explicit `output` parameter to a tool.
-The directory is created automatically if it doesn't exist.
+`SNAPMCP_DIR` is a security boundary, not only a default location. Every generated file must resolve inside it, including files created by `capture_batch`, `capture_sequence`, `capture_gif`, and `capture_document`.
 
-## SNAPMCP_FORMAT and SNAPMCP_QUALITY
+Traversal, absolute-path escapes, and symlink escapes are rejected. Relative output paths are resolved inside the configured root; an absolute path is accepted only when it resolves inside that root. Composite `output` directories are also confined to the configured root.
 
-Use JPEG for smaller file sizes at the cost of some fidelity. Quality only
-applies when format is `jpeg`.
+## Image format and quality
 
-## SNAPMCP_THEME
+`SNAPMCP_FORMAT=png` produces lossless images. `SNAPMCP_FORMAT=jpeg` produces smaller files; `SNAPMCP_QUALITY` controls JPEG quality from 1 to 100.
 
-Set to `auto` to let snapmcp detect your terminal theme. The detection chain is:
+An explicit image filename ending in `.png`, `.jpg`, or `.jpeg` determines the bytes and extension for that capture.
 
-1. `SNAPMCP_THEME` environment variable (explicit override)
-2. `COLORFGBG` environment variable (terminal light/dark detection)
-3. OS-level theme (macOS dark mode, GNOME dark preference)
-4. Falls back to `dracula`
+## Themes
 
-### Available Themes (27)
+snapmcp provides 27 built-in Shiki themes:
 
-| Theme | Style |
-|-------|-------|
-| `dracula` | Dark |
-| `one-dark-pro` | Dark |
-| `nord` | Dark |
-| `tokyo-night` | Dark |
-| `catppuccin-mocha` | Dark |
-| `catppuccin-latte` | Light |
-| `ayu-dark` | Dark |
-| `ayu-light` | Light |
-| `vitesse-dark` | Dark |
-| `vitesse-light` | Light |
-| `min-dark` | Dark |
-| `min-light` | Light |
-| `poimandres` | Dark |
-| `rose-pine` | Dark |
-| `rose-pine-moon` | Dark |
-| `rose-pine-dawn` | Light |
-| `slack-dark` | Dark |
-| `slack-ochin` | Light |
-| `snazzy-light` | Light |
-| `github-dark-dimmed` | Dark |
-| `github-light` | Light |
-| `one-light` | Light |
-| `solarized-light` | Light |
-| `solarized-dark` | Dark |
-| `dark-plus` | Dark |
-| `github-dark` | Dark |
+`dark-plus`, `dracula`, `github-dark`, `github-dark-dimmed`, `github-light`, `monokai`, `nord`, `one-dark-pro`, `one-light`, `poimandres`, `solarized-dark`, `solarized-light`, `vitesse-dark`, `vitesse-light`, `min-dark`, `min-light`, `tokyo-night`, `ayu-dark`, `ayu-light`, `catppuccin-mocha`, `catppuccin-latte`, `rose-pine`, `rose-pine-dawn`, `rose-pine-moon`, `slack-dark`, `slack-ochin`, and `snazzy-light`.
 
-## SNAPMCP_CHROME_EXECUTABLE and SNAPMCP_CHROME_PROFILE
+Shiki supports 300+ bundled languages. Common languages are preloaded; other bundled languages are loaded on demand.
 
-Use these to point snapmcp at a real Chrome installation with your profiles,
-cookies, and sessions. See the [Browser Capture Guide](guides/browser-capture.md)
-for details on how Chrome detection works.
+## Terminal colors
 
-Without these, snapmcp uses Playwright's bundled Chromium.
+Terminal palette detection is heuristic. snapmcp can read colors from common terminal configuration files, including Kitty, GNOME Terminal, Alacritty, and WezTerm, and can use environment or OS fallbacks.
 
-## SNAPMCP_SSRF_PROTECTION
+It does not parse ANSI escape sequences. If detection is unavailable, the configured Shiki theme provides the terminal palette.
 
-When enabled, snapmcp blocks requests to:
+Terminal lines beginning with `$ ` are rendered as user prompts. Lines beginning with `# ` are rendered as root prompts.
 
-- `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`
-- `169.254.0.0/16` (link-local)
-- `::1`, `fd00::/8` (IPv6 loopback and unique local)
+## Browser selection
 
-## SNAPMCP_ALLOWED_PATHS
-
-Controls which files the `capture_file` tools can read. By default, reads from
-arbitrary paths are denied. Set to a comma-separated list of directories or
-file paths:
+Playwright's bundled Chromium is the reproducible default. Install it with:
 
 ```bash
-export SNAPMCP_ALLOWED_PATHS="/home/user/projects,/etc/config.yaml"
+snapmcp init
 ```
 
-## SNAPMCP_SECURITY_CHECKS
+A system browser is opt-in. Set its executable explicitly:
 
-When `false`, skips path allowlist validation and SSRF checks. Only disable
-this in trusted environments.
+```bash
+export SNAPMCP_CHROME_EXECUTABLE=/usr/bin/google-chrome
+```
+
+`SNAPMCP_CHROME_CHANNEL` selects a Playwright-managed channel instead.
+
+### Experimental profile support
+
+`SNAPMCP_CHROME_PROFILE` launches Chromium with a persistent user-data directory. A detected profile key or display name, such as `Default` or `Profile 1`, selects the detected Chrome user-data directory and adds `--profile-directory=<key>`; an absolute path is used as the user-data directory directly. Profile mode requires a system Chrome installation. URL captures run in that persistent context, so cookies and session state from the selected profile can be sent to the target site. Synthetic captures remain isolated. Use a dedicated profile and treat it as sensitive.
+
+Use a dedicated profile rather than a live personal profile. Profile data may include cookies, extensions, local storage, and credentials.
+
+## SSRF protection
+
+`SNAPMCP_SSRF_PROTECTION=true` is the default. URL tools accept HTTP(S) only and block:
+
+- private, loopback, link-local, multicast, and reserved IPv4 ranges;
+- private, loopback, link-local, multicast, and reserved IPv6 ranges;
+- IPv4-mapped IPv6 addresses;
+- localhost variants;
+- hostnames that resolve to private or local addresses.
+
+Browser requests are revalidated as they occur, including redirects and subresources.
+
+Chromium does not pin the DNS-resolved IP that snapmcp validated. These checks reduce common SSRF paths but do not guarantee complete DNS-rebinding prevention. Use network isolation for hostile targets.
+
+Setting `SNAPMCP_SSRF_PROTECTION=false` disables SSRF checks. It is not recommended outside a controlled test environment.
+
+## File-read allowlist
+
+File reads are denied unless `SNAPMCP_ALLOWED_PATHS` is configured. Entries may be files or directories and may be separated with commas or semicolons:
+
+```bash
+export SNAPMCP_ALLOWED_PATHS="/home/user/project,/home/user/project/config/settings.json"
+```
+
+Allowed paths are resolved before the boundary check. Symlinks cannot be used to read outside an allowed path.
+
+## Security validation switch
+
+`SNAPMCP_SECURITY_CHECKS=false` disables the broader validation layer, including the file-read allowlist and additional byte/file-size checks. Output confinement, HTTP(S)-only URL validation, and the separate `SNAPMCP_SSRF_PROTECTION` setting remain in force. This switch is intended only for controlled debugging and should not be used for shared or hostile workloads.
+
+Synthetic captures retain their dedicated isolation: JavaScript is disabled, network resources are blocked, and a restrictive CSP applies. Markdown raw HTML is escaped and raw HTML input is DOM-sanitized. Sanitization is defense in depth, not a perfect-safety guarantee.
 
 ## Related
 
-- [CLI Commands](cli.md) -- how to start the server and use utility commands
-- [Terminal Capture Guide](guides/terminal-capture.md) -- theme detection and
-  terminal screenshots
-- [Browser Capture Guide](guides/browser-capture.md) -- Chrome configuration
-  and authenticated pages
+- [CLI Reference](cli.md)
+- [Agent Guide](agents.md)
+- [Browser Capture Guide](guides/browser-capture.md)
+- [Terminal Capture Guide](guides/terminal-capture.md)
+- [Security Policy](../SECURITY.md)

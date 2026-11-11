@@ -8,10 +8,63 @@ on:
 
 jobs:
   test:
+    # The protected branch on `main` requires the status contexts
+    # "test (ubuntu-latest)" and "test (macos-latest)", so the job id and its
+    # display name must keep that prefix.
+    name: test (${{ matrix.os }})
+    # The release gates below must succeed before the required contexts report
+    # success, so a failed audit, package smoke or container smoke blocks the
+    # merge even though only the matrix contexts are branch-required.
+    needs: [audit, package-smoke, container-smoke]
+    if: always()
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Verify release gates
+        run: |
+          test "${{ needs.audit.result }}" = "success"
+          test "${{ needs['package-smoke'].result }}" = "success"
+          test "${{ needs['container-smoke'].result }}" = "success"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Chromium
+        run: bun x playwright install chromium
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Unit tests
+        run: bun test tests --path-ignore-patterns='**/integration/**'
+
+      - name: Integration tests (Linux only)
+        if: runner.os == 'Linux'
+        run: bun test tests/integration
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
@@ -20,20 +73,203 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: 1.4.3
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Install Chromium
-        run: bun x playwright install chromium
+      - name: Audit dependencies
+        run: bun audit
 
-      - name: Build + type check
-        run: bun run build
+  package-smoke:
+    name: Node-only package smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
-      - name: Unit tests
-        run: bun test tests/highlighter.test.ts tests/cli.test.ts tests/config.test.ts tests/security.test.ts tests/gif.test.ts tests/document.test.ts tests/capture-file-range.test.ts tests/renderer.test.ts tests/terminal.test.ts tests/browser.test.ts tests/logger.test.ts tests/brand.test.ts tests/register.test.ts tests/setup-shared.test.ts
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
 
-      - name: Integration tests (Linux only)
-        if: runner.os == 'Linux'
-        run: bun test tests/integration/*.test.ts
+      - name: Resolve expected package version
+        run: echo "SNAPMCP_EXPECTED_VERSION=$(node -p "require('./package.json').version")" >> "$GITHUB_ENV"
+
+      - name: Install build dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Build
+        run: npm run build
+
+      - name: Pack npm tarball
+        run: |
+          PACK_DIR="$RUNNER_TEMP/snapmcp-pack"
+          mkdir -p "$PACK_DIR"
+          npm pack --pack-destination "$PACK_DIR"
+
+      - name: Install packed tarball with Node only
+        shell: bash
+        run: |
+          NODE_ONLY_BIN="$RUNNER_TEMP/node-only-bin"
+          INSTALL_DIR="$RUNNER_TEMP/snapmcp-node-install"
+          NODE_REAL="$(node -p 'process.execPath')"
+          NPM_CLI="$(npm root --global)/npm/bin/npm-cli.js"
+          # Every directory must exist before PATH is restricted to the
+          # Node-only bin, otherwise coreutils such as mkdir are unreachable.
+          mkdir -p "$NODE_ONLY_BIN" "$INSTALL_DIR"
+          ln -s "$NODE_REAL" "$NODE_ONLY_BIN/node"
+          ln -s /bin/sh "$NODE_ONLY_BIN/sh"
+          cat > "$NODE_ONLY_BIN/npm" <<EOF
+          #!/usr/bin/env node
+          import { spawnSync } from "node:child_process";
+          const result = spawnSync("$NODE_REAL", ["$NPM_CLI", ...process.argv.slice(2)], { stdio: "inherit" });
+          process.exit(result.status ?? 1);
+          EOF
+          chmod +x "$NODE_ONLY_BIN/npm"
+          export PATH="$NODE_ONLY_BIN"
+
+          if command -v bun >/dev/null 2>&1; then
+            echo "Bun must not be available on PATH for this smoke test" >&2
+            exit 1
+          fi
+
+          cd "$INSTALL_DIR"
+          npm init --yes >/dev/null
+          npm install --foreground-scripts --ignore-scripts=false "$RUNNER_TEMP/snapmcp-pack/"*.tgz
+
+          VERSION_OUTPUT="$(node node_modules/snapmcp/dist/index.js --version 2>&1)"
+          printf '%s\n' "$VERSION_OUTPUT"
+          case "$VERSION_OUTPUT" in
+            *"v${SNAPMCP_EXPECTED_VERSION}"*) ;;
+            *) echo "Unexpected snapmcp version output" >&2; exit 1 ;;
+          esac
+
+      - name: MCP initialize and tools/list smoke
+        shell: bash
+        run: |
+          NODE_ONLY_BIN="$RUNNER_TEMP/node-only-bin"
+          export PATH="$NODE_ONLY_BIN"
+
+          if command -v bun >/dev/null 2>&1; then
+            echo "Bun must not be available on PATH for this smoke test" >&2
+            exit 1
+          fi
+
+          cd "$RUNNER_TEMP/snapmcp-node-install"
+          node --input-type=module <<'EOF'
+          import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+          import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+
+          const transport = new StdioClientTransport({
+            command: process.execPath,
+            args: ["node_modules/snapmcp/dist/index.js"],
+            stderr: "pipe",
+          });
+          const client = new Client(
+            { name: "snapmcp-node-smoke", version: "1.0.0" },
+            { capabilities: {} },
+          );
+
+          try {
+            await client.connect(transport);
+            const { tools } = await client.listTools();
+            const expected = [
+              "capture_terminal",
+              "capture_code",
+              "capture_browser",
+              "capture_file",
+              "capture_markdown",
+              "capture_html",
+              "capture_diff",
+              "capture_pdf",
+              "capture_batch",
+              "capture_sequence",
+              "capture_gif",
+              "capture_document",
+              "snapmcp-hint",
+            ];
+            const actual = tools.map((tool) => tool.name).sort();
+            const missing = expected.filter((name) => !actual.includes(name));
+            if (actual.length !== 13) {
+              throw new Error(`Expected 13 MCP tools, received ${actual.length}`);
+            }
+            if (missing.length > 0) {
+              throw new Error(`Missing MCP tools: ${missing.join(", ")}`);
+            }
+
+            const { resources } = await client.listResources();
+            const capabilityResource = resources.find((resource) => resource.uri === "snapmcp://capabilities");
+            if (!capabilityResource) {
+              throw new Error("Missing snapmcp://capabilities resource");
+            }
+            const resourceResult = await client.readResource({ uri: "snapmcp://capabilities" });
+            const resourceText = resourceResult.contents.find((content) => "text" in content)?.text;
+            if (!resourceText) {
+              throw new Error("Capability resource did not return JSON text");
+            }
+            const manifest = JSON.parse(resourceText);
+            if (manifest.toolCount !== 13 || manifest.capabilities?.length !== 13) {
+              throw new Error("Capability manifest does not expose exactly 13 tools");
+            }
+
+            console.log(`MCP smoke passed with ${actual.length} tools and the capability resource`);
+          } finally {
+            await client.close();
+          }
+          EOF
+
+      - name: CLI discovery smoke
+        shell: bash
+        run: |
+          NODE_ONLY_BIN="$RUNNER_TEMP/node-only-bin"
+          export PATH="$NODE_ONLY_BIN"
+          cd "$RUNNER_TEMP/snapmcp-node-install"
+
+          node node_modules/snapmcp/dist/index.js capabilities --json > capabilities.json
+          node node_modules/snapmcp/dist/index.js search "website screenshot" --json > search.json
+          node --input-type=module <<'EOF'
+          import fs from "node:fs";
+          const manifest = JSON.parse(fs.readFileSync("capabilities.json", "utf8"));
+          const search = JSON.parse(fs.readFileSync("search.json", "utf8"));
+          if (manifest.toolCount !== 13 || manifest.capabilities.length !== 13) {
+            throw new Error("CLI capability manifest does not expose exactly 13 tools");
+          }
+          if (!Array.isArray(search.matches) || search.matches.length === 0) {
+            throw new Error("CLI search returned no matches");
+          }
+          if (!search.matches.some((match) => match.name === "capture_browser")) {
+            throw new Error("CLI search did not rank capture_browser for a website screenshot");
+          }
+          console.log("CLI discovery smoke passed");
+          EOF
+
+  container-smoke:
+    name: Container non-root smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Build container image
+        run: docker build --tag snapmcp:ci .
+
+      - name: Verify non-root runtime and discovery
+        shell: bash
+        run: |
+          docker run --rm --entrypoint sh snapmcp:ci -c '
+            test "$(id -u)" = "10001"
+            test "$(id -g)" = "10001"
+          '
+
+          docker run --rm snapmcp:ci capabilities --json > capabilities.json
+          node --input-type=module <<'EOF'
+          import fs from "node:fs";
+          const manifest = JSON.parse(fs.readFileSync("capabilities.json", "utf8"));
+          if (manifest.toolCount !== 13 || manifest.capabilities?.length !== 13) {
+            throw new Error("Container capability manifest does not expose exactly 13 tools");
+          }
+          console.log("Container non-root and discovery smoke passed");
+          EOF

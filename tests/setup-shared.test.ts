@@ -9,6 +9,7 @@ import {
   detectSystemState,
   detectInstallMode,
   bootstrapSetup,
+  buildMcpConfigSnippets,
   printSummary,
   SystemState,
 } from "../src/setup-shared.js";
@@ -135,8 +136,11 @@ describe("detectSystemState", () => {
     const originalHome = process.env.HOME;
     try {
       process.env.HOME = tmpDir;
-      fs.existsSync = (p) => p === `${tmpDir}/.cache/ms-playwright`;
-      fs.readdirSync = () => ["chromium-1234"];
+      const originalExistsSync = fs.existsSync;
+      const originalReaddirSync = fs.readdirSync;
+      fs.existsSync = (p) => p === `${tmpDir}/.cache/ms-playwright` || originalExistsSync(p);
+      fs.readdirSync = (p) =>
+        p === `${tmpDir}/.cache/ms-playwright` ? ["chromium-1234"] : originalReaddirSync(p);
       const state = detectSystemState();
       assert.ok(state.chromium.installed);
       assert.ok(state.chromium.playwrightBrowsers);
@@ -205,19 +209,13 @@ describe("bootstrapSetup", () => {
   });
 
   it("creates output directory when missing", async () => {
-    const originalAsk = (global as any).ask;
+    const originalEnv = process.env.SNAPMCP_DIR;
     try {
-      (global as any).ask = async () => true; // Mock ask to always return true
-      const originalEnv = process.env.SNAPMCP_DIR;
-      try {
-        process.env.SNAPMCP_DIR = path.join(tmpDir, "captures");
-        await bootstrapSetup({ installChrome: false, createEnv: false });
-        assert.ok(fs.existsSync(path.join(tmpDir, "captures")));
-      } finally {
-        process.env.SNAPMCP_DIR = originalEnv;
-      }
+      process.env.SNAPMCP_DIR = path.join(tmpDir, "captures");
+      await bootstrapSetup({ installChrome: false, createEnv: false });
+      assert.ok(fs.existsSync(path.join(tmpDir, "captures")));
     } finally {
-      (global as any).ask = originalAsk;
+      process.env.SNAPMCP_DIR = originalEnv;
     }
   });
 });
@@ -234,6 +232,42 @@ describe("printSummary", () => {
       installMode: "project",
     };
     // This test just verifies no error is thrown
-    printSummary(fakeState);
+    printSummary(fakeState, []);
+  });
+});
+
+describe("MCP configuration snippets", () => {
+  const fakeState: SystemState = {
+    runtime: { bun: false, nodeVersion: "v20.0.0", platform: "linux" },
+    chromium: { installed: true, systemChrome: null, playwrightBrowsers: true },
+    outputDir: { exists: true, writable: true, path: "/tmp/captures" },
+    config: { envVars: { SNAPMCP_DIR: "/tmp/captures" }, configFile: null },
+    installMode: "global",
+  };
+
+  it("uses the OpenCode V2 mcp.servers shape", () => {
+    const snippets = buildMcpConfigSnippets(fakeState, [
+      {
+        name: "OpenCode",
+        configPath: "/tmp/opencode.jsonc",
+        format: "opencode",
+        exists: true,
+      },
+    ]);
+
+    assert.equal(snippets.length, 1);
+    assert.match(snippets[0]!.label, /OpenCode V2/);
+    const mcp = snippets[0]!.config.mcp as Record<string, unknown>;
+    const servers = mcp.servers as Record<string, unknown>;
+    const snapmcp = servers.snapmcp as Record<string, unknown>;
+    assert.equal(snapmcp.type, "local");
+    assert.deepEqual(snapmcp.command, ["snapmcp"]);
+    assert.deepEqual(snapmcp.environment, { SNAPMCP_DIR: "/tmp/captures" });
+  });
+
+  it("keeps the standard mcpServers shape for other clients", () => {
+    const snippets = buildMcpConfigSnippets(fakeState, []);
+    assert.equal(snippets.length, 1);
+    assert.ok(snippets[0]!.config.mcpServers);
   });
 });

@@ -1,81 +1,103 @@
 # GIF Animation Guide
 
-Snapmcp can compile sequences of captures into animated GIFs. Two tools handle
-this: `create_gif` for a single animation from existing captures, and
-`create_sequence` for a step-by-step process that combines capture and
-compilation.
+Use `capture_gif` for an explicit animation and `capture_sequence` when ordered step images are the primary deliverable.
 
-## Using `create_gif`
+## Flat capture entries
 
-The `create_gif` tool takes an array of capture definitions and compiles them
-into one animated GIF. Each frame can be any capture type: terminal, code,
-file, browser, markdown, diff, or HTML.
+Both tools use flat discriminated unions. The `type` discriminator and the type-specific fields are siblings; there is no nested `params` object.
 
 ```json
 {
-  "name": "create_gif",
+  "captures": [
+    {
+      "type": "terminal",
+      "title": "install",
+      "lines": ["$ npm install", "added 42 packages"]
+    },
+    {
+      "type": "terminal",
+      "title": "test",
+      "lines": ["$ npm test", "42 tests passed"]
+    }
+  ]
+}
+```
+
+Supported primitive types are `terminal`, `code`, `file`, `browser`, `markdown`, `html`, and `diff`.
+
+## `capture_gif`
+
+`capture_gif` renders 2 to 60 captures as PNG frames and compiles them into a GIF. Intermediate PNG frames are removed after encoding.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `title` | string | `animation` | Name used in the default filename |
+| `captures` | capture union[] | required | 2 to 60 frames |
+| `frameDelay` | integer | `800` | Delay from 10 to 5,000 milliseconds |
+| `loop` | boolean | `true` | `true` repeats forever; `false` plays once |
+| `output` | string | auto | `.gif` filename inside `SNAPMCP_DIR` |
+
+Example:
+
+```json
+{
+  "name": "capture_gif",
   "arguments": {
-    "title": "demo workflow",
+    "title": "build-walkthrough",
     "captures": [
-      { "type": "terminal", "params": { "title": "install", "lines": ["$ npm install", "✓ done"] } },
-      { "type": "terminal", "params": { "title": "build", "lines": ["$ npm run build", "✓ built"] } },
-      { "type": "terminal", "params": { "title": "test", "lines": ["$ npm test", "✓ passed"] } }
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "const before = 1;"
+      },
+      {
+        "type": "code",
+        "language": "typescript",
+        "code": "const after = 2;"
+      }
     ],
-    "frameDelay": 800,
-    "loop": true
+    "frameDelay": 1200,
+    "loop": false,
+    "output": "build-walkthrough.gif"
   }
 }
 ```
 
-Parameters:
+## `capture_sequence`
+
+`capture_sequence` captures up to 60 ordered steps and saves each step as an individual image. With `compileGif: true`, it also creates a GIF alongside those images.
+
+It does not create a side-by-side composite.
 
 | Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `title` | string | `"animation"` | Name for the GIF (used in filename) |
-| `captures` | array | required | 2-60 capture frame definitions |
-| `frameDelay` | number | `800` | Milliseconds per frame |
-| `loop` | boolean | `true` | Whether the GIF loops |
-| `output` | string | auto | Custom output filename |
+|---|---|---|---|
+| `steps` | step union[] | required | 1 to 60 ordered steps |
+| `compileGif` | boolean | `false` | Also compile a GIF; requires at least two steps |
+| `frameDelay` | integer | `800` | Delay from 10 to 5,000 milliseconds |
+| `loop` | boolean | `true` | `true` repeats forever; `false` plays once |
+| `output` | string | auto | Output subdirectory inside `SNAPMCP_DIR` |
 
-### Capture Frame Types
-
-Each frame in the `captures` array is an object with `type`, `params`, and an
-optional `label`:
-
-```json
-{ "type": "terminal", "params": { "title": "...", "lines": [...] }, "label": "step 1" }
-```
-
-Types and their params:
-
-| Type | Required Params |
-|------|----------------|
-| `terminal` | `title` (string), `lines` (string[]) |
-| `code` | `code` (string), `language` (string) |
-| `file` | `filePath` (string) |
-| `browser` | `url` (string) |
-| `markdown` | `markdown` (string) |
-| `diff` | `diff` (string) |
-| `html` | `html` (string) |
-
-Each frame is rendered separately, then compiled into the GIF. All frames
-share the same dimensions (determined by the first frame).
-
-## Using `create_sequence`
-
-The `create_sequence` tool combines capture and animation in one call. Each
-step defines a capture, and you can optionally compile them into a GIF at the
-end.
+Each step may also include `stepNumber` and `label`.
 
 ```json
 {
-  "name": "create_sequence",
+  "name": "capture_sequence",
   "arguments": {
     "steps": [
-      { "type": "terminal", "stepNumber": 1, "label": "install",
-        "params": { "title": "install", "lines": ["$ npm install", "✓ done"] } },
-      { "type": "terminal", "stepNumber": 2, "label": "build",
-        "params": { "title": "build", "lines": ["$ npm run build", "✓ built"] } }
+      {
+        "type": "terminal",
+        "stepNumber": 1,
+        "label": "checkout",
+        "title": "checkout",
+        "lines": ["$ git checkout main", "Already on main"]
+      },
+      {
+        "type": "terminal",
+        "stepNumber": 2,
+        "label": "test",
+        "title": "test",
+        "lines": ["$ npm test", "42 tests passed"]
+      }
     ],
     "compileGif": true,
     "frameDelay": 1000,
@@ -84,80 +106,18 @@ end.
 }
 ```
 
-Parameters:
+## Frame consistency
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `steps` | array | required | 1-60 step definitions |
-| `compileGif` | boolean | `false` | Compile frames into an animated GIF |
-| `frameDelay` | number | `800` | Milliseconds per frame (only if compileGif) |
-| `loop` | boolean | `true` | Whether the GIF loops (only if compileGif) |
-| `output` | string | auto | Output directory (defaults to `SNAPMCP_DIR`) |
+Frames are normalized to a common canvas for the GIF. For cleaner results:
 
-Each step can also include `stepNumber` and `label` for identification.
-
-## Frame Dimensions
-
-GIF frames are rendered at the size of the first frame. Mixed types
-(terminal + browser frames) work, but the dimensions might shift between
-frames. To keep things uniform:
-
-- Use the same `width` and `height` across browser captures
-- Terminal captures auto-size to content; keep line counts similar
-- Set `SNAPMCP_PADDING` consistently so spacing matches
-
-## Delay and Looping
-
-- **Frame delay** (`frameDelay`): 300-500ms for fast transitions, 800-1200ms
-  for readable walkthroughs. Below 200ms can be hard to follow.
-- **Looping** (`loop`): `true` for GIFs shown inline (they loop by default in
-  most viewers). `false` for documentation sequences where the viewer should
-  see it once and stop.
-
-## Examples
-
-### Code change walkthrough
-
-```json
-{
-  "name": "create_gif",
-  "arguments": {
-    "title": "refactor",
-    "captures": [
-      { "type": "code", "params": { "code": "function oldWay() { return null; }", "language": "javascript" } },
-      { "type": "code", "params": { "code": "function newWay() { return 'hello'; }", "language": "javascript" } },
-      { "type": "terminal", "params": { "title": "test", "lines": ["$ npm test", "PASS"] } }
-    ],
-    "frameDelay": 600,
-    "loop": false
-  }
-}
-```
-
-### Multi-step with `create_sequence`
-
-```json
-{
-  "name": "create_sequence",
-  "arguments": {
-    "steps": [
-      { "type": "terminal", "stepNumber": 1,
-        "params": { "title": "start", "lines": ["$ git status", "nothing to commit"] } },
-      { "type": "file", "stepNumber": 2,
-        "params": { "filePath": "/path/to/source.ts" } },
-      { "type": "terminal", "stepNumber": 3,
-        "params": { "title": "commit", "lines": ["$ git commit -m 'fix'", "[main a1b2c3d] fix"] } }
-    ],
-    "compileGif": true,
-    "frameDelay": 1000
-  }
-}
-```
+- use the same browser width and height for browser frames;
+- keep terminal line counts and padding similar;
+- use the same `SNAPMCP_THEME` for every frame;
+- avoid mixing very large and very small captures in one animation.
 
 ## Related
 
-- [Terminal Capture Guide](terminal-capture.md) -- creating terminal frames
-- [Browser Capture Guide](browser-capture.md) -- creating browser frames
-- [Configuration Reference](../configuration.md) -- output directory and
-  padding settings
-- [CLI Commands](../cli.md) -- running `snapmcp test` to verify captures work
+- [Tool Reference](../tools.md)
+- [Agent Guide](../agents.md)
+- [Workflow Examples](workflow-examples.md)
+- [Security Policy](../../SECURITY.md)

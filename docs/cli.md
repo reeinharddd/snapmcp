@@ -1,94 +1,106 @@
-# CLI Commands Reference
+# CLI Reference
 
-## Overview
+The `snapmcp` command starts the MCP server and provides setup, diagnostics, verification, and discovery utilities.
 
-`snapmcp` is an MCP server that turns code, terminals, browsers, and markdown into
-screenshots. It runs as a stdio-based MCP server for AI assistants, but also
-provides utility commands for setup and testing.
+## Server
 
-## Commands
+### `snapmcp`
 
-### `snapmcp` (no arguments)
-
-Starts the MCP server on stdio. This is the primary mode. AI assistants like
-Claude Desktop or OpenCode connect to this server to use the capture tools.
+Starts the MCP server on stdio. The server exposes exactly 13 tools and registers the `snapmcp://capabilities` resource.
 
 ```bash
 snapmcp
 ```
 
-The server exposes all capture tools defined in [tools.md](tools.md). It reads
-configuration from [environment variables](configuration.md).
+Configuration comes from `SNAPMCP_*` environment variables. See [Configuration](configuration.md).
+
+## Setup
 
 ### `snapmcp init`
 
-Interactive setup wizard. It:
+Runs the interactive setup flow. It can:
 
-- Detects your operating system and shell
-- Installs Chromium via `npx playwright install chromium` if missing
-- Checks for Node.js and npm
-- Configures MCP client settings for Claude Desktop, OpenCode, and Cursor
-- Creates a default output directory
+- inspect the Node.js or Bun runtime;
+- install Playwright Chromium when it is missing;
+- create the output directory;
+- detect supported MCP clients;
+- offer to register snapmcp with a detected client.
 
 ```bash
 snapmcp init
 ```
 
-Run this first if you're setting up snapmcp for the first time.
+Chromium installation is explicit. Package postinstall does not download it.
 
-**Interactive wizard screenshot:**
-
-<img src="assets/init-wizard.png" alt="snapmcp init wizard" width="500"/>
-
+## Diagnostics
 
 ### `snapmcp doctor`
 
-Runs 7 health checks and reports results. Useful for diagnosing why captures
-might not work.
+Checks the runtime, Chromium, Chromium sandbox, output directory, disk space, configuration, and syntax highlighter.
 
 ```bash
 snapmcp doctor
 ```
 
-The checks:
+### `snapmcp doctor --json`
 
-1. **Node.js** -- verifies Node 18+ is installed
-2. **Chromium** -- checks Playwright Chromium is installed
-3. **Output directory** -- confirms the capture output directory exists and is
-   writable
-4. **Chrome binary** -- if using system Chrome, checks the binary path is valid
-5. **Theme** -- validates the Shiki theme name in `SNAPMCP_THEME`
-6. **Environment variables** -- checks for common misconfigurations
-7. **Version** -- verifies the installed package matches the expected version
+Writes machine-readable diagnostics to standard output:
 
-**`snapmcp doctor` output:**
+```bash
+snapmcp doctor --json
+```
 
-<img src="assets/doctor.png" alt="snapmcp doctor output" width="500"/>
+The JSON contains an overall status and a list of named checks.
 
+## Verification
 
 ### `snapmcp test`
 
-Generates sample captures to verify the server works. Creates two files:
+Generates a terminal and code capture in `SNAPMCP_DIR`:
 
-- `test-terminal.png` -- a terminal-style capture showing command output
-- `test-code.png` -- a code screenshot with syntax highlighting
+- `test-terminal.png`
+- `test-code.png`
 
 ```bash
 snapmcp test
 ```
 
-These files appear in your configured output directory
-([`SNAPMCP_DIR`](configuration.md#snapmcp_dir)).
+Use this after installation to confirm that Chromium and the output directory work.
 
-**Generated test captures:**
+## Discovery
 
-<img src="assets/test-terminal.png" alt="Test terminal" width="400"/>
-<img src="assets/test-code.png" alt="Test code" width="400"/>
+### `snapmcp capabilities`
 
+Prints the 13-tool capability catalog.
+
+```bash
+snapmcp capabilities
+```
+
+### `snapmcp capabilities --json`
+
+Prints the machine-readable capability manifest, including tool summaries, outputs, limits, discovery surfaces, security defaults, and token policy.
+
+```bash
+snapmcp capabilities --json
+```
+
+### `snapmcp search "<intent>" --json`
+
+Searches the catalog by natural-language intent and prints up to five ranked matches.
+
+```bash
+snapmcp search "website screenshot" --json
+snapmcp search "printable report with captures" --json
+```
+
+The MCP equivalents are `tools/list`, `snapmcp-hint` with `query`, and the `snapmcp://capabilities` resource.
+
+## General options
 
 ### `snapmcp --help`
 
-Prints usage information and lists all available commands.
+Prints usage information.
 
 ```bash
 snapmcp --help
@@ -96,31 +108,21 @@ snapmcp --help
 
 ### `snapmcp --version`
 
-Prints the installed version number.
+Prints the installed version.
 
 ```bash
 snapmcp --version
-snapmcp v2.3.0
 ```
 
-## Quick Start
+## Exit behavior
 
-If you haven't set up snapmcp yet, start here:
-
-```bash
-npx snapmcp init
-npx snapmcp doctor    # verify everything works
-npx snapmcp test       # generate sample captures
-```
-
-Then check [getting-started.md](getting-started.md) for the full guide.
+- The MCP server and setup commands normally run until interrupted.
+- `snapmcp doctor` exits with code 0 when no check has an error status and a non-zero code when an error is present.
+- `snapmcp search` without an intent prints usage information and exits with code 1.
 
 ## Related
 
-- [Tools Reference](tools.md) -- all MCP capture tools and their parameters
-- [Configuration](configuration.md) -- environment variables reference
-- [Terminal Capture Guide](guides/terminal-capture.md) -- tips for terminal
-  screenshots
-- [Browser Capture Guide](guides/browser-capture.md) -- tips for web page
-  screenshots
-- [GIF Animation Guide](guides/gif-animation.md) -- creating animated captures
+- [Getting Started](getting-started.md)
+- [Agent Guide](agents.md)
+- [Tool Reference](tools.md)
+- [Configuration](configuration.md)

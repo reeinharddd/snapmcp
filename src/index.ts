@@ -2,7 +2,7 @@
 /**
  * snapmcp v2 — All-in-one MCP server for visual captures.
  *
- * Tools (12 total):
+ * Tools (13 total):
  *  capture_terminal      → synthetic terminal output           → PNG/JPEG
  *  capture_code          → syntax-highlighted code              → PNG/JPEG
  *  capture_browser       → URL screenshot                       → PNG/JPEG
@@ -14,7 +14,8 @@
  *  capture_batch         → multi-capture batch                  → PNG/JPEG
  *  capture_sequence      → step-by-step sequence + GIF          → PNG/GIF
  *  capture_gif           → animated GIF from captures           → GIF
- *  capture_document   → document with embedded captures      → MD/HTML/PDF
+ *  capture_document      → document with embedded captures      → MD/HTML/PDF
+ *  snapmcp-hint          → capability search and agent guidance → text
  *
  * CLI commands:
  *  snapmcp init          → interactive setup wizard
@@ -49,14 +50,26 @@ import {
   ensureOutputDir,
   runCleanup,
 } from "./renderer.js";
-import { resolveSafePath, checkChromiumSandbox, validateUrl, SecurityError } from "./security.js";
+import { checkChromiumSandbox, validateUrl, SecurityError } from "./security.js";
+import {
+  createOutputPath,
+  IMAGE_OUTPUT_EXTENSIONS,
+  resolveNamedOutput,
+} from "./output.js";
 import { getHighlighter } from "./highlighter.js";
 import { logger, setLogLevel, setLogFile, AuditEventType, closeAuditLog } from "./logger.js";
 import { createGif, type GifFrame } from "./gif.js";
 import { createDocument, type DocumentSection, type DocumentFormat } from "./document.js";
-import { cliInit, cliDoctor, cliTest } from "./cli.js";
+import { cliInit, cliDoctor, cliTest, cliCapabilities } from "./cli.js";
 import { BRAND, brandPrimary, brandSecondary, brandGradient } from "./brand.js";
 import { detectChrome, logChromeStatus, type DetectedChrome } from "./browser.js";
+import { installPlaywrightChromium } from "./playwright-cli.js";
+import {
+  SERVER_INSTRUCTIONS,
+  TOOL_CAPABILITIES,
+  TOOL_LIMITS,
+  registerCapabilityResource,
+} from "./capabilities.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
@@ -98,20 +111,24 @@ function showHelp(): void {
     snapmcp doctor             System diagnostics
     snapmcp doctor --json      System diagnostics (JSON output)
     snapmcp test               Run test capture
+    snapmcp capabilities        Show the capability catalog
+    snapmcp capabilities --json Machine-readable catalog for agents/code mode
+    snapmcp search "<intent>"   Find tools by natural-language intent
 
-  TOOLS (12)
+  TOOLS (13)
     capture_terminal     Synthetic terminal output (27 themes)
-    capture_code         Syntax-highlighted code (50+ langs)
+    capture_code         Syntax-highlighted code (300+ bundled languages)
     capture_browser      URL screenshots (full page or viewport)
     capture_file         File → auto-detected language → screenshot
     capture_markdown     Rendered markdown document
     capture_html         Arbitrary HTML snippet
     capture_diff         Git diffs with +/- colorization
     capture_pdf          URL → PDF document
-    capture_batch        Multi-capture batch (up to 10)
+    capture_batch        Multi-capture batch (up to ${TOOL_LIMITS.batch.maxCaptures})
     capture_sequence     Step-by-step sequence + optional GIF
-    capture_gif          Animated GIF from 2-60 captures
-    capture_document  Document (MD/HTML/PDF) with embedded captures
+    capture_gif           Animated GIF from ${TOOL_LIMITS.gif.minFrames}-${TOOL_LIMITS.gif.maxFrames} captures
+    capture_document      Document (MD/HTML/PDF) with embedded captures
+    snapmcp-hint          Capability search and concise agent guidance
 
   CLI
     init                 Interactive setup wizard
@@ -129,6 +146,8 @@ function showHelp(): void {
     SNAPMCP_BORDER_RADIUS    0-32 px
     SNAPMCP_BADGE            true/false — snapmcp footer badge
     SNAPMCP_SECURITY_CHECKS  true/false — path traversal, size limits, etc.
+    SNAPMCP_SSRF_PROTECTION  true/false — block private/local URL targets
+    SNAPMCP_ALLOWED_PATHS    Comma/semicolon-separated file-read allowlist
 
   EXAMPLES
     SNAPMCP_THEME=dracula SNAPMCP_FORMAT=jpeg snapmcp
@@ -143,7 +162,6 @@ function showVersion(): void {
 }
 
 async function runSetup(): Promise<void> {
-  const { execSync } = await import("node:child_process");
   const fs = await import("node:fs");
   const pt = await import("node:path");
 
@@ -152,7 +170,7 @@ async function runSetup(): Promise<void> {
   // Install Chromium
   console.error("  → Installing Chromium...");
   try {
-    execSync("bunx playwright install chromium", { stdio: "inherit", timeout: 120_000 });
+    installPlaywrightChromium();
     console.error("  ✓ Chromium installed");
   } catch {
     console.error("  ✗ Chromium install failed. Try: npx playwright install chromium");
@@ -168,7 +186,7 @@ async function runSetup(): Promise<void> {
 
 // ─── Banner ─────────────────────────────────────────────────
 function banner(): string {
-  const toolCount = 13;
+  const toolCount = TOOL_CAPABILITIES.length;
   return `
   ┌──────────────────────────────────┬
   │  ⬡ snapmcp v${VERSION}  —  ${toolCount} tools  │
@@ -198,23 +216,36 @@ const chromeDetected = detectChrome();
 logChromeStatus(chromeDetected);
 
 // ─── Server setup ─────────────────────────────────────────
-const server = new McpServer({
-  name: "SnapMCP",
-  version: VERSION,
-  description:
-    "All-in-one visual captures: terminal, code, browser, markdown, HTML, diffs, files, and PDF — via Playwright",
-});
+const server = new McpServer(
+  {
+    name: "SnapMCP",
+    version: VERSION,
+    description:
+      "Visual documentation MCP server for AI agents: terminal, code, browser, Markdown, HTML, diffs, PDF, GIF, and documents.",
+  },
+  {
+    instructions: SERVER_INSTRUCTIONS,
+  },
+);
 
 // ─── Helpers ────────────────────────────────────────────────
 const ext = () => formatExt(config.format);
 
 function outPath(prefix: string, name?: string): string {
   if (name) {
-    const hasExt = /\.(png|jpe?g|gif|pdf)$/i.test(name);
-    const finalName = hasExt ? name : `${name}.${ext()}`;
-    return resolveSafePath(OUTPUT_DIR, finalName);
+    const requestedExtension = path.extname(name).toLowerCase();
+    if (
+      requestedExtension &&
+      !IMAGE_OUTPUT_EXTENSIONS.includes(requestedExtension as (typeof IMAGE_OUTPUT_EXTENSIONS)[number])
+    ) {
+      throw new SecurityError(
+        `Unsupported image output extension "${requestedExtension}" (expected .png, .jpg, or .jpeg)`,
+      );
+    }
+    const finalName = requestedExtension ? name : `${name}.${ext()}`;
+    return resolveNamedOutput(OUTPUT_DIR, finalName, IMAGE_OUTPUT_EXTENSIONS);
   }
-  return path.join(OUTPUT_DIR, `${prefix}-${Date.now()}.${ext()}`);
+  return createOutputPath(OUTPUT_DIR, OUTPUT_DIR, prefix, ext());
 }
 
 function ok(path: string): { content: { type: "text"; text: string }[] } {
@@ -251,6 +282,7 @@ registerSequenceTool(server, toolDeps);
 registerGifTool(server, toolDeps);
 registerDocumentTool(server, toolDeps);
 registerHintTool(server);
+registerCapabilityResource(server, VERSION);
 
 // ─── Startup ────────────────────────────────────────────────
 async function main() {
@@ -270,6 +302,20 @@ async function main() {
   }
 
   // CLI commands (non-MCP mode)
+  if (args[0] === "capabilities") {
+    const query = args.slice(1).filter((arg) => arg !== "--json").join(" ").trim();
+    cliCapabilities(VERSION, query || undefined, args.includes("--json"));
+    process.exit(0);
+  }
+  if (args[0] === "search") {
+    const query = args.slice(1).filter((arg) => arg !== "--json").join(" ").trim();
+    if (!query) {
+      process.stderr.write('Usage: snapmcp search "<intent>" [--json]\n');
+      process.exit(1);
+    }
+    cliCapabilities(VERSION, query, args.includes("--json"));
+    process.exit(0);
+  }
   if (args.includes("init")) {
     await cliInit(config);
     process.exit(0);
@@ -309,14 +355,14 @@ async function main() {
   } else {
     console.error(ansiBold(banner()));
   }
-  const toolList = ["capture_terminal", "capture_code", "capture_browser", "capture_file", "capture_markdown", "capture_html", "capture_diff", "capture_pdf", "capture_batch", "capture_sequence", "capture_gif", "capture_document", "snapmcp-hint"];
+  const toolList = TOOL_CAPABILITIES.map((tool) => tool.name);
   console.error(ansiPri(`  v${VERSION}`));
   console.error(ansiSec(`  ${toolList.join(" · ")}`));
   logger.info(`  Mode:     stdio`);
   logger.info(`  Format:   ${config.format}${config.format === "jpeg" ? ` (q${config.quality})` : ""}`);
   logger.info(`  Output:   ${OUTPUT_DIR}`);
   logger.info(`  Theme:    ${config.theme}`);
-  logger.info(`  GIF:      gifencoder + pngjs · Documents: MD/HTML/PDF`);
+  logger.info(`  GIF:      gifenc + fast-png · Documents: MD/HTML/PDF`);
   logger.info(`  Chrome:   ${config.windowChrome ? "on" : "off"} · Shadow: ${config.shadow} · Radius: ${config.borderRadius}px`);
   logger.info(`  Security: ${config.securityChecks ? "enabled" : "disabled"}`);
   logger.debug(`  Padding:  ${config.padding}px · Badge: ${config.badge} · Font: ${config.fontSize}`);

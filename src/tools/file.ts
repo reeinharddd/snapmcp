@@ -12,7 +12,7 @@ interface ToolDeps {
 export function registerFileTool(server: McpServer, { outPath, ok, fail, config }: ToolDeps): void {
   server.tool(
     "capture_file",
-    "Read a file and generate a syntax-highlighted screenshot with automatic language detection from file extension. Supports 50+ languages via Shiki. Requires SNAPMCP_ALLOWED_PATHS to be set for security (deny-all by default). Maximum file size 5MB.",
+    "Read a file and generate a syntax-highlighted screenshot with automatic language detection from file extension. Supports 300+ bundled Shiki languages. Requires SNAPMCP_ALLOWED_PATHS to be set for security (deny-all by default). Maximum file size 5MB.",
     {
       filePath: z.string().min(1).describe("Absolute path to the file to capture. Must be within SNAPMCP_ALLOWED_PATHS allowlist. Symlinks are resolved to prevent traversal."),
       startLine: z.number().int().min(1).optional().describe("First line number to capture (1-indexed, inclusive). Use with endLine to capture a specific range."),

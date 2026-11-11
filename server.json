@@ -1,24 +1,26 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.reeinharddd/snapmcp",
-  "description": "Visual capture MCP server: terminal colors, code, diffs, PDFs, GIFs. 13 tools, SSRF on by default.",
+  "title": "snapmcp",
+  "description": "Visual documentation: terminal, code, browser, Markdown, HTML, diffs, PDFs, GIFs, and documents.",
   "repository": {
     "url": "https://github.com/reeinharddd/snapmcp",
     "source": "github"
   },
-  "version": "2.3.2",
+  "websiteUrl": "https://github.com/reeinharddd/snapmcp",
+  "version": "2.3.6",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "snapmcp",
-      "version": "2.3.2",
+      "version": "2.3.6",
       "transport": {
         "type": "stdio"
       },
       "environmentVariables": [
         {
           "name": "SNAPMCP_DIR",
-          "description": "Output directory for captures (default: ./captures)",
+          "description": "Directory that confines every generated artifact (default: ./captures)",
           "isRequired": false,
           "default": "./captures",
           "format": "string",
@@ -26,7 +28,7 @@
         },
         {
           "name": "SNAPMCP_THEME",
-          "description": "Shiki syntax highlighting theme (27 built-in: dracula, nord, catppuccin-mocha, tokyo-night, github-dark-dimmed, etc.). Auto-detects terminal theme when unset.",
+          "description": "One of 27 built-in Shiki themes; terminal palettes are detected heuristically",
           "isRequired": false,
           "format": "string",
           "isSecret": false
@@ -41,30 +43,30 @@
         },
         {
           "name": "SNAPMCP_QUALITY",
-          "description": "JPEG quality (1-100, only used for JPEG)",
+          "description": "JPEG quality from 1 to 100",
           "isRequired": false,
           "default": "90",
           "format": "number",
           "isSecret": false
         },
         {
-          "name": "SNAPMCP_SHADOW",
-          "description": "Drop shadow level: none, soft, medium, strong (aliases: sm, md, lg)",
-          "isRequired": false,
-          "default": "none",
-          "format": "string",
-          "isSecret": false
-        },
-        {
           "name": "SNAPMCP_ALLOWED_PATHS",
-          "description": "Comma- or semicolon-separated allowlist of file paths readable by capture_file (deny-all when unset)",
+          "description": "Comma- or semicolon-separated file-read allowlist; file reads are denied when unset",
           "isRequired": false,
           "format": "string",
           "isSecret": false
         },
         {
           "name": "SNAPMCP_SSRF_PROTECTION",
-          "description": "Block requests to private IP ranges (DNS-resolved, IPv4 + IPv6). Default: true",
+          "description": "Block private and local URL targets, including DNS-resolved private addresses",
+          "isRequired": false,
+          "default": "true",
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "SNAPMCP_SECURITY_CHECKS",
+          "description": "Enable broader input and file-read validation; output confinement and URL protocol checks remain active",
           "isRequired": false,
           "default": "true",
           "format": "string",
@@ -72,14 +74,21 @@
         },
         {
           "name": "SNAPMCP_CHROME_EXECUTABLE",
-          "description": "Path to a system Chrome/Chromium binary to use for browser captures",
+          "description": "Explicit system Chrome or Chromium executable; Playwright Chromium is the default",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "SNAPMCP_CHROME_CHANNEL",
+          "description": "Playwright Chrome channel, such as stable, beta, dev, or canary",
           "isRequired": false,
           "format": "string",
           "isSecret": false
         },
         {
           "name": "SNAPMCP_CHROME_PROFILE",
-          "description": "Chrome profile directory to use for browser captures (persistent context with cookies/extensions)",
+          "description": "Experimental persistent Chromium user-data directory: detected profile key/name or absolute path",
           "isRequired": false,
           "format": "string",
           "isSecret": false
@@ -91,55 +100,55 @@
     "list": [
       {
         "name": "capture_terminal",
-        "description": "Generate a styled terminal screenshot from text lines with real terminal theme colors. Auto-detects Kitty, GNOME, Alacritty, WezTerm themes for authentic prompt colors. Max 1000 lines."
+        "description": "Render terminal lines as a PNG or JPEG, with heuristic terminal palette detection and $ or # prompt markers."
       },
       {
         "name": "capture_code",
-        "description": "Generate a syntax-highlighted code screenshot using Shiki (50+ languages, 27 themes). Renders with line numbers, theme-aware colors, optional window chrome. Max 200KB input."
+        "description": "Render source code with Shiki highlighting for 300+ bundled languages and 27 themes, with an optional inclusive line range."
       },
       {
         "name": "capture_browser",
-        "description": "Take a screenshot of a URL using headless Chromium. Uses system Chrome profile when available for authenticated sessions. SSRF protection on by default. Full-page or viewport capture."
+        "description": "Capture a full-page or viewport screenshot of an HTTP(S) URL with default-on SSRF protection."
       },
       {
         "name": "capture_file",
-        "description": "Read a file and generate a syntax-highlighted screenshot with auto language detection from extension. Requires SNAPMCP_ALLOWED_PATHS allowlist. Max 5MB file size."
+        "description": "Render an allowlisted file with extension-based language mapping and an optional inclusive line range; file reads are deny-all by default."
       },
       {
         "name": "capture_markdown",
-        "description": "Render Markdown as a styled document screenshot using GitHub-flavored Markdown. Supports tables, task lists, code blocks with syntax highlighting. Max 200KB input."
+        "description": "Render GitHub-flavored Markdown as a PNG or JPEG; raw HTML is escaped and external resources are blocked."
       },
       {
         "name": "capture_html",
-        "description": "Render arbitrary HTML as a screenshot with full CSS support. External scripts/iframes/stylesheets blocked for security. Max 200KB input."
+        "description": "Render sanitized HTML and CSS in a JavaScript-disabled, network-isolated context; active and external content is removed or blocked."
       },
       {
         "name": "capture_diff",
-        "description": "Render a git diff with color-coded additions (green) and deletions (red). Parses unified diff format (git diff output). Max 500KB input."
+        "description": "Render a unified diff as a PNG or JPEG with additions and deletions highlighted."
       },
       {
         "name": "capture_pdf",
-        "description": "Convert a URL to a PDF document using headless Chromium. Full-page or viewport rendering. Uses system Chrome profile for authenticated pages. SSRF protection enabled."
+        "description": "Print a complete HTTP(S) URL document to a PDF with Chromium."
       },
       {
         "name": "capture_batch",
-        "description": "Capture multiple items in a single call (max 10). Each capture uses typed parameters via discriminated union (terminal, code, file, browser, markdown, html, diff). Saves individual files."
-      },
-      {
-        "name": "capture_gif",
-        "description": "Create an animated GIF from sequential captures (2-60 frames). Each frame uses typed capture parameters. Configurable frame delay (10-5000ms) and loop. Max canvas 8192x8192."
+        "description": "Capture up to 10 independent typed items in one call and return their saved image paths."
       },
       {
         "name": "capture_sequence",
-        "description": "Capture process steps as individual files + optional compiled GIF (max 60 steps). Each step has typed params plus stepNumber and label. Use for pipeline/tutorial visualization."
+        "description": "Capture up to 60 ordered steps as individual images and optionally compile a GIF."
       },
-{
+      {
+        "name": "capture_gif",
+        "description": "Create a GIF from 2 to 60 PNG captures; loop true repeats forever and loop false plays once."
+      },
+      {
         "name": "capture_document",
-        "description": "Create a document (Markdown/HTML/PDF) with embedded step-by-step captures (max 30). Each capture has typed params and optional caption. HTML embeds images as base64; PDF is print-quality."
+        "description": "Embed up to 30 captioned captures in a Markdown, self-contained HTML, or print-quality PDF document."
       },
       {
         "name": "snapmcp-hint",
-        "description": "Return contextual help for snapmcp configuration and usage. Topics: init, doctor, browser, themes, output, security, gif, document, batch."
+        "description": "Find the right tool by natural-language intent or return concise setup, security, and token guidance."
       }
     ]
   }
