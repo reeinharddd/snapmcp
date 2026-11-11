@@ -266,11 +266,21 @@ The release is automated from the Git tag. Pushing `vX.Y.Z` runs three jobs in
    registry verifies npm package ownership, so this job runs only after the npm
    publish succeeds.
 
-A failed npm or registry publish can be retried without moving the tag:
+A failed npm or registry publish can be retried without moving the tag. Run
+the workflow from the branch that holds the current `release.yml`, not from the
+tag: GitHub executes the workflow file as it exists at the selected ref, and a
+tag created before the workflow gained `workflow_dispatch` would run the old
+version.
 
 ```bash
-gh workflow run release.yml --ref vX.Y.Z
+gh workflow run release.yml --ref main
 ```
+
+The workflow reads the version from `package.json`, derives the tag from it, and
+checks out that tag in every publish job, so the npm tarball, the GitHub
+Release and the registry manifest all come from the same commit. The job fails
+when the derived tag does not exist, which prevents publishing a version that
+was never tagged.
 
 Maintainer steps:
 
