@@ -253,7 +253,26 @@ bun update            # Update all deps
 
 ## Release Process
 
-Current maintainer only (not automated):
+The release is automated from the Git tag. Pushing `vX.Y.Z` runs three jobs in
+`.github/workflows/release.yml`:
+
+1. **Publish to npm** — publishes `package.json`'s version with `--provenance`.
+   Authentication uses npm Trusted Publishing (OIDC) when the package has a
+   trusted publisher configured for `reeinharddd/snapmcp` and the `release.yml`
+   workflow; the `NPM_TOKEN` secret is only a fallback for that case.
+2. **Create GitHub Release** — attaches the built `dist/` and `package.json`.
+3. **Publish to the MCP Registry** — validates `server.json` and publishes it
+   with the official `mcp-publisher` CLI, authenticated with GitHub OIDC. The
+   registry verifies npm package ownership, so this job runs only after the npm
+   publish succeeds.
+
+A failed npm or registry publish can be retried without moving the tag:
+
+```bash
+gh workflow run release.yml --ref vX.Y.Z
+```
+
+Maintainer steps:
 
 ```bash
 # 1. Update version in package.json
@@ -264,6 +283,7 @@ bun run build && bun test
 git commit -m "chore(release): vX.Y.Z"
 git tag vX.Y.Z
 git push && git push --tags
-# 5. Publish (if public)
-npm publish
 ```
+
+`server.json` must carry the same version as `package.json`; the registry job
+fails loudly when they diverge.
