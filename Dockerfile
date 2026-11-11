@@ -1,54 +1,84 @@
 # ─── Build stage ───────────────────────────────────────────
-FROM --platform=$BUILDPLATFORM oven/bun:1.3 AS build
+FROM node:22-bookworm-slim AS build
 
 WORKDIR /app
 
-COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile --ignore-scripts
+COPY package.json ./
+RUN npm install --ignore-scripts --no-audit --no-fund
 
 COPY tsconfig.json ./
 COPY src/ ./src/
-RUN bunx tsc
+COPY scripts/ ./scripts/
+COPY brand/ ./brand/
+COPY assets/ ./assets/
+RUN npm run build \
+    && npm prune --omit=dev --ignore-scripts --no-audit --no-fund
 
 # ─── Runtime stage ─────────────────────────────────────────
-FROM oven/bun:1.3-slim
+FROM node:22-bookworm-slim
 
 LABEL org.opencontainers.image.title="snapmcp"
-LABEL org.opencontainers.image.description="All-in-one MCP server for visual captures"
+LABEL org.opencontainers.image.description="Visual documentation MCP server with 13 capture and discovery tools"
 LABEL org.opencontainers.image.source="https://github.com/reeinharddd/snapmcp"
 LABEL org.opencontainers.image.licenses="MIT"
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        chromium \
+        fonts-liberation \
+        libasound2 \
+        libatk-bridge2.0-0 \
+        libatk1.0-0 \
+        libatspi2.0-0 \
+        libcups2 \
+        libdbus-1-3 \
+        libdrm2 \
+        libgbm1 \
+        libglib2.0-0 \
+        libnspr4 \
+        libnss3 \
+        libpango-1.0-0 \
+        libu2f-udev \
+        libvulkan1 \
+        libx11-6 \
+        libx11-xcb1 \
+        libxcb1 \
+        libxcomposite1 \
+        libxdamage1 \
+        libxext6 \
+        libxfixes3 \
+        libxkbcommon0 \
+        libxrandr2 \
+    && apt-get clean \
+    && find /var/lib/apt/lists -mindepth 1 -delete
+
+RUN groupadd --gid 10001 snapmcp \
+    && useradd --uid 10001 --gid snapmcp \
+        --home-dir /home/snapmcp --create-home \
+        --shell /usr/sbin/nologin snapmcp
+
 WORKDIR /app
 
-# Install Chromium + deps (works on both amd64 and arm64)
-RUN apt-get update && apt-get install -y \
-    chromium \
-    libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 \
-    libcups2 libdrm2 libdbus-1-3 libxkbcommon0 \
-    libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
-    libgbm1 libpango-1.0-0 libcairo2 libasound2 \
-    --no-install-recommends && \
-    rm -rf /var/lib/apt/lists/*
+COPY --chown=snapmcp:snapmcp --from=build /app/package.json ./package.json
+COPY --chown=snapmcp:snapmcp --from=build /app/node_modules ./node_modules
+COPY --chown=snapmcp:snapmcp --from=build /app/dist ./dist
+COPY --chown=snapmcp:snapmcp --from=build /app/scripts ./scripts
+COPY --chown=snapmcp:snapmcp --from=build /app/brand ./brand
+COPY --chown=snapmcp:snapmcp --from=build /app/assets ./assets
 
-# Copy built artifacts
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/package.json /app/bun.lock ./
-# Prune devDependencies for runtime
-RUN bun install --frozen-lockfile --production --ignore-scripts
-
-# Run as non-root
-RUN groupadd -r snapmcp && useradd -r -g snapmcp -d /app snapmcp
-RUN mkdir -p /app/captures && chown -R snapmcp:snapmcp /app
+RUN mkdir -p /app/captures \
+    && chown -R snapmcp:snapmcp /app
 
 USER snapmcp
 
+ENV HOME=/home/snapmcp
 ENV SNAPMCP_DIR=/app/captures
-ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium
+ENV SNAPMCP_CHROME_EXECUTABLE=/usr/bin/chromium
 ENV NODE_ENV=production
 
-VOLUME /app/captures
+VOLUME ["/app/captures"]
 
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-  CMD node -e "process.exit(0)"
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD ["node", "dist/index.js", "--version"]
 
 ENTRYPOINT ["node", "dist/index.js"]

@@ -3,7 +3,7 @@ import assert from "node:assert";
 import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
-import { loadConfig } from "../src/config.js";
+import { loadConfig, THEME_LIST, type SnapConfig } from "../src/config.js";
 
 // We test pure functions by importing modules and testing their internals
 // Since renderer uses internal functions not exported, we test via the public API
@@ -19,15 +19,10 @@ describe("renderer module loads", () => {
   });
 
   it("config theme is one of the known themes", () => {
-    const known = [
-      "dark-plus",
-      "github-dark",
-      "github-light",
-      "monokai",
-      "nord",
-      "solarized-dark",
-    ];
-    assert.ok(known.includes(config.theme));
+    assert.ok(
+      (THEME_LIST as readonly string[]).includes(config.theme),
+      `Unexpected configured theme: ${config.theme}`,
+    );
   });
 });
 
@@ -47,6 +42,8 @@ describe("module structure", () => {
       "captureHtml",
       "captureDiff",
       "capturePdf",
+      "captureHtmlToPdf",
+      "sliceCodeRange",
       "closeBrowser",
       "ensureOutputDir",
       "runCleanup",
@@ -129,7 +126,7 @@ describe("ensureOutputDir", () => {
  */
 function cleanupTest(
   name: string,
-  fn: (dir: string, runCleanup: (cfg: any) => void) => Promise<void> | void,
+  fn: (dir: string, runCleanup: (cfg: SnapConfig) => void) => Promise<void> | void,
 ) {
   it(name, async () => {
     const { runCleanup } = await import("../src/renderer.js");
@@ -142,14 +139,17 @@ function cleanupTest(
   });
 }
 
-function touch(dir: string, name: string): void {
-  fs.writeFileSync(path.join(dir, name), "test");
+function touch(dir: string, name: string, mtimeSeconds = 1): void {
+  const filePath = path.join(dir, name);
+  fs.writeFileSync(filePath, "test");
+  const timestamp = new Date(mtimeSeconds * 1000);
+  fs.utimesSync(filePath, timestamp, timestamp);
 }
 
 function makeCleanConfig(
   outputDir: string,
   cleanupMax: number,
-) {
+): SnapConfig {
   return { ...config, outputDir, cleanupMax };
 }
 
@@ -162,11 +162,10 @@ describe("runCleanup", () => {
     assert.ok(fs.existsSync(path.join(dir, "b.png")));
   });
 
-  cleanupTest("with cleanupMax=1 keeps only newest file", async (dir, run) => {
-    touch(dir, "old1.png");
-    touch(dir, "old2.png");
-    await new Promise((r) => setTimeout(r, 10));
-    touch(dir, "newest.png");
+  cleanupTest("with cleanupMax=1 keeps only newest file", (dir, run) => {
+    touch(dir, "old1.png", 1);
+    touch(dir, "old2.png", 2);
+    touch(dir, "newest.png", 3);
 
     run(makeCleanConfig(dir, 1));
 
@@ -175,12 +174,10 @@ describe("runCleanup", () => {
     assert.ok(fs.existsSync(path.join(dir, "newest.png")), "newest should remain");
   });
 
-  cleanupTest("with cleanupMax=2 keeps two newest files", async (dir, run) => {
-    touch(dir, "first.png");
-    await new Promise((r) => setTimeout(r, 10));
-    touch(dir, "second.png");
-    await new Promise((r) => setTimeout(r, 10));
-    touch(dir, "third.png");
+  cleanupTest("with cleanupMax=2 keeps two newest files", (dir, run) => {
+    touch(dir, "first.png", 1);
+    touch(dir, "second.png", 2);
+    touch(dir, "third.png", 3);
 
     run(makeCleanConfig(dir, 2));
 
@@ -189,13 +186,15 @@ describe("runCleanup", () => {
     assert.ok(fs.existsSync(path.join(dir, "third.png")), "third should remain");
   });
 
-  cleanupTest("does not remove non-image files", async (dir, run) => {
-    touch(dir, "keep.txt");
-    touch(dir, "keep.md");
-    touch(dir, "data.json");
-    touch(dir, "old.png");
-    await new Promise((r) => setTimeout(r, 10));
-    touch(dir, "new.png");
+  cleanupTest("counts PNG, JPEG, GIF, and PDF artifacts but preserves other files", (dir, run) => {
+    touch(dir, "keep.txt", 1);
+    touch(dir, "keep.md", 1);
+    touch(dir, "data.json", 1);
+    touch(dir, "old.png", 1);
+    touch(dir, "older.jpg", 2);
+    touch(dir, "oldest.gif", 3);
+    touch(dir, "document.pdf", 4);
+    touch(dir, "new.png", 5);
 
     run(makeCleanConfig(dir, 1));
 
@@ -203,6 +202,9 @@ describe("runCleanup", () => {
     assert.ok(fs.existsSync(path.join(dir, "keep.md")));
     assert.ok(fs.existsSync(path.join(dir, "data.json")));
     assert.ok(!fs.existsSync(path.join(dir, "old.png")));
+    assert.ok(!fs.existsSync(path.join(dir, "older.jpg")));
+    assert.ok(!fs.existsSync(path.join(dir, "oldest.gif")));
+    assert.ok(!fs.existsSync(path.join(dir, "document.pdf")));
     assert.ok(fs.existsSync(path.join(dir, "new.png")));
   });
 
@@ -235,9 +237,9 @@ describe("renderer theme colors", () => {
     assert.ok(typeof mod.captureFile === "function");
   });
 
-  it("default theme resolves without error", async () => {
+  it("loads a known theme without error", async () => {
     const { loadConfig } = await import("../src/config.js");
     const cfg = loadConfig();
-    assert.equal(cfg.theme, "dark-plus");
+    assert.ok((THEME_LIST as readonly string[]).includes(cfg.theme));
   });
 });

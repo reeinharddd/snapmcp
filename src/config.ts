@@ -4,6 +4,7 @@
  */
 
 import { detectTerminalTheme, detectTerminalColors, TerminalColors, terminalColorsToThemeOverrides } from './terminal.js';
+import { SECURITY_DEFAULTS, TOOL_LIMITS } from './capabilities.js';
 
 export type OutputFormat = "png" | "jpeg";
 export type ShadowLevel = "none" | "soft" | "medium" | "strong";
@@ -29,7 +30,7 @@ export interface SnapConfig {
   cleanupMax: number;
   /** Minimum log level: error | warn | info | debug */
   logLevel: string;
-  /** Allowed paths for capture_file (semicolon-separated, empty = all) */
+  /** Allowed paths for capture_file (semicolon-separated, empty = deny-all) */
   allowedPaths: string[];
   /** Max file size for capture_file in bytes */
   maxFileSize: number;
@@ -51,9 +52,9 @@ export interface SnapConfig {
   /* ── Browser options ── */
   /** Path to a custom Chrome/Chromium executable */
   chromeExecutable?: string;
-  /** Chrome release channel: stable, beta, dev, canary */
+  /** Playwright browser channel: chrome, chrome-beta, chrome-dev, chrome-canary, msedge, or chromium */
   chromeChannel?: string;
-  /** Chrome profile directory name */
+  /** Detected Chrome profile name/key, or an absolute user-data directory */
   chromeProfile?: string;
   /** Auto-detected terminal colors (overrides theme defaults) */
   terminalColors?: Partial<{
@@ -83,9 +84,9 @@ const DEFAULTS: SnapConfig = {
   cleanupMax: 0,
   logLevel: "info",
   allowedPaths: [],
-  maxFileSize: 5_000_000,
-  securityChecks: true,
-  ssrfProtection: true,
+  maxFileSize: TOOL_LIMITS.file.maxBytes,
+  securityChecks: SECURITY_DEFAULTS.securityChecks,
+  ssrfProtection: SECURITY_DEFAULTS.ssrfProtection,
   padding: 32,
   shadow: "none",
   windowChrome: false,
@@ -123,7 +124,7 @@ export function loadConfig(): SnapConfig {
     borderRadius: Math.max(0, Math.min(32, envInt("BORDER_RADIUS", DEFAULTS.borderRadius))),
     badge: envBool("BADGE", DEFAULTS.badge),
     chromeExecutable: env("CHROME_EXECUTABLE", "") || undefined,
-    chromeChannel: env("CHROME_CHANNEL", "") || undefined,
+    chromeChannel: normalizeChromeChannel(env("CHROME_CHANNEL", "")),
     chromeProfile: env("CHROME_PROFILE", "") || undefined,
   };
 
@@ -184,6 +185,19 @@ function envBool(key: string, fallback: boolean): boolean {
   return v === "1" || v === "true" || v === "yes";
 }
 
+/** Normalize common channel aliases to channels supported by Playwright. */
+function normalizeChromeChannel(value: string): string | undefined {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (normalized === "stable" || normalized === "chrome") return "chrome";
+  if (normalized === "beta" || normalized === "chrome-beta") return "chrome-beta";
+  if (normalized === "dev" || normalized === "chrome-dev") return "chrome-dev";
+  if (normalized === "canary" || normalized === "chrome-canary") return "chrome-canary";
+  if (normalized === "edge" || normalized === "msedge") return "msedge";
+  if (normalized === "chromium") return "chromium";
+  return undefined;
+}
+
 function parseShadow(v: string): ShadowLevel {
   const map: Record<string, ShadowLevel> = {
     none: "none", soft: "soft", sm: "soft",
@@ -200,4 +214,20 @@ function clamp(n: number, min: number, max: number): number {
 /** File extension for the configured output format */
 export function formatExt(format: OutputFormat): string {
   return format === "jpeg" ? "jpg" : "png";
+}
+
+/**
+ * Return a config whose output format matches an explicit file extension.
+ * This keeps the bytes and the filename extension consistent when a caller
+ * overrides the default output name.
+ */
+export function configForOutputPath(config: SnapConfig, outputPath: string): SnapConfig {
+  const extension = outputPath.slice(outputPath.lastIndexOf(".")).toLowerCase();
+  if (extension === ".jpg" || extension === ".jpeg") {
+    return { ...config, format: "jpeg" };
+  }
+  if (extension === ".png") {
+    return { ...config, format: "png" };
+  }
+  return config;
 }

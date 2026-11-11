@@ -1,0 +1,11 @@
+# snapmcp documentation for agents
+
+The canonical, concise agent manifest is the repository-level [llms.txt](../llms.txt).
+
+- [Agent and code-mode guide](agents.md)
+- [Tool reference and schemas](tools.md)
+- [Getting started](getting-started.md)
+- [Configuration](configuration.md)
+- [CLI reference](cli.md)
+- [Security policy](../SECURITY.md)
+- [Architecture](../ARCHITECTURE.md)

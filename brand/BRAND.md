@@ -225,11 +225,12 @@ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 The startup banner displays the brand in ASCII:
 
 ```
-  ┌────────────────────────────────┬
-  │  snapmcp v2.1  —  8 tools     │
-  │  27 themes · GLASS terminal   │
-  │  PNG / JPEG / PDF             │
-  └────────────────────────────────┘
+  ┌──────────────────────────────────┬
+  │  ⬡ snapmcp v2.3.6  —  13 tools  │
+  │  27 themes · GIF · Documents   │
+  │  PNG / JPEG / PDF / GIF / MD   │
+  │  precision captures for AI      │
+  └──────────────────────────────────┘
 ```
 
 ### Env Var Prefix

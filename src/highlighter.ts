@@ -1,15 +1,14 @@
 /**
  * Singleton Shiki highlighter for snapmcp.
  *
- * Uses Shiki v4's getSingletonHighlighter to reuse a single highlighter
- * instance across all code-to-HTML conversions, avoiding repeated
- * WASM/grammar loading on every capture_code / capture_file call.
+ * Common grammars are preloaded for fast startup. Any other bundled Shiki
+ * language is loaded on demand and reused by the singleton instance.
  */
 
 import { getSingletonHighlighter } from "shiki";
 
-/** Languages used across all code capture tools */
-const LANGUAGES = [
+/** Frequently used languages preloaded during server startup. */
+const PRELOADED_LANGUAGES = [
   "python",
   "javascript",
   "typescript",
@@ -39,7 +38,7 @@ const LANGUAGES = [
   "terraform",
 ];
 
-/** All supported themes (pre-loaded so theme switching is instant) */
+/** All supported themes (pre-loaded so theme switching is instant). */
 const THEMES = [
   "dark-plus",
   "dracula",
@@ -70,23 +69,29 @@ const THEMES = [
   "snazzy-light",
 ];
 
-let _highlighterPromise: Promise<void> | null = null;
+type SharedHighlighter = Awaited<ReturnType<typeof getSingletonHighlighter>>;
+
+let _highlighterPromise: Promise<SharedHighlighter> | null = null;
+
+async function getSharedHighlighter(): Promise<SharedHighlighter> {
+  if (!_highlighterPromise) {
+    _highlighterPromise = getSingletonHighlighter({
+      themes: THEMES,
+      langs: PRELOADED_LANGUAGES,
+    }).catch((error) => {
+      _highlighterPromise = null;
+      throw error;
+    });
+  }
+  return _highlighterPromise;
+}
 
 /**
- * Lazily initialize and return the shared highlighter instance.
+ * Lazily initialize the shared highlighter instance.
  * The highlighter is created once and reused for all captures.
  */
 export async function getHighlighter(): Promise<void> {
-  if (_highlighterPromise) return _highlighterPromise;
-
-  _highlighterPromise = (async () => {
-    await getSingletonHighlighter({
-      themes: THEMES,
-      langs: LANGUAGES,
-    });
-  })();
-
-  return _highlighterPromise;
+  await getSharedHighlighter();
 }
 
 /**
@@ -98,16 +103,23 @@ export async function highlightCode(
   lang: string,
   theme: string,
 ): Promise<string> {
-  await getHighlighter();
+  const highlighter = await getSharedHighlighter();
+  const requestedLanguage = (lang || "text").toLowerCase();
 
-  const highlighter = await getSingletonHighlighter({
-    themes: THEMES,
-    langs: LANGUAGES,
-  });
+  if (
+    requestedLanguage !== "text" &&
+    !highlighter.getLoadedLanguages().includes(requestedLanguage)
+  ) {
+    await highlighter.loadLanguage(
+      requestedLanguage as Parameters<typeof highlighter.loadLanguage>[0],
+    );
+  }
 
-  // Fallback: if the requested theme isn't loaded, use dark-plus
   const loaded = highlighter.getLoadedThemes();
   const safeTheme = loaded.includes(theme) ? theme : "dark-plus";
 
-  return highlighter.codeToHtml(code, { lang: lang || "text", theme: safeTheme });
+  return highlighter.codeToHtml(code, {
+    lang: requestedLanguage,
+    theme: safeTheme,
+  });
 }

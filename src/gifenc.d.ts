@@ -1,19 +1,22 @@
 declare module "gifenc/dist/gifenc.esm.js" {
   export interface GIFEncoderOptions {
-    loop?: boolean;
-    dither?: boolean;
+    initialCapacity?: number;
+    auto?: boolean;
   }
 
   export interface WriteFrameOptions {
+    /** Delay in milliseconds. gifenc converts it to centiseconds. */
     delay?: number;
     palette?: Uint8Array;
     transparent?: boolean;
     transparentIndex?: number;
     colorDepth?: number;
+    /** -1 plays once, 0 loops forever, >0 is a finite repeat count. */
+    repeat?: number;
   }
 
   export class GIFEncoder {
-    constructor(width: number, height: number, options?: GIFEncoderOptions);
+    constructor(options?: GIFEncoderOptions);
     writeFrame(
       data: Uint8Array,
       width: number,

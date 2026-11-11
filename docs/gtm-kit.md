@@ -1,75 +1,69 @@
-# SnapMCP 2.3.0 — Go-to-Market Kit
+# snapmcp 2.3.6 Go-to-Market Kit
 
-Preparado desde el análisis de mercado (firecrawl). Copia/pega estas descripciones en los registries.
+Use these descriptions for registry listings, directories, launch posts, and other discovery surfaces. Keep the security and runtime claims consistent with the current documentation.
 
----
+## Positioning
 
-## Positioning (pitch central)
+> snapmcp is the visual documentation MCP server for AI agents. It creates terminal screenshots, Shiki-highlighted code images, HTTP(S) page captures and PDFs, Markdown and HTML documents, visual diffs, GIFs, ordered step sequences, and captioned reports through exactly 13 tools. Capture results are saved file paths, not image bytes; the hint tool returns text.
 
-> **snapmcp — The visual documentation MCP server.**
-> When Playwright's structured snapshots aren't enough: real terminal colors,
-> syntax-highlighted code, visual diffs, PDFs and GIFs — one MCP server, 13 tools,
-> rendered with your system Chrome or an auto-installed Chromium, SSRF protection on by default.
+## Registry description
 
-## Registry submissions
+> Visual documentation MCP server with 13 tools for terminal output, code highlighting, browser screenshots, Markdown, HTML, diffs, PDFs, GIFs, sequences, and captioned documents. Returns saved file paths with bounded inputs, deny-all file reads, output confinement, and default-on SSRF checks.
 
-### 1. registry.modelcontextprotocol.io (oficial)
-- Name: `snapmcp`
-- Description: `All-in-one visual capture MCP server: terminal (real colors), code (Shiki), browser screenshots, markdown, diffs, PDFs, GIFs. 13 tools, SSRF protection by default.`
-- Tags: `screenshot, visual, terminal, code, documentation, pdf`
-- URL: https://github.com/reeinharddd/snapmcp
-- Method: official CLI — `mcp-publisher login github` (device flow) then `mcp-publisher publish` from the repo root.
-  Verify: `curl 'https://registry.modelcontextprotocol.io/v0.1/servers?search=snapmcp'`
+## Short description
 
-### 2. glama.ai/mcp/servers
-- Name: `snapmcp`
-- One-liner: `13 visual capture tools for AI agents: terminal colors, code syntax, browser, diffs, PDFs, GIFs`
-- Link: https://glama.ai/mcp/servers (@reeinharddd/snapmcp)
+> Create terminal, code, browser, diff, PDF, GIF, and captioned document artifacts with one 13-tool MCP server.
 
-### 3. mcp.so
-- Name: `snapmcp`
-- Tags: `screenshot`, `terminal`, `code`, `pdf`, `gif`, `documentation`
-- GitHub link: https://github.com/reeinharddd/snapmcp
+## Product bullets
 
-### 4. PulseMCP (pulsemcp.com) — no manual submission needed
-- PulseMCP aggregates from the official registry via ETL; once listed upstream, it appears within ~24h.
+- Exactly 13 tools, with no redundant capture feature.
+- Shiki highlighting for 300+ bundled languages and 27 built-in themes.
+- Inclusive `startLine` and `endLine` ranges for code and file captures.
+- Ordered `capture_sequence` step images with an optional GIF.
+- Print-quality document PDFs with generated captures embedded.
+- Discovery through `tools/list`, `snapmcp-hint`, `snapmcp://capabilities`, CLI JSON commands, `llms.txt`, and server instructions.
+- Saved-path results and bounded inputs for smaller agent context.
+- Node.js 20 primary; npm and npx work without Bun.
 
-### 5. mcpservers.org
-- Same metadata; category: `Visual Capture` / `Documentation`
+## Security copy
 
-## GitHub README improvements (order of impact)
+State the boundary accurately:
 
-1. Demo GIFs at the top: terminal capture (with real colors — unique selling point), code capture, PDF generation
-2. Quick-start < 2 min: `npx snapmcp` → add to Claude Code → capture
-3. Comparison table: snapmcp vs Playwright MCP vs Puppeteer MCP (when to use each)
-4. Badges: npm downloads, license, last commit, test status
+> URL tools accept HTTP(S) only. SSRF checks are default-on and block private/local IPv4 and IPv6 literals, IPv4-mapped IPv6, localhost variants, and DNS-resolved private addresses, with request revalidation. Chromium does not pin the validated DNS address, so complete DNS-rebinding prevention is not guaranteed; use network isolation for hostile targets. File reads are deny-all until `SNAPMCP_ALLOWED_PATHS` is configured. All outputs stay inside `SNAPMCP_DIR`. Synthetic captures render in an isolated browser context with JavaScript disabled, external network resources blocked, and a restrictive CSP; Markdown raw HTML is escaped and raw HTML input is DOM-sanitized as defense in depth.
 
-## PR to awesome-mcp-servers (after README is polished)
+Do not claim:
 
-- Repo: github.com/punkpeye/awesome-mcp-servers (maintained community list)
-- Add under a new/適切 category: "Visual Capture & Documentation"
-- Entry: `[snapmcp](https://github.com/reeinharddd/snapmcp) - All-in-one visual capture: terminal colors, code, browser, diffs, PDFs, GIFs. 13 tools, SSRF protection on by default.`
+- complete DNS-rebinding prevention;
+- perfect HTML sanitization;
+- automatic authenticated profile reuse;
+- npm provenance, a committed npm lockfile, or an `npm audit` gate unless the packaging pipeline independently guarantees them.
 
-## Content plan (30 days)
+## Selection guidance
 
-1. Blog post: "Why I built an all-in-one visual MCP server (and when NOT to use Playwright)" — Dev.to + Hashnode
-2. Demo thread on X/Twitter with GIF results + #MCP #AI #Agents
-3. Reddit: r/mcp, r/ClaudeCode, r/AI_Agents — share use case "generating technical docs with terminal+code screenshots"
-4. Discord: Cursor + Anthropic communities — help with setup, share captures
+| User intent | Tool |
+|---|---|
+| Terminal or CLI output | `capture_terminal` |
+| Source code in context | `capture_code` |
+| Allowed source file | `capture_file` |
+| Website or app screenshot | `capture_browser` |
+| Markdown, HTML, or diff | `capture_markdown`, `capture_html`, `capture_diff` |
+| URL as PDF | `capture_pdf` |
+| Independent images | `capture_batch` |
+| Ordered walkthrough | `capture_sequence` |
+| Animation | `capture_gif` |
+| Captioned report or guide | `capture_document` |
+| Tool selection help | `snapmcp-hint` |
 
-## Success metrics (6 months)
+## Short launch copy
 
-- 500+ GitHub stars
-- 5K+ npm downloads/month
-- Top-50 MCP server in at least one registry
-- 3+ third-party blog posts/videos mentioning snapmcp
-- If no traction after 6 months of aggressive GTM: consider pivot or sunset
+snapmcp gives coding agents a focused way to produce the visual artifacts documentation needs. It has exactly 13 tools for terminal output, highlighted code, browser pages, diffs, PDFs, GIFs, ordered steps, captioned documents, and discovery. Capture results are saved file paths, so the agent does not need to push image bytes through the model context.
 
-## Status tracker (2026-08-20)
+Install with npm, initialize Chromium explicitly, and let `snapmcp-hint` guide tool selection.
 
-| Metric | Now | Target (6mo) |
-|--------|-----|--------------|
-| GitHub stars | 0 | 500 |
-| npm downloads/mo | ~700 | 5K |
-| Registry listings | 1 (official, io.github.reeinharddd/snapmcp v2.3.2) + PR awesome-list #12359 | Official + PulseMCP + Smithery + Glama |
-| Third-party mentions | 0 | 3+ |
+## Canonical links
+
+- Repository: https://github.com/reeinharddd/snapmcp
+- Agent guide: https://github.com/reeinharddd/snapmcp/blob/main/docs/agents.md
+- Tool reference: https://github.com/reeinharddd/snapmcp/blob/main/docs/tools.md
+- Agent manifest: https://github.com/reeinharddd/snapmcp/blob/main/llms.txt
+- Security policy: https://github.com/reeinharddd/snapmcp/blob/main/SECURITY.md

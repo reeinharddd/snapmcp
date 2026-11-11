@@ -6,7 +6,7 @@
  * skipped when Chromium is not available or run conditionally.
  */
 
-import { describe, it } from "node:test"
+import { describe, it, afterEach } from "node:test"
 import assert from "node:assert"
 import fs from "node:fs"
 import path from "node:path"
@@ -18,13 +18,25 @@ import {
   type DocumentFormat,
 } from "../src/document.js"
 import { loadConfig } from "../src/config.js"
+import { TOOL_LIMITS } from "../src/capabilities.js"
 
 // ─── Helpers ───────────────────────────────────────────────────
 
+const tempDirs = new Set<string>()
+
 /** Create a temporary directory for test output. */
 function tmpDir(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "snapmcp-doc-test-"))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "snapmcp-doc-test-"))
+  tempDirs.add(dir)
+  return dir
 }
+
+afterEach(() => {
+  for (const dir of tempDirs) {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+  tempDirs.clear()
+})
 
 /** Create a minimal valid 1×1 PNG for image embedding tests. */
 function createTestPng(dir: string, name = "test.png"): string {
@@ -46,6 +58,17 @@ function createTestPng(dir: string, name = "test.png"): string {
   return fp
 }
 
+/** Write a file with a real image-container signature for MIME detection. */
+function createImageWithSignature(
+  dir: string,
+  name: string,
+  signature: Buffer,
+): string {
+  const filePath = path.join(dir, name)
+  fs.writeFileSync(filePath, Buffer.concat([signature, Buffer.from([0x00, 0x01])]))
+  return filePath
+}
+
 // ─── Tests ─────────────────────────────────────────────────────
 
 describe("createDocument", () => {
@@ -55,7 +78,7 @@ describe("createDocument", () => {
       const out = path.join(dir, "test.md")
       await createDocument(
         { title: "Test Doc", sections: [{ description: "Hello world" }], format: "markdown", outputPath: out },
-        loadConfig(),
+        { ...loadConfig(), outputDir: dir, allowedPaths: [dir] },
       )
       const content = fs.readFileSync(out, "utf-8")
       assert.ok(content.includes("# Test Doc"))
@@ -75,7 +98,7 @@ describe("createDocument", () => {
           format: "markdown",
           outputPath: out,
         },
-        loadConfig(),
+        { ...loadConfig(), outputDir: dir, allowedPaths: [dir] },
       )
       const content = fs.readFileSync(out, "utf-8")
       assert.ok(content.includes("## First"))
@@ -95,11 +118,103 @@ describe("createDocument", () => {
           format: "markdown",
           outputPath: out,
         },
-        loadConfig(),
+        { ...loadConfig(), outputDir: dir, allowedPaths: [dir] },
       )
       const content = fs.readFileSync(out, "utf-8")
       assert.ok(content.includes("data:image/png;base64,"))
       assert.ok(content.includes("Test image"))
+    })
+
+    it("embeds generated images larger than the default file-read limit", async () => {
+      const dir = tmpDir()
+      const image = path.join(dir, "large.png")
+      fs.writeFileSync(image, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+      fs.truncateSync(image, 6_000_000)
+      const out = path.join(dir, "large.md")
+
+      await createDocument(
+        {
+          title: "Large image",
+          sections: [{ imagePath: image }],
+          format: "markdown",
+          outputPath: out,
+        },
+        { ...loadConfig(), outputDir: dir, allowedPaths: [dir] },
+      )
+
+      const content = fs.readFileSync(out, "utf-8")
+      assert.match(content, /data:image\/png;base64,/)
+    })
+
+    it("fails instead of silently dropping an image over the embedding limit", async () => {
+      const dir = tmpDir()
+      const image = path.join(dir, "too-large.png")
+      fs.writeFileSync(image, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+      fs.truncateSync(image, TOOL_LIMITS.document.maxEmbeddedImageBytes + 1)
+
+      await assert.rejects(
+        () =>
+          createDocument(
+            {
+              title: "Too large",
+              sections: [{ imagePath: image }],
+              format: "markdown",
+              outputPath: path.join(dir, "too-large.md"),
+            },
+            { ...loadConfig(), outputDir: dir, allowedPaths: [dir] },
+          ),
+        (error: unknown) => {
+          assert.ok(error instanceof DocumentError)
+          assert.match(error.message, /embedding limit/)
+          return true
+        },
+      )
+    })
+
+    it("embeds PNG, JPEG, GIF, and WebP with their real MIME types", async () => {
+      const dir = tmpDir()
+      const png = createTestPng(dir, "capture.png")
+      const jpeg = createImageWithSignature(
+        dir,
+        "capture.jpg",
+        Buffer.from([0xff, 0xd8, 0xff]),
+      )
+      const gif = createImageWithSignature(
+        dir,
+        "capture.gif",
+        Buffer.from("GIF89a", "ascii"),
+      )
+      const webp = createImageWithSignature(
+        dir,
+        "capture.webp",
+        Buffer.concat([
+          Buffer.from("RIFF", "ascii"),
+          Buffer.from([0x08, 0x00, 0x00, 0x00]),
+          Buffer.from("WEBP", "ascii"),
+        ]),
+      )
+      const out = path.join(dir, "mime-types.md")
+
+      await createDocument(
+        {
+          title: "Image MIME types",
+          sections: [
+            { imagePath: png },
+            { imagePath: jpeg },
+            { imagePath: gif },
+            { imagePath: webp },
+          ],
+          format: "markdown",
+          outputPath: out,
+        },
+        { ...loadConfig(), outputDir: dir, allowedPaths: [dir] },
+      )
+
+      const content = fs.readFileSync(out, "utf-8")
+      assert.match(content, /data:image\/png;base64,/)
+      assert.match(content, /data:image\/jpeg;base64,/)
+      assert.match(content, /data:image\/gif;base64,/)
+      assert.match(content, /data:image\/webp;base64,/)
     })
 
     it("includes code blocks with language tags", async () => {
@@ -112,7 +227,7 @@ describe("createDocument", () => {
           format: "markdown",
           outputPath: out,
         },
-        loadConfig(),
+        { ...loadConfig(), outputDir: dir, allowedPaths: [dir] },
       )
       const content = fs.readFileSync(out, "utf-8")
       assert.ok(content.includes("```js"))
@@ -124,7 +239,7 @@ describe("createDocument", () => {
       const out = path.join(dir, "ts.md")
       await createDocument(
         { title: "TS", sections: [{ description: "test" }], format: "markdown", includeTimestamps: true, outputPath: out },
-        loadConfig(),
+        { ...loadConfig(), outputDir: dir, allowedPaths: [dir] },
       )
       const content = fs.readFileSync(out, "utf-8")
       assert.ok(content.includes("_Generated:"))
@@ -140,11 +255,53 @@ describe("createDocument", () => {
           format: "markdown",
           outputPath: out,
         },
-        loadConfig(),
+        { ...loadConfig(), outputDir: dir, allowedPaths: [dir] },
       )
       // Should not throw — just skip the missing image
       const content = fs.readFileSync(out, "utf-8")
       assert.ok(content.includes("# Missing"))
+    })
+
+    it("skips files that are not supported image containers", async () => {
+      const dir = tmpDir()
+      const textFile = path.join(dir, "not-an-image.txt")
+      fs.writeFileSync(textFile, "plain text")
+      const out = path.join(dir, "unsupported.md")
+
+      await createDocument(
+        {
+          title: "Unsupported",
+          sections: [{ imagePath: textFile }],
+          format: "markdown",
+          outputPath: out,
+        },
+        { ...loadConfig(), outputDir: dir, allowedPaths: [dir] },
+      )
+
+      const content = fs.readFileSync(out, "utf-8")
+      assert.match(content, /# Unsupported/)
+      assert.doesNotMatch(content, /data:image\//)
+    })
+
+    it("does not embed images outside the file-read allowlist", async () => {
+      const imageDir = tmpDir()
+      const outputDir = tmpDir()
+      const image = createTestPng(imageDir, "outside.png")
+      const out = path.join(outputDir, "denied.md")
+
+      await createDocument(
+        {
+          title: "Denied",
+          sections: [{ imagePath: image }],
+          format: "markdown",
+          outputPath: out,
+        },
+        { ...loadConfig(), outputDir, allowedPaths: [] },
+      )
+
+      const content = fs.readFileSync(out, "utf-8")
+      assert.match(content, /# Denied/)
+      assert.doesNotMatch(content, /data:image\//)
     })
   })
 
@@ -154,7 +311,7 @@ describe("createDocument", () => {
       const out = path.join(dir, "test.html")
       await createDocument(
         { title: "HTML Doc", sections: [{ description: "Hello" }], format: "html", outputPath: out },
-        loadConfig(),
+        { ...loadConfig(), outputDir: dir, allowedPaths: [dir] },
       )
       const content = fs.readFileSync(out, "utf-8")
       assert.ok(content.includes("<!DOCTYPE html>"))
@@ -173,12 +330,37 @@ describe("createDocument", () => {
           format: "html",
           outputPath: out,
         },
-        loadConfig(),
+        { ...loadConfig(), outputDir: dir, allowedPaths: [dir] },
       )
       const content = fs.readFileSync(out, "utf-8")
       assert.ok(content.includes("<figure>"))
       assert.ok(content.includes("<figcaption>My caption</figcaption>"))
       assert.ok(content.includes("<img"))
+      assert.match(content, /src="data:image\/png;base64,/)
+    })
+
+    it("preserves a non-PNG image MIME type in HTML", async () => {
+      const dir = tmpDir()
+      const jpeg = createImageWithSignature(
+        dir,
+        "capture.jpg",
+        Buffer.from([0xff, 0xd8, 0xff]),
+      )
+      const out = path.join(dir, "jpeg.html")
+
+      await createDocument(
+        {
+          title: "JPEG",
+          sections: [{ imagePath: jpeg }],
+          format: "html",
+          outputPath: out,
+        },
+        { ...loadConfig(), outputDir: dir, allowedPaths: [dir] },
+      )
+
+      const content = fs.readFileSync(out, "utf-8")
+      assert.match(content, /src="data:image\/jpeg;base64,/)
+      assert.doesNotMatch(content, /data:image\/png;base64,/)
     })
 
     it("renders code blocks in pre/code tags", async () => {
@@ -191,7 +373,7 @@ describe("createDocument", () => {
           format: "html",
           outputPath: out,
         },
-        loadConfig(),
+        { ...loadConfig(), outputDir: dir, allowedPaths: [dir] },
       )
       const content = fs.readFileSync(out, "utf-8")
       assert.ok(content.includes("<pre><code"))
@@ -203,7 +385,7 @@ describe("createDocument", () => {
       const out = path.join(dir, "ts.html")
       await createDocument(
         { title: "TS", sections: [{ description: "test" }], format: "html", includeTimestamps: true, outputPath: out },
-        loadConfig(),
+        { ...loadConfig(), outputDir: dir, allowedPaths: [dir] },
       )
       const content = fs.readFileSync(out, "utf-8")
       assert.ok(content.includes("Generated:"))
@@ -212,11 +394,12 @@ describe("createDocument", () => {
 
   describe("Error handling", () => {
     it("throws DocumentError for empty sections", async () => {
+      const dir = tmpDir()
       await assert.rejects(
         () =>
           createDocument(
-            { title: "Empty", sections: [], format: "markdown", outputPath: "/tmp/empty.md" },
-            loadConfig(),
+            { title: "Empty", sections: [], format: "markdown", outputPath: path.join(dir, "empty.md") },
+            { ...loadConfig(), outputDir: dir, allowedPaths: [dir] },
           ),
         (err: unknown) => {
           assert.ok(err instanceof DocumentError)
@@ -232,7 +415,7 @@ describe("createDocument", () => {
         () =>
           createDocument(
             { title: "Bad", sections: [{ description: "x" }], format: "docx" as DocumentFormat, outputPath: path.join(dir, "bad.md") },
-            loadConfig(),
+            { ...loadConfig(), outputDir: dir, allowedPaths: [dir] },
           ),
         (err: unknown) => {
           assert.ok(err instanceof DocumentError)

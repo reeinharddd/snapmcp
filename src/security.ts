@@ -13,22 +13,24 @@ import fs from "fs";
 import { URL } from "url";
 import dns from "dns";
 import { logger } from "./logger.js";
+import { TOOL_LIMITS } from "./capabilities.js";
 
-// DNS lookup cache (hostname → IPs) with TTL so the per-request route guard does one lookup per hostname.
+// DNS lookup cache (hostname → IPs) with a short TTL. Failed lookups are not
+// cached so transient resolver failures fail closed instead of becoming sticky.
 const _dnsCache = new Map<string, { ips: string[]; ts: number }>();
-const DNS_TTL_MS = 60_000;
+const DNS_TTL_MS = 5_000;
 
-async function resolveHostname(hostname: string): Promise<string[]> {
+async function resolveHostname(hostname: string, fresh = false): Promise<string[]> {
   const now = Date.now();
   const hit = _dnsCache.get(hostname);
-  if (hit && now - hit.ts < DNS_TTL_MS) return hit.ips;
+  if (!fresh && hit && now - hit.ts < DNS_TTL_MS) return hit.ips;
   try {
     const result = await dns.promises.lookup(hostname, { all: true });
     const ips = result.map((a) => a.address);
     _dnsCache.set(hostname, { ips, ts: now });
     return ips;
   } catch {
-    _dnsCache.set(hostname, { ips: [], ts: now });
+    _dnsCache.delete(hostname);
     return [];
   }
 }
@@ -37,28 +39,35 @@ async function resolveHostname(hostname: string): Promise<string[]> {
 // These prevent resource exhaustion attacks
 export const LIMITS = {
   /** Max lines in terminal capture */
-  TERMINAL_LINES: 1_000,
+  TERMINAL_LINES: TOOL_LIMITS.terminal.maxLines,
+  /** Max total terminal payload in bytes */
+  TERMINAL_BYTES: TOOL_LIMITS.terminal.maxBytes,
   /** Max code string length (bytes) */
-  CODE_LENGTH: 200_000,
+  CODE_LENGTH: TOOL_LIMITS.code.maxBytes,
   /** Max markdown string length */
-  MARKDOWN_LENGTH: 200_000,
+  MARKDOWN_LENGTH: TOOL_LIMITS.markdown.maxBytes,
   /** Max diff string length */
-  DIFF_LENGTH: 500_000,
+  DIFF_LENGTH: TOOL_LIMITS.diff.maxBytes,
   /** Max HTML string length */
-  HTML_LENGTH: 200_000,
+  HTML_LENGTH: TOOL_LIMITS.html.maxBytes,
   /** Max file size to read (bytes) */
-  FILE_READ_SIZE: 5_000_000,
+  FILE_READ_SIZE: TOOL_LIMITS.file.maxBytes,
 } as const;
 
 // ─── SSRF Protection — URL denylist ────────────────────────
 // Blocks requests to private/internal networks to prevent SSRF.
 const PRIVATE_CIDR = [
+  { start: [0, 0, 0, 0], end: [0, 255, 255, 255] },
   { start: [10, 0, 0, 0], end: [10, 255, 255, 255] },
-  { start: [172, 16, 0, 0], end: [172, 31, 255, 255] },
-  { start: [192, 168, 0, 0], end: [192, 168, 255, 255] },
+  { start: [100, 64, 0, 0], end: [100, 127, 255, 255] },
   { start: [127, 0, 0, 0], end: [127, 255, 255, 255] },
   { start: [169, 254, 0, 0], end: [169, 254, 255, 255] },
-  { start: [0, 0, 0, 0], end: [0, 255, 255, 255] },
+  { start: [172, 16, 0, 0], end: [172, 31, 255, 255] },
+  { start: [192, 0, 0, 0], end: [192, 0, 255, 255] },
+  { start: [192, 168, 0, 0], end: [192, 168, 255, 255] },
+  { start: [198, 18, 0, 0], end: [198, 19, 255, 255] },
+  { start: [224, 0, 0, 0], end: [239, 255, 255, 255] },
+  { start: [240, 0, 0, 0], end: [255, 255, 255, 255] },
 ];
 
 function ipToNum(octets: number[]): number {
@@ -76,7 +85,7 @@ function ipv4Match(hostname: string): string[] | null {
 }
 
 function isPrivateIP(hostname: string): boolean {
-  // Skip DNS resolution — check if it's already an IP literal
+  // Skip DNS resolution — check if it's already an IP literal.
   const ipv4Match = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if (!ipv4Match) return isPrivateIPv6(hostname);
   const octets = [ipv4Match[1], ipv4Match[2], ipv4Match[3], ipv4Match[4]].map(Number);
@@ -85,28 +94,82 @@ function isPrivateIP(hostname: string): boolean {
   return PRIVATE_CIDR.some((cidr) => ipNum >= ipToNum(cidr.start) && ipNum <= ipToNum(cidr.end));
 }
 
+/** Public helper for classifying an IP literal without DNS resolution. */
+export function isPrivateIpAddress(address: string): boolean {
+  return isPrivateIP(address);
+}
+
+/** Parse an IPv6 address into its 16 network-order bytes. */
+function parseIPv6Bytes(input: string): number[] | null {
+  let value = input.toLowerCase();
+
+  // Convert an embedded dotted-quad into two hextets.
+  if (value.includes(".")) {
+    const lastColon = value.lastIndexOf(":");
+    if (lastColon < 0) return null;
+    const octets = value.slice(lastColon + 1).split(".");
+    if (octets.length !== 4) return null;
+    const numbers = octets.map(Number);
+    if (numbers.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
+      return null;
+    }
+    const high = (numbers[0] << 8) | numbers[1];
+    const low = (numbers[2] << 8) | numbers[3];
+    value = `${value.slice(0, lastColon + 1)}${high.toString(16)}:${low.toString(16)}`;
+  }
+
+  const halves = value.split("::");
+  if (halves.length > 2) return null;
+  const left = halves[0] ? halves[0].split(":") : [];
+  const right = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
+  const missing = 8 - left.length - right.length;
+  if (missing < 0 || (halves.length === 1 && missing !== 0)) return null;
+
+  const hextets =
+    halves.length === 2
+      ? [...left, ...Array.from({ length: missing }, () => "0"), ...right]
+      : left;
+  if (hextets.length !== 8) return null;
+  if (hextets.some((part) => !/^[0-9a-f]{1,4}$/.test(part))) return null;
+
+  const words = hextets.map((part) => parseInt(part, 16));
+  const bytes: number[] = [];
+  for (const word of words) {
+    bytes.push((word >>> 8) & 0xff, word & 0xff);
+  }
+  return bytes;
+}
+
 function isPrivateIPv6(hostname: string): boolean {
-  const h = hostname.toLowerCase();
-  // WHATWG wraps IPv6 hostnames in brackets: "[::1]"
-  if (!h.startsWith("[") || !h.endsWith("]")) return false;
-  const inner = h.slice(1, -1);
+  // WHATWG URL hostnames wrap IPv6 literals in brackets ("[::1]"), while
+  // dns.lookup returns bare addresses ("::1"). Accept both representations.
+  const value = hostname.startsWith("[") && hostname.endsWith("]")
+    ? hostname.slice(1, -1)
+    : hostname;
+  if (!value.includes(":")) return false;
+  const bytes = parseIPv6Bytes(value);
+  if (!bytes) return false;
 
-  // Loopback / unspecified
-  if (inner === "::1" || inner === "0:0:0:0:0:0:0:1" || inner === "::" ||
-      inner === "0:0:0:0:0:0:0:0") return true;
+  const allZero = bytes.every((byte) => byte === 0);
+  const loopback = bytes.slice(0, 15).every((byte) => byte === 0) && bytes[15] === 1;
+  if (allZero || loopback) return true;
 
-  // IPv4-mapped loopback/private: "[::ffff:7f00:1]" → 127.0.0.1
-  const mapped = inner.match(/^::ffff:([0-9a-f]{1,4})\.([0-9a-f]{1,4})$/);
-  if (mapped) return true;
-  const dotted = inner.match(/^::ffff:(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-  if (dotted) return isPrivateIP(`${dotted[1]}.${dotted[2]}.${dotted[3]}.${dotted[4]}`);
+  // Block the complete IPv4-mapped range (::ffff:0:0/96). Chromium and
+  // Node can classify mapped addresses differently, so allowing the public
+  // subset creates a bypass primitive for loopback/private targets.
+  const ipv4Mapped = bytes.slice(0, 10).every((byte) => byte === 0) &&
+    bytes[10] === 0xff && bytes[11] === 0xff;
+  if (ipv4Mapped) return true;
 
-  // Unique local (fc00::/7) — first hextet fc00–fdff
-  const firstHex = parseInt(inner.split(":")[0] || "0", 16);
-  if ((firstHex & 0xfe00) === 0xfc00) return true;
+  // IPv4-compatible/deprecated range (::/96), including ::127.0.0.1 forms.
+  if (bytes.slice(0, 12).every((byte) => byte === 0)) return true;
 
-  // Link-local (fe80::/10) — first hextet range 0xfe80–0xfebf
-  if ((firstHex & 0xffc0) === 0xfe80) return true;
+  // Unique local (fc00::/7), link-local (fe80::/10), multicast (ff00::/8),
+  // and deprecated site-local (fec0::/10).
+  if ((bytes[0] & 0xfe) === 0xfc) return true;
+  if (bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0x80) return true;
+  if (bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0xc0) return true;
+  if (bytes[0] === 0xff) return true;
 
   return false;
 }
@@ -124,16 +187,19 @@ export function validateUrl(raw: string, ssrfProtection: boolean = false): void 
     throw new SecurityError(`Invalid URL: "${raw}"`);
   }
 
-  if (!ssrfProtection) return;
-
-  // about:blank is a safe, network-free navigation target used as a default
-  if (parsed.href === "about:blank") return;
-
-  // Block non-http(s) protocols
+  // Protocol validation is always enforced, independently of SSRF settings.
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     logger.audit({ event: "ssrf_block", severity: "warn", detail: `protocol: ${parsed.protocol}`, source: "validateUrl" });
     throw new SecurityError(`URL protocol "${parsed.protocol}" is not allowed (only http/https)`);
   }
+
+  // Credentials in a URL can leak through redirects, logs, and browser state.
+  if (parsed.username || parsed.password) {
+    logger.audit({ event: "ssrf_block", severity: "warn", detail: "URL contains embedded credentials", source: "validateUrl" });
+    throw new SecurityError("URLs with embedded credentials are not allowed");
+  }
+
+  if (!ssrfProtection) return;
 
   const hostname = normalizeHostname(parsed.hostname.toLowerCase());
 
@@ -160,19 +226,24 @@ export function validateUrl(raw: string, ssrfProtection: boolean = false): void 
 
 /**
  * Full SSRF validation including DNS resolution of hostnames.
- * Catches public names that resolve to private ranges (e.g. localtest.me, nip.io, DNS rebinding).
+ * Blocks public names that resolve to private ranges (for example, localtest.me
+ * or nip.io). Chromium does not pin this answer, so this is not complete
+ * DNS-rebinding prevention.
  */
 export async function validateUrlResolve(raw: string, ssrfProtection: boolean = false): Promise<void> {
   validateUrl(raw, ssrfProtection);
   if (!ssrfProtection) return;
 
   const parsed = new URL(raw);
-  if (parsed.href === "about:blank") return;
   const hostname = normalizeHostname(parsed.hostname.toLowerCase());
   if (ipv4Match(hostname) || hostname.startsWith("[") || hostname === "localhost") return;
 
   const ips = await resolveHostname(hostname);
-  if (ips.some((ip) => isPrivateIP(ip) || ip === "::1" || ip === "::")) {
+  if (ips.length === 0) {
+    logger.audit({ event: "ssrf_block", severity: "warn", detail: `DNS resolution failed: ${hostname}`, source: "validateUrlResolve" });
+    throw new SecurityError(`URL target "${hostname}" could not be resolved`);
+  }
+  if (ips.some((ip) => isPrivateIP(ip))) {
     logger.audit({ event: "ssrf_block", severity: "warn", detail: `resolved private: ${hostname} → ${ips.join(",")}`, source: "validateUrlResolve" });
     throw new SecurityError(`URL target "${hostname}" resolves to a private/internal address`);
   }
@@ -191,9 +262,11 @@ export async function assertSafeRequestUrl(raw: string, ssrfProtection: boolean 
   } catch {
     throw new SecurityError(`Invalid URL: "${raw}"`);
   }
-  if (parsed.href === "about:blank") return;
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw new SecurityError(`URL protocol "${parsed.protocol}" is not allowed`);
+  }
+  if (parsed.username || parsed.password) {
+    throw new SecurityError("URLs with embedded credentials are not allowed");
   }
   const hostname = normalizeHostname(parsed.hostname.toLowerCase());
   if (
@@ -207,8 +280,11 @@ export async function assertSafeRequestUrl(raw: string, ssrfProtection: boolean 
     throw new SecurityError(`URL target "${hostname}" is blocked (private IP range)`);
   }
   if (hostname.startsWith("[") || hostname === "localhost") return;
-  const ips = await resolveHostname(hostname);
-  if (ips.some((ip) => isPrivateIP(ip) || ip === "::1" || ip === "::")) {
+  const ips = await resolveHostname(hostname, true);
+  if (ips.length === 0) {
+    throw new SecurityError(`URL target "${hostname}" could not be resolved`);
+  }
+  if (ips.some((ip) => isPrivateIP(ip))) {
     throw new SecurityError(`URL target "${hostname}" resolves to a private/internal address`);
   }
 }
@@ -231,23 +307,121 @@ export class LimitError extends Error {
 
 // ─── Path traversal prevention ──────────────────────────────
 
+function isPathInside(base: string, target: string): boolean {
+  const relative = path.relative(base, target);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function realpathNearestExisting(target: string): string {
+  let current = path.resolve(target);
+  while (!fs.existsSync(current)) {
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return fs.realpathSync(current);
+}
+
+/**
+ * Resolve a path for containment checks while preserving a missing leaf.
+ * Existing path components are canonicalized, so a symlinked output root is
+ * supported without allowing a nested symlink to escape that canonical root.
+ * Broken symlinks are resolved manually because realpath cannot canonicalize
+ * a link whose target does not exist yet.
+ */
+function canonicalPathForContainment(
+  target: string,
+  seenLinks: Set<string> = new Set(),
+): string {
+  let current = path.resolve(target);
+  const missingSegments: string[] = [];
+
+  while (true) {
+    try {
+      fs.lstatSync(current);
+      break;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== "ENOENT" && code !== "ENOTDIR") throw error;
+      const parent = path.dirname(current);
+      if (parent === current) {
+        return path.resolve(current, ...missingSegments);
+      }
+      missingSegments.unshift(path.basename(current));
+      current = parent;
+    }
+  }
+
+  const stat = fs.lstatSync(current);
+  let canonicalExisting: string;
+  if (stat.isSymbolicLink()) {
+    if (seenLinks.has(current)) {
+      throw new SecurityError(`Symlink cycle blocked while resolving output path`);
+    }
+    seenLinks.add(current);
+    const linkTarget = fs.readlinkSync(current);
+    const absoluteTarget = path.isAbsolute(linkTarget)
+      ? path.resolve(linkTarget)
+      : path.resolve(path.dirname(current), linkTarget);
+    canonicalExisting = canonicalPathForContainment(absoluteTarget, seenLinks);
+  } else {
+    canonicalExisting = fs.realpathSync(current);
+  }
+
+  return path.resolve(canonicalExisting, ...missingSegments);
+}
+
 /**
  * Resolve a user-provided filename safely inside `baseDir`.
- * Throws SecurityError if the resolved path escapes the base directory.
+ * Throws SecurityError if the resolved path escapes the base directory or if
+ * an existing symlink in the path points outside it.
  */
 export function resolveSafePath(baseDir: string, userFilename: string): string {
-  // Normalize the base dir to a clean absolute path
   const absoluteBase = path.resolve(baseDir);
+
+  // Percent-encoded separators are not decoded by the filesystem, but they are
+  // commonly decoded by downstream consumers. Reject them conservatively so a
+  // filename cannot become a traversal after a second interpretation.
+  if (/%2f|%5c/i.test(userFilename)) {
+    throw new SecurityError(
+      `Path traversal blocked: "${userFilename}" contains an encoded path separator`,
+    );
+  }
+
   const resolved = path.resolve(absoluteBase, userFilename);
 
-  // Enforce: resolved path MUST start with base dir
-  if (!resolved.startsWith(absoluteBase + path.sep) && resolved !== absoluteBase) {
+  if (!isPathInside(absoluteBase, resolved)) {
     throw new SecurityError(
       `Path traversal blocked: "${userFilename}" resolves outside output directory`,
     );
   }
 
+  const realBase = realpathNearestExisting(absoluteBase);
+  const canonicalTarget = canonicalPathForContainment(resolved);
+  if (!isPathInside(realBase, canonicalTarget)) {
+    throw new SecurityError(
+      `Symlink escape blocked: "${userFilename}" resolves outside output directory`,
+    );
+  }
+
   return resolved;
+}
+
+/** Convert arbitrary text into a portable filename stem without path semantics. */
+export function safeFileStem(value: string, fallback = "capture"): string {
+  let stem = value
+    .normalize("NFKC")
+    .replace(/[\u0000-\u001f<>:"/\\|?*]+/g, "-")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^[. -]+|[. -]+$/g, "")
+    .slice(0, 80);
+
+  if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(stem)) {
+    stem = `_${stem}`;
+  }
+
+  return stem || fallback;
 }
 
 // ─── Input validation ───────────────────────────────────────
@@ -256,34 +430,43 @@ export function validateTerminalLines(lines: string[]): void {
   if (lines.length > LIMITS.TERMINAL_LINES) {
     throw new LimitError("terminal lines", LIMITS.TERMINAL_LINES, lines.length);
   }
+  let totalBytes = 0;
   for (let i = 0; i < lines.length; i++) {
     if (typeof lines[i] !== "string") {
       throw new SecurityError(`Invalid line type at index ${i}`);
     }
+    totalBytes += Buffer.byteLength(lines[i], "utf8");
+  }
+  if (totalBytes > LIMITS.TERMINAL_BYTES) {
+    throw new LimitError("terminal bytes", LIMITS.TERMINAL_BYTES, totalBytes);
   }
 }
 
 export function validateCodeInput(code: string): void {
-  if (code.length > LIMITS.CODE_LENGTH) {
-    throw new LimitError("code length", LIMITS.CODE_LENGTH, code.length);
+  const bytes = Buffer.byteLength(code, "utf8");
+  if (bytes > LIMITS.CODE_LENGTH) {
+    throw new LimitError("code bytes", LIMITS.CODE_LENGTH, bytes);
   }
 }
 
 export function validateMarkdownInput(markdown: string): void {
-  if (markdown.length > LIMITS.MARKDOWN_LENGTH) {
-    throw new LimitError("markdown length", LIMITS.MARKDOWN_LENGTH, markdown.length);
+  const bytes = Buffer.byteLength(markdown, "utf8");
+  if (bytes > LIMITS.MARKDOWN_LENGTH) {
+    throw new LimitError("markdown bytes", LIMITS.MARKDOWN_LENGTH, bytes);
   }
 }
 
 export function validateDiffInput(diff: string): void {
-  if (diff.length > LIMITS.DIFF_LENGTH) {
-    throw new LimitError("diff length", LIMITS.DIFF_LENGTH, diff.length);
+  const bytes = Buffer.byteLength(diff, "utf8");
+  if (bytes > LIMITS.DIFF_LENGTH) {
+    throw new LimitError("diff bytes", LIMITS.DIFF_LENGTH, bytes);
   }
 }
 
 export function validateHtmlInput(html: string): void {
-  if (html.length > LIMITS.HTML_LENGTH) {
-    throw new LimitError("html length", LIMITS.HTML_LENGTH, html.length);
+  const bytes = Buffer.byteLength(html, "utf8");
+  if (bytes > LIMITS.HTML_LENGTH) {
+    throw new LimitError("html bytes", LIMITS.HTML_LENGTH, bytes);
   }
 }
 
@@ -372,31 +555,34 @@ export interface SandboxStatus {
  * Returns a warning message if sandbox is disabled.
  */
 export function checkChromiumSandbox(): SandboxStatus {
-  const executable = process.env["PLAYWRIGHT_CHROMIUM_EXECUTABLE"];
-  const sandboxEnv = process.env["PLAYWRIGHT_SANDBOX"];
+  const executable =
+    process.env["SNAPMCP_CHROME_EXECUTABLE"] ||
+    process.env["PLAYWRIGHT_CHROMIUM_EXECUTABLE"];
+  const sandboxEnv = process.env["PLAYWRIGHT_SANDBOX"]?.toLowerCase();
 
-  // Explicit sandbox override
-  if (sandboxEnv === "1" || sandboxEnv === "true") {
-    return { sandboxEnabled: true, message: "✓ Chromium sandbox enabled (forced via PLAYWRIGHT_SANDBOX)" };
+  if (sandboxEnv === "0" || sandboxEnv === "false" || sandboxEnv === "no") {
+    return {
+      sandboxEnabled: false,
+      message: "Chromium sandbox is explicitly disabled by PLAYWRIGHT_SANDBOX",
+    };
   }
 
-  // Check if --no-sandbox is in the executable args
   if (executable && executable.includes("--no-sandbox")) {
     return {
       sandboxEnabled: false,
-      message: "⚠️  Chromium running without sandbox (--no-sandbox detected). " +
-        "Add --cap-add=SYS_ADMIN or set PLAYWRIGHT_SANDBOX=1 for better isolation.",
+      message: "Chromium is configured with --no-sandbox",
     };
   }
 
-  // Custom executable path — can't verify sandbox status
   if (executable) {
     return {
       sandboxEnabled: false,
-      message: `⚠️  Custom Chromium executable (${executable}) — sandbox status unknown. ` +
-        "Set PLAYWRIGHT_SANDBOX=1 to explicitly enable sandbox.",
+      message: `Custom Chromium executable (${executable}); sandbox status cannot be verified statically`,
     };
   }
 
-  return { sandboxEnabled: true, message: "✓ Chromium sandbox enabled" };
+  return {
+    sandboxEnabled: true,
+    message: "✓ Chromium sandbox enabled",
+  };
 }

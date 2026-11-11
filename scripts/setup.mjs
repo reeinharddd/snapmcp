@@ -1,15 +1,15 @@
-#!/usr/bin/env bun
-import { detectSystemState, bootstrapSetup, printSummary, ask, STEP, CHECK, BLUE } from "../dist/setup-shared.js";
+#!/usr/bin/env node
+import { detectSystemState, bootstrapSetup, printSummary, ask, STEP, BLUE } from "../dist/setup-shared.js";
 import { detectMcpClients, registerSnapmcp, printRegistrationResults, printDetectedClients } from "../dist/register.js";
 
 async function main() {
   /* Phase 1: System detection & bootstrap */
   const systemState = detectSystemState();
+  const clients = detectMcpClients();
   await bootstrapSetup();
-  printSummary(systemState);
+  printSummary(systemState, clients);
 
   /* Phase 2: MCP auto-registration */
-  const clients = detectMcpClients();
   if (clients.length > 0) {
     console.log("");
     console.log(`  ${BLUE("MCP Auto-Registration")}`);
@@ -20,11 +20,15 @@ async function main() {
       true,
     );
     if (answer) {
-      const results = await registerSnapmcp();
+      const results = await registerSnapmcp(false, clients);
       printRegistrationResults(results);
     } else {
       console.log(`  ${STEP} MCP registration skipped\n`);
     }
   }
 }
-main().catch(console.error);
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

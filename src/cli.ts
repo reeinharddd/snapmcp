@@ -9,10 +9,16 @@
 
 import path from "node:path"
 import fs from "node:fs"
-import { execSync } from "node:child_process"
 import type { SnapConfig } from "./config.js"
 import { logger } from "./logger.js"
 import { checkChromiumSandbox } from "./security.js"
+import { detectChrome } from "./browser.js"
+import { hasPlaywrightChromium } from "./playwright-cli.js"
+import {
+  createCapabilityManifest,
+  searchCapabilities,
+  TOOL_CAPABILITIES,
+} from "./capabilities.js"
 import {
   captureTerminal,
   captureCode,
@@ -21,7 +27,13 @@ import {
   runCleanup,
 } from "./renderer.js"
 import { ask, detectSystemState, bootstrapSetup, printSummary, SystemState, CHECK, WARN, CROSS, STEP, BLUE, GRAY } from "./setup-shared.js"
-import { detectMcpClients, registerSnapmcp, printRegistrationResults, printDetectedClients } from "./register.js"
+import {
+  detectMcpClients,
+  registerSnapmcp,
+  printRegistrationResults,
+  printDetectedClients,
+  type McpClientConfig,
+} from "./register.js"
 import { BRAND, brandPrimary as TEAL } from "./brand.js"
 
 /* ─── Types ───────────────────────────────────────────────── */
@@ -45,23 +57,143 @@ const MIN_NODE_VERSION = 20
 
 /* ─── Internal helpers ─────────────────────────────────────── */
 
-/**
- * Check if Chromium is installed and available via Playwright.
- * Tries bunx first, then falls back to npx.
- */
-function checkChromiumAvailability(): boolean {
-  for (const cmd of [
-    "bunx playwright install chromium --dry-run",
-    "npx playwright install chromium --dry-run",
-  ]) {
-    try {
-      execSync(cmd, { stdio: "pipe", timeout: 15_000 })
-      return true
-    } catch {
-      continue
+interface BrowserAvailability {
+  status: "ok" | "warn" | "error"
+  message: string
+}
+
+/** Check the browser that snapmcp will actually use for URL captures. */
+function checkChromiumAvailability(config: SnapConfig): BrowserAvailability {
+  if (config.chromeExecutable) {
+    return fs.existsSync(config.chromeExecutable)
+      ? {
+          status: "ok",
+          message: `Configured browser executable is available: ${config.chromeExecutable}`,
+        }
+      : {
+          status: "error",
+          message: `Configured browser executable was not found: ${config.chromeExecutable}`,
+        }
+  }
+
+  if (config.chromeChannel) {
+    if (config.chromeChannel === "chromium") {
+      return hasPlaywrightChromium()
+        ? { status: "ok", message: "Playwright Chromium is installed and available" }
+        : {
+            status: "error",
+            message: "Playwright Chromium is not installed. Run: npx playwright install chromium",
+          }
+    }
+
+    const detected = detectChrome()
+    if (detected.found && detected.channel === config.chromeChannel) {
+      return {
+        status: "ok",
+        message: `Configured Chrome channel is available via ${detected.executablePath}`,
+      }
+    }
+    return {
+      status: "warn",
+      message: `Configured Chrome channel "${config.chromeChannel}" was not detected; Playwright will verify it at launch`,
     }
   }
-  return false
+
+  if (config.chromeProfile) {
+    const detected = detectChrome()
+    return detected.found
+      ? {
+          status: "ok",
+          message: `Profile mode is available via system browser ${detected.executablePath}`,
+        }
+      : {
+          status: "error",
+          message: "Profile mode requires a system Chrome installation",
+        }
+  }
+
+  if (hasPlaywrightChromium()) {
+    return { status: "ok", message: "Playwright Chromium is installed and available" }
+  }
+
+  const detected = detectChrome()
+  const systemNote = detected.found
+    ? " A system browser was detected, but it is not selected automatically."
+    : ""
+  return {
+    status: "error",
+    message: `Playwright Chromium is not installed. Run: npx playwright install chromium.${systemNote}`,
+  }
+}
+
+/* ─── cliCapabilities ───────────────────────────────────────── */
+
+/**
+ * Print the machine-readable capability catalog or search it by intent.
+ * JSON mode writes only to stdout so agents and code-mode clients can parse it.
+ */
+export function cliCapabilities(
+  version: string,
+  query?: string,
+  json = false,
+): void {
+  const normalizedQuery = query?.trim()
+
+  if (json) {
+    if (normalizedQuery) {
+      const matches = searchCapabilities(normalizedQuery, 5)
+      process.stdout.write(
+        JSON.stringify(
+          {
+            schemaVersion: "1.0",
+            query: normalizedQuery,
+            count: matches.length,
+            matches: matches.map(({ capability, score }) => ({
+              ...capability,
+              score,
+            })),
+          },
+          null,
+          2,
+        ) + "\n",
+      )
+      return
+    }
+
+    process.stdout.write(
+      JSON.stringify(createCapabilityManifest(version), null, 2) + "\n",
+    )
+    return
+  }
+
+  logger.info("")
+  logger.info("  ╔═══════════════════════════════════════════╗")
+  logger.info("  ║  ⬡ snapmcp — Capabilities                ║")
+  logger.info("  ╚═══════════════════════════════════════════╝")
+  logger.info("")
+
+  if (normalizedQuery) {
+    const matches = searchCapabilities(normalizedQuery, 5)
+    if (matches.length === 0) {
+      logger.info(`  No tools matched "${normalizedQuery}".`)
+      logger.info("  Run `snapmcp capabilities` to list every tool.")
+      return
+    }
+    logger.info(`  Best matches for "${normalizedQuery}":`)
+    for (const { capability } of matches) {
+      logger.info(`    ${capability.name.padEnd(20)} ${capability.summary}`)
+      logger.info(`      ${capability.useWhen}`)
+    }
+    return
+  }
+
+  logger.info(`  ${TOOL_CAPABILITIES.length} tools available:`)
+  for (const capability of TOOL_CAPABILITIES) {
+    logger.info(`    ${capability.name.padEnd(20)} ${capability.summary}`)
+  }
+  logger.info("")
+  logger.info("  Search: snapmcp search \"website screenshot\"")
+  logger.info("  JSON:   snapmcp capabilities --json")
 }
 
 /* ─── cliInit ──────────────────────────────────────────────── */
@@ -72,7 +204,10 @@ function checkChromiumAvailability(): boolean {
  * Detects system state, runs the shared bootstrap (Chromium install,
  * output directory, .env creation), and prints the summary.
  */
-export async function cliInit(config: SnapConfig): Promise<void> {
+export async function cliInit(
+  config: SnapConfig,
+  options?: { clients?: McpClientConfig[] },
+): Promise<void> {
   logger.info("")
   logger.info("  ╔═══════════════════════════════════════════╗")
   logger.info("  ║  ⬡ snapmcp — Setup                       ║")
@@ -81,11 +216,11 @@ export async function cliInit(config: SnapConfig): Promise<void> {
 
   /* Detect system state and run interactive bootstrap */
   const systemState = detectSystemState()
+  const mcpClients = options?.clients ?? detectMcpClients()
   await bootstrapSetup({ createEnv: false })
-  printSummary(systemState)
+  printSummary(systemState, mcpClients)
 
   /* MCP auto-registration */
-  const mcpClients = detectMcpClients()
   if (mcpClients.length > 0) {
     printDetectedClients(mcpClients)
     const answer = await ask(
@@ -93,7 +228,7 @@ export async function cliInit(config: SnapConfig): Promise<void> {
       true,
     )
     if (answer) {
-      const results = await registerSnapmcp()
+      const results = await registerSnapmcp(false, mcpClients)
       printRegistrationResults(results)
     } else {
       logger.info(`  ${STEP} MCP registration skipped`)
@@ -134,20 +269,12 @@ export async function cliDoctor(
   }
 
   /* 2. Chromium availability */
-  const hasChrome = checkChromiumAvailability()
-  if (hasChrome) {
-    checks.push({
-      name: "chromium",
-      status: "ok",
-      message: "Chromium is installed and available",
-    })
-  } else {
-    checks.push({
-      name: "chromium",
-      status: "error",
-      message: "Chromium not found. Run: npx playwright install chromium",
-    })
-  }
+  const browserAvailability = checkChromiumAvailability(config)
+  checks.push({
+    name: "chromium",
+    status: browserAvailability.status,
+    message: browserAvailability.message,
+  })
 
   /* 3. Chromium sandbox status */
   const sandbox = checkChromiumSandbox()
@@ -180,30 +307,21 @@ export async function cliDoctor(
 
   /* 5. Disk space (best-effort) */
   try {
-    const df = execSync(`df -k "${outDir}"`, {
-      encoding: "utf-8",
-      timeout: 5000,
-    })
-    const lines = df.trim().split("\n")
-    if (lines.length >= 2) {
-      const parts = lines[1].split(/\s+/)
-      const availableKb = parseInt(parts[3], 10)
-      if (!isNaN(availableKb)) {
-        const availableMb = Math.round(availableKb / 1024)
-        if (availableMb > 100) {
-          checks.push({
-            name: "disk-space",
-            status: "ok",
-            message: `Disk space available: ${availableMb}MB`,
-          })
-        } else {
-          checks.push({
-            name: "disk-space",
-            status: "warn",
-            message: `Low disk space: ${availableMb}MB available`,
-          })
-        }
-      }
+    const stats = fs.statfsSync(outDir)
+    const availableBytes = stats.bavail * stats.bsize
+    const availableMb = Math.floor(availableBytes / (1024 * 1024))
+    if (availableMb > 100) {
+      checks.push({
+        name: "disk-space",
+        status: "ok",
+        message: `Disk space available: ${availableMb}MB`,
+      })
+    } else {
+      checks.push({
+        name: "disk-space",
+        status: "warn",
+        message: `Low disk space: ${availableMb}MB available`,
+      })
     }
   } catch {
     checks.push({

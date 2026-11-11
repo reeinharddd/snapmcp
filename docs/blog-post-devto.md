@@ -1,113 +1,94 @@
 ---
-title: "Why I built an all-in-one visual MCP server (and when NOT to use Playwright)"
+title: "Why visual documentation needs a focused MCP server"
 published: false
-description: "snapmcp: real terminal colors, Shiki syntax, visual diffs, PDFs and GIFs for AI documentation agents — one MCP server, SSRF protection on by default, renders with your system Chrome."
-tags: [mcp, ai, agents, claude]
+description: "snapmcp gives AI agents 13 tools for terminal screenshots, highlighted code, browser captures, PDFs, GIFs, ordered steps, and captioned visual documents, with saved-path results and explicit security boundaries."
+tags: [mcp, ai, agents, developer-tools, documentation]
 cover_image: https://raw.githubusercontent.com/reeinharddd/snapmcp/main/brand/logo/snapmcp-logo-horizontal.svg
 ---
 
-# Why I built an all-in-one visual MCP server (and when NOT to use Playwright)
+# Why visual documentation needs a focused MCP server
 
-If you've used Claude Code, Cursor, or any coding agent with the Model Context Protocol, you've probably hit the same wall I did: getting your agent to *show* something instead of just *describe* it.
+Coding agents are good at describing what changed. Documentation workflows often need something else: an artifact intended for a person to read.
 
-Playwright MCP is the obvious answer for browser automation — it's excellent at it. But documentation isn't browser automation. The moment your agent needs a **terminal screenshot with real colors**, a **syntax-highlighted code image**, or a **visual git diff**, Playwright's accessibility snapshots don't help. They're token-efficient for *reading* a page, not for producing images a human wants to see in a README.
+A terminal screenshot with a familiar palette. A code snippet with syntax highlighting. A diff with additions and deletions made obvious. A browser page saved as an image or PDF. An ordered walkthrough that can become a GIF. A captioned report that contains all of those artifacts.
 
-I built [snapmcp](https://github.com/reeinharddd/snapmcp) to close that gap: one MCP server that produces pixel-faithful visual artifacts for the pieces of your workflow that Playwright never touches.
+Browser automation servers solve a different problem. They navigate, click, fill forms, and return accessibility snapshots that are efficient for an agent to reason about. They are the right tool for interaction. They are not a focused visual-document production system.
 
-## The problem with piecing together capture tools
+[snapmcp](https://github.com/reeinharddd/snapmcp) fills that gap with exactly 13 MCP tools.
 
-Before, a documentation workflow needed several servers:
+## The tool surface
 
-- one for browser screenshots
-- one for code screenshots
-- one for PDFs
-- one for GIFs
-- ...and none of them reproduced *real terminal colors*
+| Tool | What it produces |
+|---|---|
+| `capture_terminal` | Terminal output with `$ ` user prompts and `# ` root prompts |
+| `capture_code` | Shiki-highlighted code with an optional inclusive line range |
+| `capture_browser` | Full-page or viewport screenshot of an HTTP(S) URL |
+| `capture_file` | Highlighted image of an allowlisted file and line range |
+| `capture_markdown` | GitHub-flavored Markdown rendered as an image |
+| `capture_html` | Sanitized HTML and CSS rendered as an image |
+| `capture_diff` | Unified diff with additions and deletions highlighted |
+| `capture_pdf` | Complete URL document printed to PDF |
+| `capture_batch` | Up to 10 independent capture images |
+| `capture_sequence` | Up to 60 ordered step images and an optional GIF |
+| `capture_gif` | GIF from 2 to 60 PNG captures |
+| `capture_document` | Up to 30 captioned captures in Markdown, HTML, or PDF |
+| `snapmcp-hint` | Natural-language tool discovery and concise guidance |
 
-That's five configs to maintain, five installs to keep working, five SSRF surfaces to worry about.
+There is no extra capture tool. Composite workflows reuse the same terminal, code, file, browser, Markdown, HTML, and diff primitives.
 
-snapmcp replaces that with one server and 13 tools — rendered with your system Chrome, or an auto-installed Chromium.
+## Results that keep agent context small
 
-## What it does
+The capture/document tools return saved file paths, not image bytes; `snapmcp-hint` returns text guidance. That keeps the model context focused on the task and leaves image handling to the client or the documentation pipeline.
 
-| Tool | What you get |
-|------|-------------|
-| `capture_terminal` | Terminal output with **your actual detected theme** — Kitty, GNOME, Alacritty, WezTerm, Xfce4, LXTerminal. Not a generic dark rectangle. |
-| `capture_code` | Shiki syntax highlighting, 50+ languages, 27 themes |
-| `capture_browser` | Full-page or viewport screenshot (uses your system Chrome profile when available) |
-| `capture_file` | File → auto-detected language → highlighted image |
-| `capture_markdown` / `capture_html` | Rendered documents as styled images |
-| `capture_diff` | Git diffs with green additions / red deletions |
-| `capture_pdf` | URL → PDF document |
-| `capture_batch` | Multiple captures in one call |
-| `capture_gif` / `capture_sequence` | Animated GIFs from your captures |
-| `capture_document` | A multi-section document with captures embedded |
+Inputs are bounded too: 1,000 terminal lines, 200 KB for code, Markdown, and HTML, 500 KB for diffs, 5 MB for files by default, 10 batch items, 60 sequence steps, 2 to 60 GIF frames, and 30 document captures.
 
-## The setup that sells it
+For independent images, one `capture_batch` call is usually better than a series of unrelated tool calls. For an ordered walkthrough, `capture_sequence` saves individual images and can also compile a GIF. It does not make a side-by-side composite.
+
+## Setup should not have a hidden side effect
+
+The primary runtime is Node.js 20 or newer. Bun 1.2 or newer is optional, and npm and npx work without Bun.
 
 ```bash
 npm install -g snapmcp
+snapmcp init
 ```
 
-Add to Claude Code:
+The package postinstall step does not download Chromium. `snapmcp init` installs Playwright Chromium explicitly, making the browser choice visible and reproducible.
 
-```json
-{
-  "mcpServers": {
-    "snapmcp": {
-      "command": "npx",
-      "args": ["-y", "snapmcp"],
-      "env": { "SNAPMCP_DIR": "./captures" }
-    }
-  }
-}
+An agent can discover the catalog without loading a long reference:
+
+```bash
+snapmcp capabilities --json
+snapmcp search "printable report with captures" --json
 ```
 
-Then just ask:
+Over MCP, the equivalent surfaces are `tools/list`, `snapmcp-hint` with a natural-language query, and the `snapmcp://capabilities` resource.
 
-> "Capture a terminal screenshot of `git log --oneline -5` and a highlighted PNG of `src/index.ts`."
+## Security needs precise language
 
-The agent calls `capture_terminal` and `capture_file`, and the images land in `./captures/` with your real theme.
+snapmcp is designed for local use, but it should not be described as a complete hostile-content sandbox.
 
-## Being honest about where Playwright wins
+URL tools accept HTTP(S) only. SSRF protection is default-on: private and local IPv4 and IPv6 literals, IPv4-mapped IPv6 addresses, localhost variants, and hostnames resolving to private addresses are blocked. Requests are revalidated as they occur.
 
-A comparison is only useful if it's honest. Playwright MCP is **the right tool** for browser *interaction*: clicking, filling forms, navigating, and reading pages through token-efficient accessibility trees (50–200 tokens vs 800–2000 for a screenshot).
+There is an important limit: Chromium does not pin the DNS-resolved IP that snapmcp validated. The checks reduce common SSRF paths but do not guarantee complete DNS-rebinding prevention. Hostile targets need an additional network boundary, such as a container or VM without access to internal networks.
 
-I don't compete with that. Most documentation pipelines pair them:
+File reads are deny-all until `SNAPMCP_ALLOWED_PATHS` is configured. Every output stays inside `SNAPMCP_DIR`, including composite outputs, and traversal and symlink escapes are rejected.
 
-> **Playwright to interact. snapmcp to document.**
+Synthetic captures, including terminal, code, diff, Markdown, HTML, and generated document PDFs, render in an isolated browser context with JavaScript disabled, external network resources blocked, and a restrictive Content Security Policy. Raw HTML in Markdown is escaped, while raw HTML input is DOM-sanitized to remove active and external content. That is defense in depth, not a guarantee of perfect sanitizer safety.
 
-Here's the honest split:
+Browser profile support is experimental and never selected automatically. It launches Chromium with a persistent user-data directory; URL captures run in that context, so profile cookies and session state can be sent to the target site. Synthetic captures remain isolated. Use a dedicated profile and treat it as sensitive.
 
-| Use case | snapmcp | Playwright MCP |
-|----------|:-------:|:--------------:|
-| Terminal capture with real colors | ✅ | ❌ |
-| Code → syntax-highlighted image | ✅ | ❌ |
-| Git diff → visual image | ✅ | ❌ |
-| URL → PDF | ✅ | ❌ |
-| Animated GIF | ✅ | ❌ |
-| Browser page screenshot | ✅ | ✅ |
-| Browser **automation** (click/fill) | ❌ | ✅ |
+## The complementary split
 
-## Security first
+Use a browser-automation MCP server when the agent needs to act on a page. Use snapmcp when the agent needs to produce something a reader will see.
 
-Because an MCP server takes inputs from an LLM, I treat every input as potentially untrusted:
+That distinction keeps both tools focused:
 
-- **SSRF protection on by default** — blocks IP literals (v4 + v6), localhost variants, and DNS names that resolve to private ranges (`10.0.0.0/8`, `192.168.0.0/16`, `fc00::/7`, `fe80::/10`, …). Every page request — redirects included — is re-checked.
-- **File allowlist** — `capture_file` defaults to deny-all until you allow paths.
-- **Path traversal** — blocks `../` escapes, symlink traversal (via realpath), and null bytes.
-- **Input limits** — terminal 1000 lines, code/markdown/HTML 200KB, diff 500KB, files 5MB.
-
-## When NOT to use it
-
-Use it when you need **visual artifacts for humans** — documentation, READMEs, PR descriptions, tutorials, QA evidence.
-
-Don't reach for it when your agent needs to *do things* in a browser. That's Playwright's job. Use both, and give each its lane.
+> Browser automation to interact. snapmcp to document.
 
 ## Try it
 
-- GitHub: [reeinharddd/snapmcp](https://github.com/reeinharddd/snapmcp)
-- npm: `snapmcp` — `2.3.2`
-- MIT licensed, CI green on Linux/macOS/Windows, 317 tests
-
-The next time your agent writes docs, let it *show* the reader what it means.
+- Repository: https://github.com/reeinharddd/snapmcp
+- npm package: `snapmcp`
+- Release: `2.3.6`
+- License: MIT

@@ -5,9 +5,13 @@ import {
   captureBrowser, captureMarkdown, captureHtml, captureDiff
 } from "../renderer.js";
 import { createDocument, type DocumentSection, type DocumentFormat } from "../document.js"
-import { resolveSafePath } from "../security.js";
+import {
+  createOutputPath,
+  resolveNamedOutput,
+} from "../output.js";
 import { runCleanup } from "../renderer.js";
-import path from "path";
+import path from "node:path";
+import { TOOL_LIMITS } from "../capabilities.js";
 
 interface ToolDeps {
   outPath: (prefix: string, name?: string) => string;
@@ -25,13 +29,13 @@ const CaptureCommon = {
 const TerminalParams = z.object({
   type: z.literal("terminal"),
   title: z.string().max(100).optional().describe("Window title (default: 'step')"),
-  lines: z.array(z.string()).min(1).max(1000).describe("Lines to render. Prefix with '$ ' for prompts."),
+  lines: z.array(z.string()).min(1).max(TOOL_LIMITS.terminal.maxLines).describe("Lines to render. Prefix with '$ ' for prompts."),
   ...CaptureCommon,
 });
 
 const CodeParams = z.object({
   type: z.literal("code"),
-  code: z.string().min(1).max(200_000).describe("Source code to render"),
+  code: z.string().min(1).max(TOOL_LIMITS.code.maxBytes).describe("Source code to render"),
   language: z.string().default("text").describe("Programming language (typescript, python, rust, go, etc.)"),
   title: z.string().max(100).optional().describe("Window title (default: 'step')"),
   startLine: z.number().int().min(1).optional().describe("First line number (1-indexed)"),
@@ -51,28 +55,28 @@ const BrowserParams = z.object({
   type: z.literal("browser"),
   url: z.string().url().describe("URL to capture (http/https, SSRF protected)"),
   fullPage: z.boolean().default(false).describe("Capture full scrollable page"),
-  width: z.number().int().min(320).max(3840).default(1280).describe("Viewport width (px)"),
-  height: z.number().int().min(240).max(4096).default(800).describe("Viewport height (px)"),
+  width: z.number().int().min(TOOL_LIMITS.browser.minWidth).max(TOOL_LIMITS.browser.maxWidth).default(1280).describe("Viewport width (px)"),
+  height: z.number().int().min(TOOL_LIMITS.browser.minHeight).max(TOOL_LIMITS.browser.maxHeight).default(800).describe("Viewport height (px)"),
   ...CaptureCommon,
 });
 
 const MarkdownParams = z.object({
   type: z.literal("markdown"),
-  markdown: z.string().min(1).max(200_000).describe("Markdown content (GFM supported)"),
+  markdown: z.string().min(1).max(TOOL_LIMITS.markdown.maxBytes).describe("Markdown content (GFM supported)"),
   title: z.string().max(100).optional().describe("Document title (default: 'step')"),
   ...CaptureCommon,
 });
 
 const HtmlParams = z.object({
   type: z.literal("html"),
-  html: z.string().min(1).max(200_000).describe("HTML content (external resources blocked)"),
+  html: z.string().min(1).max(TOOL_LIMITS.html.maxBytes).describe("HTML content (external resources blocked)"),
   title: z.string().max(100).optional().describe("Description for logging (default: 'step')"),
   ...CaptureCommon,
 });
 
 const DiffParams = z.object({
   type: z.literal("diff"),
-  diff: z.string().min(1).max(500_000).describe("Unified diff content (git diff format)"),
+  diff: z.string().min(1).max(TOOL_LIMITS.diff.maxBytes).describe("Unified diff content (git diff format)"),
   ...CaptureCommon,
 });
 
@@ -84,10 +88,10 @@ const CaptureWithCaption = z.discriminatedUnion("type", [
 export function registerDocumentTool(server: McpServer, { outPath, ok, fail, config }: ToolDeps): void {
   server.tool(
     "capture_document",
-    "Create a document (Markdown/HTML/PDF) with embedded step-by-step captures. Each capture is rendered as an image and embedded in the document with optional captions. Output formats: markdown (with image references), HTML (self-contained with base64 images), or PDF (print-quality). Maximum 30 captures per document.",
+    `Create a document (Markdown/HTML/PDF) with embedded step-by-step captures. Each capture is rendered as an image and embedded in the document with optional captions. Output formats: markdown (with image references), HTML (self-contained with base64 images), or PDF (print-quality). Maximum ${TOOL_LIMITS.document.maxCaptures} captures per document; ${TOOL_LIMITS.document.maxEmbeddedImageBytes / 1_000_000} MB per embedded image and ${TOOL_LIMITS.document.maxEmbeddedTotalBytes / 1_000_000} MB total.`,
     {
       title: z.string().min(1).max(200).describe("Document title"),
-      captures: z.array(CaptureWithCaption).min(1).max(30).describe("Array of captures to embed. Each specifies capture type, type-specific parameters, and optional caption."),
+      captures: z.array(CaptureWithCaption).min(1).max(TOOL_LIMITS.document.maxCaptures).describe("Array of captures to embed. Each specifies capture type, type-specific parameters, and optional caption."),
       format: z.enum(["markdown", "html", "pdf"]).default("markdown").describe("Output document format: markdown (image refs), html (self-contained), pdf (print-quality)"),
       includeTimestamps: z.boolean().default(false).describe("Include capture timestamps in the document"),
       output: z.string().optional().describe("Output filename (default: auto-generated as 'document-<timestamp>.md/.html/.pdf'). Extension should match format."),
@@ -97,9 +101,10 @@ export function registerDocumentTool(server: McpServer, { outPath, ok, fail, con
         // First capture all steps as images
         const capturedPaths: { imagePath: string; caption?: string }[] = [];
 
+        const imageExtension = config.format === "jpeg" ? "jpg" : "png";
         for (const cap of captures) {
           const prefix = cap.type;
-          const p = path.join(config.outputDir, `${prefix}-${Date.now()}.${config.format === "jpeg" ? "jpg" : "png"}`);
+          const p = createOutputPath(config.outputDir, config.outputDir, prefix, imageExtension);
 
           switch (cap.type) {
             case "terminal": {
@@ -140,10 +145,14 @@ export function registerDocumentTool(server: McpServer, { outPath, ok, fail, con
           caption: cp.caption,
         }));
 
-        const docExt = format === "markdown" ? "md" : format === "html" ? "html" : "pdf";
-        const docOutput = output
-          ? resolveSafePath(config.outputDir, output)
-          : path.join(config.outputDir, `document-${Date.now()}.${docExt}`);
+        const docExt = format === "markdown" ? ".md" : format === "html" ? ".html" : ".pdf";
+        const requestedOutput = output?.trim();
+        const outputName = requestedOutput
+          ? (path.extname(requestedOutput) ? requestedOutput : `${requestedOutput}${docExt}`)
+          : undefined;
+        const docOutput = outputName
+          ? resolveNamedOutput(config.outputDir, outputName, [docExt])
+          : createOutputPath(config.outputDir, config.outputDir, "document", docExt);
 
         await createDocument(
           { title, sections, format: format as DocumentFormat, includeTimestamps, outputPath: docOutput },

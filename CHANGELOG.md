@@ -5,6 +5,45 @@ All notable changes to snapmcp are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.6] - 2026-11-10
+
+### Changed
+- Consolidated the release metadata and documentation on version `2.3.6` while keeping the public MCP surface at exactly 13 tools: 12 capture/document tools plus `snapmcp-hint`
+- Made saved-path results the documented result contract across primitive and composite tools, so MCP responses do not carry image bytes
+- Documented the actual flat discriminated-union schemas: `capture_batch.captures`, `capture_sequence.steps`, `capture_gif.captures`, and `capture_document.captures` now use `{ "type": ..., ...fields }` entries without a nested `params` object
+- Added capability discovery through MCP `tools/list`, `snapmcp-hint` natural-language queries, the `snapmcp://capabilities` resource, `snapmcp capabilities --json`, `snapmcp search "<intent>" --json`, `llms.txt`, and server instructions
+- Clarified that `capture_sequence` produces ordered individual step images and an optional GIF rather than a side-by-side composite
+- Clarified that `capture_pdf` prints the complete URL document with Chromium and that `capture_document` PDF output embeds generated captures in a print-quality PDF
+- Documented inclusive `startLine` and `endLine` ranges for code and file captures, Shiki support for 300+ bundled languages and 27 built-in themes, and heuristic terminal-palette detection without an ANSI parser
+- Documented `$ ` user prompts and `# ` root prompts, GIF PNG frames, `loop: true` infinite playback, and `loop: false` one-shot playback
+- Made Node.js 20 the primary documented runtime and Bun optional; npm/npx installation no longer requires Bun
+- Clarified that `snapmcp init` explicitly installs Playwright Chromium while the package postinstall step does not download a browser
+- Clarified that Playwright Chromium is the default browser and that a system browser is selected explicitly with `SNAPMCP_CHROME_EXECUTABLE`; fixed explicit profile mode so URL captures use the selected persistent context and can send profile cookies and session state to the target site, while synthetic captures remain isolated
+- Added release gates for unit and integration tests, dependency audit, Node-only package installation, MCP tool/resource discovery, CLI discovery, and a non-root container smoke test
+- Updated OpenCode registration to detect global JSON and JSONC configs, preserve JSONC comments and unrelated settings, and print the OpenCode V2 `mcp.servers` configuration shape
+- Replaced the doctor disk-space shell command with the Node filesystem API and added bounded document-image embedding limits so oversized captures fail loudly instead of being silently omitted
+
+### Security
+- Documented HTTP(S)-only URL handling and default-on SSRF protection for private/local IPv4 and IPv6 literals, IPv4-mapped IPv6 addresses, localhost variants, and DNS-resolved private addresses, with request revalidation
+- Rejected embedded URL credentials during both initial validation and per-request revalidation
+- Documented the DNS-pinning limit honestly: Chromium does not pin the DNS-resolved IP, so the checks do not guarantee complete DNS-rebinding prevention; hostile targets require deployment-level network isolation
+- Documented deny-all file reads until `SNAPMCP_ALLOWED_PATHS` is configured, including symlink-aware allowlist checks
+- Documented `SNAPMCP_DIR` output confinement for primitive and composite tools, including traversal and symlink checks; a symlinked output root is supported while nested or broken symlink escapes remain blocked
+- Documented the synthetic-content boundary for every synthetic capture: JavaScript disabled, external network resources blocked, and a restrictive CSP, plus escaped raw Markdown HTML and DOM-sanitized raw HTML as defense in depth rather than a perfect-safety guarantee
+- Removed unsupported security-policy claims about npm provenance, a committed npm lockfile, and an `npm audit` CI gate
+
+### Added
+- Added `llms.txt` with concise, link-oriented purpose, selection, discovery, safety, runtime, and documentation guidance
+- Added `docs/agents.md` with tool selection, token-efficient behavior, discovery workflow, security boundaries, and OpenCode/code-mode examples
+- Added registry metadata updates for `server.json` and `glama.json`, including version `2.3.6`, the exact 13-tool catalog, runtime requirements, discovery surfaces, and accurate security summaries
+
+### Documentation
+- Rewrote the tool reference with the actual flat union schemas and current limits
+- Refreshed the getting-started, configuration, CLI, terminal, browser, GIF, workflow, registry, launch-copy, and social-content documentation
+- Replaced stale claims about automatic browser download, automatic authenticated profile reuse, side-by-side sequences, PDF page-mode switches, and broad HTML escaping with behavior-specific wording
+- Updated the architecture description with the capability catalog/resource, Node-first setup, output confinement, synthetic isolation, and the actual request lifecycle
+- Updated OpenCode registration to the current `mcp.servers` shape; existing deprecated `mcp.snapmcp` entries are recognized and not duplicated
+
 ## [2.3.2] - 2026-08-17
 
 ### Changed
@@ -21,16 +60,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security (hardening)
 - **SSRF protection now ON by default** — `SNAPMCP_SSRF_PROTECTION` defaults to `true` (was opt-in); the README/config docs updated to match
-- **Real DNS-based SSRF blocking** — `validateUrl` now resolves hostnames and blocks private/loopback/link-local IPs, closing hostname-obfuscation bypasses (nip.io, localtest.me, DNS rebinding); IPv6 ranges (`::1`, `fc00::/7`, `fe80::/10`, `::ffff:v4`) and trailing-dot FQDNs (`localhost.`) covered; per-hostname DNS cache keeps the hot path cheap
+- **DNS-aware SSRF blocking** — `validateUrl` resolves hostnames and blocks private/loopback/link-local answers, reducing hostname-obfuscation bypasses such as nip.io and localtest.me; IPv6 ranges (`::1`, `fc00::/7`, `fe80::/10`, `::ffff:v4`) and trailing-dot FQDNs (`localhost.`) are covered. Chromium does not pin the validated IP, so this is not complete DNS-rebinding prevention
 - **URL validation moved to capture entry points** — `captureBrowser`, `capturePdf` and the 4 composite tools (`capture_batch`, `capture_gif`, `capture_sequence`, `capture_document`) now validate every URL; `file://` reads via browser tools are blocked
-- **Per-request route guard** — when SSRF protection is on, every subrequest/redirect of a rendered page is re-validated and aborted if it targets a private network (closes `capture_html`/`capture_markdown` SSRF via hostile JS, and 302 redirects to internal IPs)
+- **Per-request route guard** — when SSRF protection is on, every subrequest and redirect made by a URL capture is re-validated and aborted if it targets a private network; synthetic captures instead disable JavaScript and block network resources
 - **Path allowlist hardened** — `SNAPMCP_ALLOWED_PATHS` uses `realpath` + boundary-aware prefix matching (no more `/tmp/allowed` matching `/tmp/allowed-evil`), supports comma or semicolon separators, and no longer leaks the full config in error messages
 
 ### Added
 - **Real Chrome profile support** — `SNAPMCP_CHROME_EXECUTABLE`, `SNAPMCP_CHROME_CHANNEL` and `SNAPMCP_CHROME_PROFILE` env vars now actually work: snapmcp launches the system Chrome with your profile (cookies/sessions) via persistent context instead of always falling back to bundled Chromium
-- **Postinstall Chromium bootstrap** — `npm install` now installs Playwright Chromium automatically when no system Chrome is found (previously installed broken with only a warning)
+- **Browser bootstrap behavior (superseded in 2.3.6)** — package installation no longer downloads Chromium; `snapmcp init` performs the browser installation explicitly
 - **Test coverage for terminal/browser detection, logger and brand** — new `tests/terminal.test.ts`, `tests/browser.test.ts`, `tests/logger.test.ts`, `tests/brand.test.ts`, `tests/register.test.ts`, `tests/setup-shared.test.ts` (suite now 250+ tests)
-- **`about:blank` as safe default target** — allowed through the URL guard for in-memory rendering
+- **URL protocol hardening (superseded in 2.3.6)** — URL-producing tools now accept HTTP(S) only; `about:blank` and other non-HTTP(S) schemes are rejected
 
 ### Fixed
 - **Browser singleton race** — concurrent capture calls no longer race on first-launch (promise-cached singleton); close-failure no longer leaves a poisoned browser instance
@@ -41,11 +80,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Version source of truth** — banner/`--version` read from `package.json` instead of a hardcoded string; `SNAPMCP_THEME=auto` no longer passed to Shiki as a theme name
 
 ### Changed
-- **Docs synchronized with code** — README tool count (13 tools), `SNAPMCP_SHADOW` values (`none|soft|medium|strong`), SSRF default, separators, theme list, Node/Bun requirements, batch schema (`items` not `captures`), and brand tokens (`#00d4aa` primary) now match the implementation
+- **Docs synchronized with code** — README tool count (13 tools), `SNAPMCP_SHADOW` values (`none|soft|medium|strong`), SSRF default, separators, theme list, Node/Bun requirements, batch schema (`captures` with flat type-specific fields), and brand tokens (`#00d4aa` primary) match the implementation
 - **CI runs the full unit-test suite** — new test files added to `ci.yml` and `publish.yml`
 
 ### Infrastructure
-- `npm audit` requires a lockfile — repo uses Bun; noted in CI
+- Dependency auditing uses the committed Bun lockfile through `bun audit`; `npm audit` is not a release gate
 - 2 dependabot PRs reviewed (no issues found)
 
 ## [2.2.4] - 2026-07-01
@@ -117,7 +156,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `SNAPMCP_BADGE` (default: false) — subtle snapmcp footer badge
 - **Terminal glass redesign** — glassmorphism title bar with radial-gradient traffic light buttons, configurable drop-shadow, backdrop-blur effect
 - **CLI flags** — `--help`, `--version`, `--setup`
-- **Security hardening** — Chromium sandbox detection at startup, exact dependency pinning, npm provenance
+- **Security hardening** — Chromium sandbox configuration checks at startup and exact dependency pinning
 
 ### Changed
 - Renamed from `capture-server` to `snapmcp`
@@ -133,7 +172,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - File read validation with optional path allowlist (`SNAPMCP_ALLOWED_PATHS`)
 - `SECURITY.md` with vulnerability disclosure policy
 - `.github/dependabot.yml` for weekly security updates
-- npm provenance enabled in `publishConfig`
+- npm publish access configured as public; npm provenance is not enabled
 
 ### Infrastructure
 - Multi-stage Dockerfile using `oven/bun` base

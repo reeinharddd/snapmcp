@@ -52,6 +52,88 @@ function isGif(filePath: string): boolean {
   }
 }
 
+interface ParsedGifMetadata {
+  delays: number[]
+  loopCount: number | null
+}
+
+/** Parse GIF block metadata without scanning compressed pixel data for markers. */
+function parseGifMetadata(gif: Buffer): ParsedGifMetadata {
+  const delays: number[] = []
+  let loopCount: number | null = null
+  let offset = 6
+
+  // Logical Screen Descriptor and optional Global Color Table.
+  const packed = gif[offset + 4]!
+  offset += 7
+  if (packed & 0x80) {
+    offset += 3 * (2 ** ((packed & 0x07) + 1))
+  }
+
+  const skipSubBlocks = (): void => {
+    while (offset < gif.length) {
+      const size = gif[offset]!
+      offset += 1
+      if (size === 0) return
+      offset += size
+    }
+  }
+
+  while (offset < gif.length) {
+    const marker = gif[offset]!
+    offset += 1
+
+    if (marker === 0x3b) break
+
+    if (marker === 0x21) {
+      const label = gif[offset]!
+      offset += 1
+      if (label === 0xf9) {
+        const size = gif[offset]!
+        if (size !== 4) throw new Error("Unexpected GIF control extension size")
+        delays.push(gif.readUInt16LE(offset + 2))
+        offset += size + 2 // size byte, four data bytes, terminator
+        continue
+      }
+
+      if (label === 0xff) {
+        const appBlockSize = gif[offset]!
+        offset += 1
+        const appId = gif.subarray(offset, offset + appBlockSize).toString("ascii")
+        offset += appBlockSize
+        if (appId === "NETSCAPE2.0") {
+          const size = gif[offset]!
+          offset += 1
+          const loopMarker = gif[offset]
+          offset += 1
+          if (size === 3 && loopMarker === 0x01) {
+            loopCount = gif.readUInt16LE(offset)
+          }
+          offset += 2
+          offset += 1 // block terminator
+          continue
+        }
+      }
+
+      skipSubBlocks()
+      continue
+    }
+
+    if (marker === 0x2c) {
+      const imagePacked = gif[offset + 8]!
+      offset += 9
+      if (imagePacked & 0x80) {
+        offset += 3 * (2 ** ((imagePacked & 0x07) + 1))
+      }
+      offset += 1 // LZW minimum code size
+      skipSubBlocks()
+      continue
+    }
+  }
+
+  return { delays, loopCount }
+}
+
 describe("createGif", () => {
   it("creates a valid GIF from a single frame", async () => {
     const frame = createPng("single.png", 10, 10, 255, 0, 0)
@@ -86,14 +168,50 @@ describe("createGif", () => {
     assert.ok(fs.statSync(out).size > 100)
   })
 
-  it("respects loop: false (play once)", async () => {
+  it("stores frame delays in milliseconds (GIF centiseconds)", async () => {
+    const red = createPng("delay-red.png", 4, 4, 255, 0, 0)
+    const green = createPng("delay-green.png", 4, 4, 0, 255, 0)
+    const out = path.join(tmpDir, "delays.gif")
+
+    await createGif(
+      [
+        { filePath: red, delay: 250 },
+        { filePath: green, delay: 1250 },
+      ],
+      out,
+    )
+
+    const delays = parseGifMetadata(fs.readFileSync(out)).delays
+    assert.deepEqual(delays, [25, 125])
+  })
+
+  it("uses the default 800 millisecond frame delay", async () => {
+    const frame = createPng("default-delay.png", 4, 4, 0, 0, 255)
+    const out = path.join(tmpDir, "default-delay.gif")
+
+    await createGif([{ filePath: frame }], out)
+
+    assert.deepEqual(parseGifMetadata(fs.readFileSync(out)).delays, [80])
+  })
+
+  it("loops forever when loop is true", async () => {
+    const frame = createPng("loop-forever.png", 8, 8, 64, 64, 64)
+    const out = path.join(tmpDir, "loop-forever.gif")
+
+    await createGif([{ filePath: frame }], out, { loop: true })
+
+    assert.equal(parseGifMetadata(fs.readFileSync(out)).loopCount, 0)
+  })
+
+  it("plays once when loop is false", async () => {
     const frame = createPng("loop-once.png", 8, 8, 64, 64, 64)
-    const out   = path.join(tmpDir, "loop-once.gif")
+    const out = path.join(tmpDir, "loop-once.gif")
 
     await createGif([{ filePath: frame }], out, { loop: false })
 
     assert.ok(fs.existsSync(out))
     assert.ok(isGif(out))
+    assert.equal(parseGifMetadata(fs.readFileSync(out)).loopCount, null)
   })
 
   it("auto-detects dimensions from the first frame", async () => {
@@ -148,6 +266,16 @@ describe("createGif", () => {
 
     await assert.rejects(
       createGif([{ filePath: badFile }], path.join(tmpDir, "bad.gif")),
+      { name: "GifError", message: /Invalid PNG/ },
+    )
+  })
+
+  it("requires PNG frame files", async () => {
+    const jpegFile = path.join(tmpDir, "frame.jpg")
+    fs.writeFileSync(jpegFile, Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]))
+
+    await assert.rejects(
+      createGif([{ filePath: jpegFile }], path.join(tmpDir, "jpeg-frame.gif")),
       { name: "GifError", message: /Invalid PNG/ },
     )
   })

@@ -197,13 +197,13 @@ describe("MCP server protocol", () => {
   // ─── Tool listing ──────────────────────────────────────────
 
   describe("tools/list", () => {
-    it("returns all 12 tools", async () => {
+    it("returns exactly 13 tools", async () => {
       const response = await server.sendRequest("tools/list");
       assert.equal(response.jsonrpc, "2.0");
       assert.ok(response.result, "Response should have a result");
       const result = response.result as { tools: Array<{ name: string }> };
       assert.ok(Array.isArray(result.tools));
-      assert.ok(result.tools.length >= 13, "Should have at least 13 tools");
+      assert.equal(result.tools.length, 13);
     });
 
     it("includes expected tool names", async () => {
@@ -227,6 +227,42 @@ describe("MCP server protocol", () => {
         "snapmcp-hint",
       ];
       assert.deepEqual(names, expected.sort());
+    });
+  });
+
+  describe("resources", () => {
+    it("exposes the capability manifest resource", async () => {
+      const response = await server.sendRequest("resources/list");
+      assert.ok(response.result, "Response should have a result");
+      const result = response.result as {
+        resources?: Array<{ uri: string; mimeType?: string }>;
+      };
+      const resource = result.resources?.find(
+        (entry) => entry.uri === "snapmcp://capabilities",
+      );
+      assert.ok(resource, "Expected snapmcp://capabilities resource");
+      assert.equal(resource?.mimeType, "application/json");
+    });
+
+    it("reads machine-readable capability manifest data", async () => {
+      const response = await server.sendRequest("resources/read", {
+        uri: "snapmcp://capabilities",
+      });
+      assert.ok(response.result, "Response should have a result");
+      const result = response.result as {
+        contents?: Array<{ uri: string; mimeType?: string; text?: string }>;
+      };
+      const content = result.contents?.[0];
+      assert.equal(content?.uri, "snapmcp://capabilities");
+      assert.equal(content?.mimeType, "application/json");
+
+      const manifest = JSON.parse(content?.text ?? "{}") as {
+        toolCount?: number;
+        discovery?: { searchTool?: string; resource?: string };
+      };
+      assert.equal(manifest.toolCount, 13);
+      assert.equal(manifest.discovery?.searchTool, "snapmcp-hint");
+      assert.equal(manifest.discovery?.resource, "snapmcp://capabilities");
     });
   });
 
@@ -270,6 +306,22 @@ describe("MCP server protocol", () => {
       });
       assert.ok(response.error || (response.result as { isError?: boolean })?.isError,
         "Should return error for invalid URL");
+    });
+
+    it("answers a capability query with snapmcp-hint", async () => {
+      const response = await server.sendRequest("tools/call", {
+        name: "snapmcp-hint",
+        arguments: { query: "website screenshot" },
+      });
+      assert.ok(!response.error, `No error expected: ${JSON.stringify(response.error)}`);
+      const result = response.result as {
+        content?: Array<{ text?: string }>;
+        isError?: boolean;
+      };
+      assert.ok(!result.isError, "isError should be falsy");
+      const text = result.content?.[0]?.text ?? "";
+      assert.match(text, /capture_browser/);
+      assert.match(text, /Best snapmcp matches/i);
     });
   });
 

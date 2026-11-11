@@ -1,117 +1,44 @@
-# Getting started
+# Getting Started
 
-Snapmcp is an MCP server you run alongside your AI coding tool. It
-provides 13 tools for visual captures. This guide covers install,
-first run, and client setup.
+snapmcp is a local MCP server that creates visual documentation artifacts. It exposes exactly 13 tools. The 12 capture/document tools return saved file paths rather than image bytes; `snapmcp-hint` returns text guidance.
 
----
+## Requirements
 
-## Prerequisites
+- Node.js 20 or newer. This is the primary runtime.
+- Bun 1.2 or newer is optional for local development and tests.
+- Playwright Chromium for browser-backed captures. `snapmcp init` installs it explicitly.
 
-- **Node.js** >= 20, or **Bun** >= 1.2
-- **Playwright Chromium** (auto-installed during `snapmcp init`,
-  or install manually with `npx playwright install chromium`)
-- **TypeScript** 5.x (for local development)
+npm and npx work without Bun.
 
----
+## Install
 
-## Installation
-
-### npm global (recommended)
+### Global npm install
 
 ```bash
 npm install -g snapmcp
+snapmcp init
 ```
 
-This puts the `snapmcp` command on your PATH. Run it from anywhere.
+`snapmcp init` checks the runtime and browser, installs Playwright Chromium when needed, creates the output directory, and can prepare an MCP client configuration.
 
-### npx (no install)
+### npx
 
 ```bash
+npx -y snapmcp init
 npx -y snapmcp
 ```
 
-Good for one-off use or CI. Each run fetches the latest version.
+The package postinstall step performs lightweight browser detection and prints setup guidance. It does not download Chromium.
 
-### Docker
-
-```bash
-docker run -i --rm \
-  -e SNAPMCP_DIR=/captures \
-  -v /path/to/output:/captures \
-  ghcr.io/reeinharddd/snapmcp
-```
-
-See the [CLI reference](cli.md) for all Docker options and tags.
-
----
-
-## Quick start
+## Start the server
 
 ```bash
 snapmcp
 ```
 
-That's it. The server starts on stdio and waits for MCP messages
-from your client. No port, no HTTP, no config file required.
+The server speaks MCP over stdio. It does not open a network port.
 
-To stop the server, send SIGINT (Ctrl+C).
-
----
-
-## Health checks
-
-Snapmcp has three CLI commands to verify your setup.
-
-### `snapmcp init` -- interactive wizard
-
-Walks you through:
-
-1. Detecting your system state (Chrome, Playwright, terminal theme,
-   output directory)
-2. Installing Chromium if missing
-3. Choosing capture settings (theme, format, quality)
-4. Printing a ready-to-use MCP config snippet for your client
-
-Run it once after install.
-
-### `snapmcp doctor` -- 7 diagnostic checks
-
-| Check | What it tests |
-|-------|---------------|
-| Runtime | Node >= 20 or Bun >= 1.2 |
-| Playwright | Chromium installed via Playwright |
-| Output dir | Directory exists and is writable |
-| SnapMCP version | Package version |
-| Chrome binary | Chrome/Chromium found on system |
-| Terminal theme | Terminal config detected (Kitty, Gnome, etc.) |
-| Environment | All SNAPMCP_ env vars are valid |
-
-Exits with code 0 if all pass, non-zero otherwise.
-
-### `snapmcp test` -- sample captures
-
-Generates two test files in your output directory:
-
-- `captures/test-terminal.png`
-- `captures/test-code.png`
-
-Open them in your file browser. If they look right, everything is
-working.
-
-**Sample output:**
-
-<img src="assets/test-terminal.png" alt="Test terminal capture" width="500"/>
-
-*`snapmcp test` generates a terminal screenshot with real terminal colors.*
-
-
----
-
-## MCP client setup
-
-Snapmcp follows the standard MCP stdio transport. Each client has
-its own config file where you register the server.
+## Register an MCP client
 
 ### Claude Code
 
@@ -134,73 +61,76 @@ Add to `~/.claude/claude.json`:
 
 ### OpenCode
 
-Add to `opencode.json` (project root or global config):
+Add to `opencode.json` or `opencode.jsonc` under `mcp.servers`:
 
 ```json
 {
-  "mcpServers": {
-    "snapmcp": {
-      "command": "npx",
-      "args": ["-y", "snapmcp"],
-      "env": {
-        "SNAPMCP_DIR": "./captures",
-        "SNAPMCP_FORMAT": "jpeg",
-        "SNAPMCP_QUALITY": "95"
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "snapmcp": {
+        "type": "local",
+        "command": ["npx", "-y", "snapmcp"],
+        "environment": {
+          "SNAPMCP_DIR": "./captures",
+          "SNAPMCP_FORMAT": "jpeg",
+          "SNAPMCP_QUALITY": "95"
+        }
       }
     }
   }
 }
 ```
 
-Run `snapmcp init --opencode` to auto-register.
+The OpenCode CLI can add the same server: `opencode mcp add snapmcp -- npx -y snapmcp`.
 
-### VS Code / Cline / Roo-Cline
+`snapmcp init` writes the current OpenCode V2 shape under `mcp.servers` for JSON and JSONC configuration files. JSONC comments, trailing commas, and unrelated settings are preserved. It recognizes an existing deprecated `mcp.snapmcp` entry and leaves it unchanged to avoid creating a duplicate.
 
-Add to VS Code `settings.json` under `cline.mcpServers`:
+### VS Code, Cline, and Roo-Cline
 
-```json
-{
-  "cline.mcpServers": {
-    "snapmcp": {
-      "command": "npx",
-      "args": ["-y", "snapmcp"],
-      "env": {
-        "SNAPMCP_DIR": "./captures",
-        "SNAPMCP_FORMAT": "jpeg"
-      }
-    }
-  }
-}
+Use the same stdio server entry in the client's MCP configuration.
+
+## Verify the setup
+
+```bash
+snapmcp doctor
+snapmcp test
 ```
 
-### Docker (any MCP client)
+`snapmcp doctor` checks Node.js, Chromium, the Chromium sandbox, the output directory, disk space, configuration, and the syntax highlighter. Use `--json` for machine-readable diagnostics.
 
-Use the Docker image instead of direct command execution:
+`snapmcp test` creates `test-terminal.png` and `test-code.png` in `SNAPMCP_DIR`.
 
-```json
-{
-  "mcpServers": {
-    "snapmcp": {
-      "command": "docker",
-      "args": [
-        "run", "-i", "--rm",
-        "-e", "SNAPMCP_DIR=/captures",
-        "-v", "/path/to/output:/captures",
-        "ghcr.io/reeinharddd/snapmcp"
-      ]
-    }
-  }
-}
+## Discover the tools
+
+Agents can discover the 13 tools without loading the full documentation:
+
+```bash
+snapmcp capabilities --json
+snapmcp search "website screenshot" --json
 ```
 
----
+In MCP, the equivalent surfaces are `tools/list`, `snapmcp-hint` with a natural-language `query`, and the `snapmcp://capabilities` resource. The server instructions provide an additional short selection guide.
+
+See the [Agent Guide](agents.md) for code-mode and OpenCode examples.
+
+## Docker (optional)
+
+Docker is an optional packaging surface, not the primary installation path. The image uses Node.js, includes Chromium, selects that system Chromium explicitly, runs as a non-root user, and communicates over stdio.
+
+```bash
+docker run -i --rm \
+  -e SNAPMCP_DIR=/app/captures \
+  -v /path/to/output:/app/captures \
+  ghcr.io/reeinharddd/snapmcp
+```
+
+The mounted directory must be writable by the container's non-root user.
 
 ## Next steps
 
-- Browse the [full tool reference](tools.md) for every capture type
-  and their parameters
-- See [configuration](configuration.md) for all environment
-  variables and theme options
-- Read the [CLI reference](cli.md) for init, doctor, test, and
-  advanced flags
-- Check the [home page](README.md) for an overview of the project
+- [Tool Reference](tools.md): all 13 tools and exact schemas
+- [Agent Guide](agents.md): selection, discovery, and token-efficient behavior
+- [Configuration](configuration.md): environment variables and browser behavior
+- [CLI Reference](cli.md): setup, diagnostics, discovery, and verification
+- [Security Policy](../SECURITY.md): enforced controls and known limits

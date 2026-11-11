@@ -2,17 +2,25 @@
  * snapmcp bootstrap — shared detection, setup, and summary functions.
  *
  * Used by:
- *  - scripts/setup.ts (standalone interactive bootstrap)
+ *  - scripts/setup.mjs (standalone interactive bootstrap)
  *  - src/cli.ts       (snapmcp init command)
  *
  * @module
  */
 
-import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { createInterface } from "node:readline";
-import { detectMcpClients, printDetectedClients } from "./register.js";
+import {
+  detectMcpClients,
+  printDetectedClients,
+  type McpClientConfig,
+} from "./register.js";
+import { detectChrome } from "./browser.js";
+import {
+  hasPlaywrightChromium,
+  installPlaywrightChromium,
+} from "./playwright-cli.js";
 
 /* ─── Types ───────────────────────────────────────────────── */
 
@@ -111,36 +119,11 @@ export function detectSystemState(): SystemState {
   /* Runtime */
   const bun = process.versions?.bun !== undefined;
 
-  /* Chromium: Playwright browsers cache */
-  const homedir = process.env.HOME || process.env.USERPROFILE || "";
-  const cacheDir = process.env.PLAYWRIGHT_BROWSERS_PATH ||
-    `${homedir}/.cache/ms-playwright`;
-  let playwrightBrowsers = false;
-  try {
-    if (fs.existsSync(cacheDir)) {
-      const dirs = fs.readdirSync(cacheDir);
-      playwrightBrowsers = dirs.some((d) =>
-        d.toLowerCase().includes("chromium"),
-      );
-    }
-  } catch {
-    /* best-effort */
-  }
-
-  /* Chromium: system-installed browser */
-  let systemChrome: string | null = null;
-  try {
-    const result = execSync(
-      "which chromium chromium-browser google-chrome 2>/dev/null || true",
-      { encoding: "utf-8", timeout: 5_000 },
-    );
-    const lines = result.trim().split("\n").filter(Boolean);
-    systemChrome = lines[0] || null;
-  } catch {
-    /* which returned non-zero — no system chrome found */
-  }
-
-  const chromiumInstalled = playwrightBrowsers || systemChrome !== null;
+  /* Chromium: exact executable detection (system browser or Playwright cache) */
+  const detectedChrome = detectChrome();
+  const playwrightBrowsers = hasPlaywrightChromium();
+  const systemChrome = detectedChrome.executablePath ?? null;
+  const chromiumInstalled = playwrightBrowsers || detectedChrome.found;
 
   /* Output directory */
   let outExists = false;
@@ -201,32 +184,20 @@ export async function bootstrapSetup(options?: {
   const state = detectSystemState();
 
   /* ── a. Install Playwright Chromium ── */
-  if (!state.chromium.installed && options?.installChrome !== false) {
-    const answer = await ask(
-      "  Chromium not found. Install Playwright Chromium (required for browser captures)?",
-      true,
-    );
-    if (answer) {
-      console.log(`  ${STEP} Installing Chromium via bunx...`);
-      let ok = false;
-      try {
-        execSync("bunx playwright install chromium", {
-          stdio: "inherit",
-          timeout: 120_000,
-        });
-        console.log(`  ${CHECK} Chromium installed`);
-        ok = true;
-      } catch {
-        console.log(`  ${WARN} bunx failed, trying npx...`);
-      }
-      if (!ok) {
+  // The bundled browser is the reproducible default even when a system Chrome
+  // is present, so `snapmcp init` explicitly ensures that Playwright Chromium
+  // is available.
+  if (!state.chromium.playwrightBrowsers) {
+    if (options?.installChrome !== false) {
+      const answer = await ask(
+        "  Install Playwright Chromium (the reproducible browser default)?",
+        true,
+      );
+      if (answer) {
+        console.log(`  ${STEP} Installing Chromium with the local Playwright CLI...`);
         try {
-          execSync("npx playwright install chromium", {
-            stdio: "inherit",
-            timeout: 120_000,
-          });
-          console.log(`  ${CHECK} Chromium installed (via npx)`);
-          ok = true;
+          installPlaywrightChromium();
+          console.log(`  ${CHECK} Chromium installed`);
         } catch {
           console.log(
             `  ${CROSS} Chromium install failed. Manual: npx playwright install chromium`,
@@ -234,8 +205,8 @@ export async function bootstrapSetup(options?: {
         }
       }
     }
-  } else if (state.chromium.installed) {
-    console.log(`  ${CHECK} Chromium already available`);
+  } else {
+    console.log(`  ${CHECK} Playwright Chromium already available`);
   }
 
   /* ── b. Create output directory ── */
@@ -260,7 +231,7 @@ export async function bootstrapSetup(options?: {
       `  ${STEP} System Chrome found at: ${state.chromium.systemChrome}`,
     );
     console.log(
-      `  ${GRAY("     For reliable captures, install Playwright Chromium: bunx playwright install chromium")}`,
+      `  ${GRAY("     For reproducible rendering, run snapmcp init to install Playwright Chromium")}`,
     );
   }
 
@@ -295,7 +266,10 @@ export async function bootstrapSetup(options?: {
  * Print a formatted system summary table.
  * Uses console.log for output (safe before MCP server starts).
  */
-export function printSummary(state: SystemState): void {
+export function printSummary(
+  state: SystemState,
+  clients: McpClientConfig[] = detectMcpClients(),
+): void {
   console.log("");
   console.log(`  ${TEAL("╔═══════════════════════════════════════════╗")}`);
   console.log(`  ${TEAL("║  ⬡ snapmcp — System Summary              ║")}`);
@@ -370,63 +344,102 @@ export function printSummary(state: SystemState): void {
   console.log("");
 
   /* ─── MCP Client Detection ─── */
-  printDetectedClients(detectMcpClients());
+  printDetectedClients(clients);
 
   /* ─── MCP Client Config Snippet ─── */
-  printMcpConfigSnippet(state);
+  printMcpConfigSnippet(state, clients);
+}
+
+/** Resolve the local command shown in MCP configuration snippets. */
+function resolveMcpCommand(state: SystemState): { command: string; args: string[] } {
+  const entrypoint = process.argv[1] ?? "";
+  const isNpxInvocation = entrypoint.includes("npx") || entrypoint.includes("_npx");
+  const isBunxInvocation = entrypoint.includes("/bunx") || entrypoint.includes("\\bunx");
+
+  if (isNpxInvocation) return { command: "npx", args: ["-y", "snapmcp"] };
+  if (isBunxInvocation) return { command: "bunx", args: ["snapmcp"] };
+  if (state.installMode === "global") return { command: "snapmcp", args: [] };
+  if (state.installMode === "project" && state.runtime.bun) {
+    return { command: "bun", args: ["run", "src/index.ts"] };
+  }
+  if (state.installMode === "project") {
+    return { command: "node", args: ["dist/index.js"] };
+  }
+  return { command: "npx", args: ["-y", "snapmcp"] };
+}
+
+/** Collect environment values shown in MCP configuration snippets. */
+function resolveMcpEnvironment(state: SystemState): Record<string, string> {
+  const environment: Record<string, string> = {
+    SNAPMCP_DIR: state.config.envVars.SNAPMCP_DIR || "./captures",
+  };
+  if (state.config.envVars.SNAPMCP_THEME) {
+    environment.SNAPMCP_THEME = state.config.envVars.SNAPMCP_THEME;
+  }
+  return environment;
+}
+
+export interface McpConfigSnippet {
+  label: string;
+  config: Record<string, unknown>;
+}
+
+/** Build client-specific snippets using the configuration shape each client expects. */
+export function buildMcpConfigSnippets(
+  state: SystemState,
+  clients: McpClientConfig[],
+): McpConfigSnippet[] {
+  const { command, args } = resolveMcpCommand(state);
+  const environment = resolveMcpEnvironment(state);
+  const snippets: McpConfigSnippet[] = [];
+
+  if (clients.some((client) => client.format === "opencode")) {
+    snippets.push({
+      label: "MCP Client Config (OpenCode V2)",
+      config: {
+        mcp: {
+          servers: {
+            snapmcp: {
+              type: "local",
+              command: [command, ...args],
+              environment,
+            },
+          },
+        },
+      },
+    });
+  }
+
+  if (clients.some((client) => client.format !== "opencode") || clients.length === 0) {
+    snippets.push({
+      label: "MCP Client Config (Claude Desktop / Cursor / Windsurf / Cline)",
+      config: {
+        mcpServers: {
+          snapmcp: {
+            command,
+            args,
+            env: environment,
+          },
+        },
+      },
+    });
+  }
+
+  return snippets;
 }
 
 /**
  * Print MCP client configuration snippets based on detected install mode.
  */
-function printMcpConfigSnippet(state: SystemState): void {
-  const { execPath } = process;
-  const isNpxGlobal =
-    state.installMode === "global" ||
-    execPath.includes("npx") ||
-    execPath.includes("_npx");
-
-  let command: string;
-  let args: string[];
-  if (isNpxGlobal) {
-    command = "npx";
-    args = ["-y", "snapmcp"];
-  } else if (state.runtime.bun) {
-    command = "bun";
-    args = ["run", "src/index.ts"];
-  } else {
-    command = "node";
-    args = ["dist/index.js"];
+function printMcpConfigSnippet(
+  state: SystemState,
+  clients: McpClientConfig[] = detectMcpClients(),
+): void {
+  for (const snippet of buildMcpConfigSnippets(state, clients)) {
+    console.log(`  ${BLUE(snippet.label)}`);
+    console.log(`  ${GRAY("Paste into your MCP client settings:")}`);
+    console.log("");
+    console.log(JSON.stringify(snippet.config, null, 2));
+    console.log("");
   }
-
-  // Collect non-default env vars for the snippet
-  const envSnippet: Record<string, string> = {};
-  if (state.config.envVars.SNAPMCP_DIR) {
-    envSnippet.SNAPMCP_DIR = state.config.envVars.SNAPMCP_DIR;
-  } else {
-    envSnippet.SNAPMCP_DIR = "./captures";
-  }
-  if (state.config.envVars.SNAPMCP_THEME) {
-    envSnippet.SNAPMCP_THEME = state.config.envVars.SNAPMCP_THEME;
-  }
-
-  const envStr = Object.entries(envSnippet)
-    .map(([k, v]) => `          "${k}": "${v}"`)
-    .join(",\n");
-
-  console.log(`  ${BLUE("MCP Client Config")}`);
-  console.log(`  ${GRAY("Paste into your MCP client settings:")}`);
-  console.log("");
-  console.log(`    "mcpServers": {`);
-  console.log(`      "snapmcp": {`);
-  console.log(`        "command": "${command}",`);
-  console.log(`        "args": [${args.map((a) => `"${a}"`).join(", ")}]`);
-  if (envStr) {
-    console.log(`        "env": {`);
-    console.log(envStr);
-    console.log(`        }`);
-  }
-  console.log(`      }`);
-  console.log(`    }`);
-  console.log("");
 }

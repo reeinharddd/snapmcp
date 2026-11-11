@@ -1,133 +1,101 @@
 # Browser Capture Guide
 
-Use the `capture_browser` tool to take screenshots of web pages. You can also
-convert pages to PDF with `capture_pdf`.
+Use `capture_browser` for screenshots and `capture_pdf` for a print-quality PDF of an HTTP(S) document.
 
-## How System Chrome Detection Works
+## Browser selection
 
-When you set `SNAPMCP_CHROME_EXECUTABLE`, snapmcp uses your system Chrome
-instead of Playwright's bundled Chromium. This lets you access authenticated
-sessions, cookies, and browser profiles.
-
-The detection follows an 8-step priority chain:
-
-1. **`SNAPMCP_CHROME_EXECUTABLE`** -- explicit path. If set, snapmcp uses
-   this directly and skips all other detection.
-2. **`SNAPMCP_CHROME_CHANNEL`** -- named channel: `chrome`, `msedge`, or
-   `chromium`. Only works on macOS and Windows via Playwright's channel
-   discovery.
-3. **`SNAPMCP_CHROME_PROFILE`** -- path to a Chrome user data directory. If
-   set, snapmcp launches Chrome with `--user-data-dir` pointing to it.
-4. **macOS default install** -- checks `/Applications/Google Chrome.app`
-5. **Linux default install** -- checks `google-chrome`, `google-chrome-stable`,
-   `chromium-browser` in `$PATH`
-6. **Windows default install** -- checks `Program Files` Chrome locations
-7. **Playwright Chromium** -- falls back to `npx playwright install chromium`
-   location
-8. **Error** -- if nothing is found, the tool returns an error telling you to
-   install Chrome or set `SNAPMCP_CHROME_EXECUTABLE`
-
-## Using a Real Browser Profile
-
-To take authenticated screenshots (pages behind a login), point snapmcp to
-your real Chrome profile:
+Playwright's bundled Chromium is the reproducible default:
 
 ```bash
-export SNAPMCP_CHROME_EXECUTABLE="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-export SNAPMCP_CHROME_PROFILE="$HOME/Library/Application Support/Google Chrome/Default"
+snapmcp init
 ```
 
-On Linux:
+A system browser is selected explicitly:
 
 ```bash
-export SNAPMCP_CHROME_EXECUTABLE="/usr/bin/google-chrome"
-export SNAPMCP_CHROME_PROFILE="$HOME/.config/google-chrome/Default"
+export SNAPMCP_CHROME_EXECUTABLE=/usr/bin/google-chrome
 ```
 
-Now `capture_browser` will use your existing sessions, cookies, and
-extensions. Log in to the site in your normal browser, then use snapmcp to
-capture it.
+`SNAPMCP_CHROME_CHANNEL` can instead select a Playwright-managed channel such as `stable`, `beta`, `dev`, `canary`, `edge`, or `chromium`.
 
-## Using `capture_browser`
+### Experimental profiles
+
+`SNAPMCP_CHROME_PROFILE` launches Chromium with a persistent user-data directory. A detected profile key or display name, such as `Default` or `Profile 1`, selects the detected Chrome user-data directory and adds `--profile-directory=<key>`; an absolute path is used as the user-data directory directly. Profile mode requires a system Chrome installation.
+
+URL captures run in the selected persistent context, so cookies and session state from that profile can be sent to the target site. Synthetic captures remain isolated.
+
+Use a dedicated profile. Do not point snapmcp at a live personal profile unless access to its cookies, extensions, and stored credentials is intentional.
+
+## Screenshot a page
 
 ```json
 {
   "name": "capture_browser",
   "arguments": {
-    "url": "https://example.com",
+    "url": "https://example.com/docs",
     "fullPage": true,
-    "width": 1280,
-    "height": 800
+    "width": 1440,
+    "height": 900
   }
 }
 ```
 
-Parameters:
-
 | Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `url` | string | required | URL to capture |
+|---|---|---|---|
+| `url` | string | required | HTTP(S) URL |
 | `fullPage` | boolean | `false` | Capture the full scrollable page |
-| `width` | number | `1280` | Viewport width in pixels |
-| `height` | number | `800` | Viewport height in pixels |
-| `output` | string | auto | Custom output filename |
+| `width` | integer | `1280` | Viewport width, 320 to 3,840 pixels |
+| `height` | integer | `800` | Viewport height, 240 to 4,096 pixels |
+| `output` | string | auto | Output filename inside `SNAPMCP_DIR` |
 
-## PDF Capture from URL
-
-Use `capture_pdf` to convert a web page to PDF:
+## Print a URL to PDF
 
 ```json
 {
   "name": "capture_pdf",
   "arguments": {
-    "url": "https://example.com/report",
-    "fullPage": true,
+    "url": "https://example.com/docs",
     "width": 1280,
-    "height": 800
+    "height": 800,
+    "output": "example-docs.pdf"
   }
 }
 ```
 
-Parameters:
+`capture_pdf` prints the complete paginated document with Chromium. It does not expose a `fullPage` versus print-mode switch.
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `url` | string | required | URL to convert |
-| `fullPage` | boolean | `true` | Include all content (vs screen only) |
-| `width` | number | `1280` | Viewport width |
-| `height` | number | `800` | Viewport height |
-| `output` | string | auto | Custom output filename |
+The width and height parameters control the responsive rendering viewport before pagination.
 
-## SSRF Protection
+## SSRF protection
 
-By default, snapmcp allows requests to any URL. To block requests to internal
-networks, set `SNAPMCP_SSRF_PROTECTION=true`. This blocks private IP ranges:
+SSRF protection is default-on. URL tools accept HTTP(S) only and block:
 
-- `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`
-- `169.254.0.0/16`
-- `::1`, `fd00::/8`
+- private and local IPv4 and IPv6 literals;
+- IPv4-mapped IPv6 addresses;
+- localhost variants;
+- hostnames that resolve to private or local addresses.
 
-Enable this when snapmcp is used in a shared or server environment where
-users could point it at internal services.
+The initial URL and browser requests are revalidated, including redirects and subresources.
+
+Chromium does not pin the DNS-resolved IP that snapmcp validated. This reduces common SSRF paths but does not guarantee complete DNS-rebinding prevention. Use a container or VM without internal network access for hostile targets.
+
+`SNAPMCP_SSRF_PROTECTION=false` disables these checks. Do not use that setting for shared services.
+
+## Local development targets
+
+By default, `http://localhost:3000` and private development addresses are blocked because they are local or private targets. Use a controlled test environment if the switch is disabled, and do not expose that configuration to untrusted agents.
 
 ## Tips
 
-**Full page captures work best for articles and docs.** Single-viewport
-captures work best for dashboards and apps.
-
-**Set a longer `waitFor` on JS-heavy pages.** Some SPAs need extra time to
-render. Use the `waitFor` parameter (in milliseconds) if your capture target
-supports it.
-
-**Use `fullPage: false` for consistent heights.** Full page captures can vary
-in height depending on content. If you need a fixed size, keep fullPage off.
+- Full-page captures are useful for articles and long documentation pages.
+- Viewport captures produce more consistent dimensions for dashboards and application views.
+- Keep the browser viewport and padding consistent across frames in an animation.
+- Review the captured page for secrets before publishing it.
+- Browser captures can expose content that is public on the network but sensitive in context.
 
 ## Related
 
-- [Configuration Reference](../configuration.md) -- Chrome-related env vars
-  and SSRF config
-- [CLI Commands](../cli.md) -- running `snapmcp doctor` to verify Chrome
-  detection
-- [Terminal Capture Guide](terminal-capture.md) -- capturing terminal output
-- [GIF Animation Guide](gif-animation.md) -- creating animations from browser
-  sequences
+- [Tool Reference](../tools.md)
+- [Configuration](../configuration.md)
+- [Security Policy](../../SECURITY.md)
+- [GIF Animation Guide](gif-animation.md)

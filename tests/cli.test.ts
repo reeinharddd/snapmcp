@@ -142,6 +142,24 @@ describe("cliDoctor", () => {
     }
   })
 
+  it("reports an unavailable explicitly configured browser", { timeout: 15_000 }, async () => {
+    const { cliDoctor } = await import("../src/cli.js")
+    const { loadConfig } = await import("../src/config.js")
+    const oldExecutable = process.env.SNAPMCP_CHROME_EXECUTABLE
+    const missingExecutable = path.join(os.tmpdir(), "snapmcp-missing-browser-executable")
+    process.env.SNAPMCP_CHROME_EXECUTABLE = missingExecutable
+    try {
+      const result = await cliDoctor(loadConfig())
+      const browserCheck = result.checks.find((check) => check.name === "chromium")
+      assert.ok(browserCheck, "Expected chromium check")
+      assert.equal(browserCheck.status, "error")
+      assert.match(browserCheck.message, /Configured browser executable was not found/)
+    } finally {
+      if (oldExecutable === undefined) delete process.env.SNAPMCP_CHROME_EXECUTABLE
+      else process.env.SNAPMCP_CHROME_EXECUTABLE = oldExecutable
+    }
+  })
+
   it("emits machine-readable JSON on stdout when json=true", { timeout: 15_000 }, async () => {
     const { cliDoctor } = await import("../src/cli.js")
     const { loadConfig } = await import("../src/config.js")
@@ -201,7 +219,7 @@ describe("cliInit", () => {
     process.env.SNAPMCP_DIR = tmpDir
     try {
       const config = loadConfig()
-      await cliInit(config)
+      await cliInit(config, { clients: [] })
     } finally {
       if (oldDir === undefined) delete process.env.SNAPMCP_DIR
       else process.env.SNAPMCP_DIR = oldDir
@@ -221,7 +239,7 @@ describe("cliInit", () => {
       // Create full path so bootstrapSetup skips interactive prompt
       fs.mkdirSync(childDir, { recursive: true })
       const config = loadConfig()
-      await cliInit(config)
+      await cliInit(config, { clients: [] })
       assert.ok(fs.existsSync(childDir), "Output directory should still exist after init")
     } finally {
       if (oldDir === undefined) delete process.env.SNAPMCP_DIR

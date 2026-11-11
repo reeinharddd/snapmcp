@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { captureMarkdown } from "../renderer.js";
+import { TOOL_LIMITS } from "../capabilities.js";
 
 interface ToolDeps {
   outPath: (prefix: string, name?: string) => string;
@@ -12,9 +13,9 @@ interface ToolDeps {
 export function registerMarkdownTool(server: McpServer, { outPath, ok, fail, config }: ToolDeps): void {
   server.tool(
     "capture_markdown",
-    "Render Markdown as a styled document screenshot using GitHub-flavored Markdown. Supports tables, task lists, code blocks with syntax highlighting, mermaid diagrams (as text), and HTML. Renders with the configured Shiki theme and document styling. Maximum input 200KB.",
+    "Render GitHub-flavored Markdown as a styled document screenshot. Supports tables, task lists, and fenced code blocks with syntax highlighting. Raw HTML is escaped, JavaScript is disabled, and external resources are blocked. Maximum input 200KB.",
     {
-      markdown: z.string().min(1).max(200_000).describe("Markdown content to render. Supports GFM: tables, task lists, fenced code blocks, strikethrough, autolinks. Maximum 200KB."),
+      markdown: z.string().min(1).max(TOOL_LIMITS.markdown.maxBytes).describe(`Markdown content to render. Supports GFM tables, task lists, fenced code blocks, strikethrough, and autolinks. Raw HTML is escaped. Maximum ${TOOL_LIMITS.markdown.maxBytes / 1_000}KB.`),
       title: z.string().max(100).default("document").describe("Document title shown in the window title bar and as H1 if not present in markdown."),
       output: z.string().optional().describe("Output filename (default: auto-generated as 'markdown-<timestamp>.png' or '.jpeg' based on SNAPMCP_FORMAT). Include extension to override format."),
     },
