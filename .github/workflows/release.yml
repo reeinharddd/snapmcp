@@ -28,13 +28,45 @@ env:
   MCP_PUBLISHER_SHA256: 4d527ca8f1ced0394c962dc925c2a4a4addef441cbefd62501c875e9481823a8
 
 jobs:
+  resolve:
+    name: Resolve release version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Resolve the version and tag to publish
+        id: version
+        run: |
+          set -euo pipefail
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          REQUESTED="${{ inputs.version }}"
+          if [ -n "$REQUESTED" ] && [ "$REQUESTED" != "$PKG_VERSION" ]; then
+            echo "Requested version '$REQUESTED' does not match package.json version '$PKG_VERSION'" >&2
+            exit 1
+          fi
+          TAG="v${PKG_VERSION}"
+          if ! git rev-parse --verify --quiet "refs/tags/${TAG}" >/dev/null; then
+            echo "Tag '${TAG}' does not exist. Push the tag before publishing so the npm tarball matches a released commit." >&2
+            exit 1
+          fi
+          echo "version=${PKG_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
   npm-publish:
     name: Publish to npm
+    needs: resolve
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+          ref: ${{ needs.resolve.outputs.tag }}
 
       - name: Setup Node
         uses: actions/setup-node@v7
@@ -50,18 +82,6 @@ jobs:
       - name: Install the pinned npm CLI
         run: npm install --global "npm@${{ env.NPM_VERSION }}" && npm --version
 
-      - name: Resolve the version to publish
-        id: version
-        run: |
-          set -euo pipefail
-          PKG_VERSION="$(node -p "require('./package.json').version")"
-          REQUESTED="${{ inputs.version }}"
-          if [ -n "$REQUESTED" ] && [ "$REQUESTED" != "$PKG_VERSION" ]; then
-            echo "Requested version '$REQUESTED' does not match package.json version '$PKG_VERSION'" >&2
-            exit 1
-          fi
-          echo "version=${PKG_VERSION}" >> "$GITHUB_OUTPUT"
-
       - name: Configure npm authentication
         # The token is only a fallback for repositories that have not migrated
         # to Trusted Publishing yet. When the package has a trusted publisher
@@ -74,6 +94,15 @@ jobs:
           if [ -n "$NPM_TOKEN" ]; then
             echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc
             echo "npm_auth=token-fallback"
+            # A revoked or malformed token makes npm answer 404 on PUT, which
+            # reads like a permissions problem rather than an auth problem.
+            # Report the token state explicitly so the log says which one failed.
+            if npm whoami --registry https://registry.npmjs.org >/dev/null 2>&1; then
+              echo "npm_token_status=valid"
+            else
+              echo "npm_token_status=invalid — the publish will fall back to the OIDC trusted publisher"
+              echo "::warning::NPM_TOKEN is present but not accepted by the npm registry. Configure a trusted publisher for this workflow, or refresh the secret."
+            fi
           else
             echo "npm_auth=oidc-only"
           fi
@@ -83,7 +112,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           set -euo pipefail
-          PKG_VERSION="${{ steps.version.outputs.version }}"
+          PKG_VERSION="${{ needs.resolve.outputs.version }}"
           if npm view "snapmcp@${PKG_VERSION}" version >/dev/null 2>&1; then
             echo "snapmcp@${PKG_VERSION} already on npm — skipping publish"
             exit 0
@@ -92,11 +121,13 @@ jobs:
 
   github-release:
     name: Create GitHub Release
+    needs: resolve
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+          ref: ${{ needs.resolve.outputs.tag }}
 
       - name: Setup Node
         uses: actions/setup-node@v7
@@ -112,6 +143,9 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v3
         with:
+          # Pinned explicitly so a manual dispatch targets the version tag
+          # instead of the branch that triggered the workflow.
+          tag_name: ${{ needs.resolve.outputs.tag }}
           generate_release_notes: true
           files: |
             dist/**
@@ -119,12 +153,13 @@ jobs:
 
   registry-publish:
     name: Publish to the MCP Registry
-    needs: npm-publish
+    needs: [resolve, npm-publish]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+          ref: ${{ needs.resolve.outputs.tag }}
 
       - name: Download the MCP Registry publisher
         run: |
@@ -146,12 +181,18 @@ jobs:
         run: mcp-publisher login github-oidc
 
       - name: Publish server.json
+        env:
+          EXPECTED_VERSION: ${{ needs.resolve.outputs.version }}
         run: |
           set -euo pipefail
           PKG_VERSION="$(node -p "require('./package.json').version")"
           SERVER_JSON_VERSION="$(node -p "require('./server.json').version")"
           if [ "$PKG_VERSION" != "$SERVER_JSON_VERSION" ]; then
             echo "server.json version '$SERVER_JSON_VERSION' does not match package.json version '$PKG_VERSION'" >&2
+            exit 1
+          fi
+          if [ "$PKG_VERSION" != "$EXPECTED_VERSION" ]; then
+            echo "package.json version '$PKG_VERSION' does not match the resolved release version '$EXPECTED_VERSION'" >&2
             exit 1
           fi
           mcp-publisher validate ./server.json
