@@ -1,7 +1,7 @@
-import * as childProcess from "node:child_process";
 import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
+import { runCommand } from "./process.js";
 
 const require = createRequire(import.meta.url);
 
@@ -14,41 +14,14 @@ export function getPlaywrightCliPath(): string {
 /**
  * Install Playwright's bundled Chromium using the local Node runtime.
  *
- * `node:child_process` is imported as a namespace because Bun on Windows does
- * not expose every named export of the module (for example `execFileSync`),
- * and a named import would fail at link time. `spawnSync` is preferred and
- * `execFileSync` is used as a fallback, so the installer works on every
- * supported runtime.
+ * The command runs without a shell, so no value can be interpreted as shell
+ * syntax, and it works on every runtime that exposes `node:child_process`.
  */
 export function installPlaywrightChromium(timeout = 300_000): void {
-  const cliPath = getPlaywrightCliPath();
-  const args = [cliPath, "install", "chromium"];
-
-  if (typeof childProcess.spawnSync === "function") {
-    const result = childProcess.spawnSync(process.execPath, args, {
-      stdio: "inherit",
-      timeout,
-    });
-    if (result.error) throw result.error;
-    if (result.status !== 0) {
-      throw new Error(
-        `Playwright Chromium installation failed with exit code ${result.status}`,
-      );
-    }
-    return;
-  }
-
-  if (typeof childProcess.execFileSync === "function") {
-    childProcess.execFileSync(process.execPath, args, {
-      stdio: "inherit",
-      timeout,
-    });
-    return;
-  }
-
-  throw new Error(
-    "Unable to install Chromium: node:child_process exposes neither spawnSync nor execFileSync",
-  );
+  runCommand(process.execPath, [getPlaywrightCliPath(), "install", "chromium"], {
+    timeout,
+    inherit: true,
+  });
 }
 
 /** Check whether Playwright's bundled Chromium is actually installed. */

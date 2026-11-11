@@ -18,7 +18,7 @@
  *   5. fallbackTheme argument
  */
 
-import { execSync } from "node:child_process";
+import { runCommand } from "./process.js";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -132,10 +132,11 @@ export function detectTerminalTheme(fallbackTheme = "dark-plus"): TerminalThemeR
     // 3a. gsettings color-scheme (GNOME 42+)
     TERMINAL_DETECTION_SOURCES.push("os-gsettings-color-scheme");
     try {
-      const out = execSync(
-        "gsettings get org.gnome.desktop.interface color-scheme",
-        { encoding: "utf-8", timeout: 2000, stdio: ["ignore", "pipe", "ignore"] },
-      ).trim();
+      const out = runCommand(
+        "gsettings",
+        ["get", "org.gnome.desktop.interface", "color-scheme"],
+        { timeout: 2000 },
+      ).stdout.trim();
       if (out === "'prefer-dark'") {
         return done("dark-plus", "os-gsettings-color-scheme");
       }
@@ -146,10 +147,11 @@ export function detectTerminalTheme(fallbackTheme = "dark-plus"): TerminalThemeR
     // 3b. gsettings gtk-theme (fallback for older GNOME)
     TERMINAL_DETECTION_SOURCES.push("os-gsettings-gtk-theme");
     try {
-      const out = execSync(
-        "gsettings get org.gnome.desktop.interface gtk-theme",
-        { encoding: "utf-8", timeout: 2000, stdio: ["ignore", "pipe", "ignore"] },
-      ).trim();
+      const out = runCommand(
+        "gsettings",
+        ["get", "org.gnome.desktop.interface", "gtk-theme"],
+        { timeout: 2000 },
+      ).stdout.trim();
       const themeName = out.replace(/^'|'$/g, "");
       if (themeName.endsWith("-dark") || themeName.endsWith("-Dark")) {
         return done("dark-plus", "os-gsettings-gtk-theme");
@@ -161,10 +163,11 @@ export function detectTerminalTheme(fallbackTheme = "dark-plus"): TerminalThemeR
     // 3c. dconf read (direct, lower-level)
     TERMINAL_DETECTION_SOURCES.push("os-dconf");
     try {
-      const out = execSync(
-        "dconf read /org/gnome/desktop/interface/color-scheme",
-        { encoding: "utf-8", timeout: 2000, stdio: ["ignore", "pipe", "ignore"] },
-      ).trim();
+      const out = runCommand(
+        "dconf",
+        ["read", "/org/gnome/desktop/interface/color-scheme"],
+        { timeout: 2000 },
+      ).stdout.trim();
       if (out === "'prefer-dark'") {
         return done("dark-plus", "os-dconf");
       }
@@ -192,11 +195,11 @@ export function detectTerminalTheme(fallbackTheme = "dark-plus"): TerminalThemeR
   if (os.platform() === "darwin") {
     TERMINAL_DETECTION_SOURCES.push("os-macos-defaults");
     try {
-      const out = execSync("defaults read -g AppleInterfaceStyle", {
-        encoding: "utf-8",
-        timeout: 2000,
-        stdio: ["ignore", "pipe", "ignore"],
-      }).trim();
+      const out = runCommand(
+        "defaults",
+        ["read", "-g", "AppleInterfaceStyle"],
+        { timeout: 2000 },
+      ).stdout.trim();
       if (out.toLowerCase().includes("dark")) {
         return done("dark-plus", "os-macos-defaults");
       }
@@ -209,10 +212,16 @@ export function detectTerminalTheme(fallbackTheme = "dark-plus"): TerminalThemeR
   if (os.platform() === "win32") {
     TERMINAL_DETECTION_SOURCES.push("os-windows-registry");
     try {
-      const out = execSync(
-        "reg query HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize /v AppsUseLightTheme",
-        { encoding: "utf-8", timeout: 2000, stdio: ["ignore", "pipe", "ignore"] },
-      ).trim();
+      const out = runCommand(
+        "reg",
+        [
+          "query",
+          "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+          "/v",
+          "AppsUseLightTheme",
+        ],
+        { timeout: 2000 },
+      ).stdout.trim();
       const match = out.match(/AppsUseLightTheme\s+REG_DWORD\s+0x([0-9a-fA-F]+)/);
       if (match) {
         const value = parseInt(match[1], 16);
@@ -413,17 +422,21 @@ function readKitty(): TerminalColors | null {
 function readGnomeTerminal(): TerminalColors | null {
   if (os.platform() !== "linux") return null;
   try {
-    const profile = execSync("dconf read /org/gnome/terminal/legacy/profiles:/default", { encoding: "utf-8", timeout: 2000, stdio: ["ignore", "pipe", "ignore"] }).trim().replace(/^'|'$/g, "");
+    const profile = runCommand(
+      "dconf",
+      ["read", "/org/gnome/terminal/legacy/profiles:/default"],
+      { timeout: 2000 },
+    ).stdout.trim().replace(/^'|'$/g, "");
     if (!profile) return null;
     const base = `/org/gnome/terminal/legacy/profiles:/:${profile}/`;
-    const useTheme = execSync(`dconf read ${base}use-theme-colors`, { encoding: "utf-8", timeout: 1000, stdio: ["ignore", "pipe", "ignore"] }).trim();
+    const useTheme = runCommand("dconf", ["read", `${base}use-theme-colors`], { timeout: 1000 }).stdout.trim();
     if (useTheme === "true") return null;
 
-    const bg = hex6(execSync(`dconf read ${base}background-color`, { encoding: "utf-8", timeout: 1000, stdio: ["ignore", "pipe", "ignore"] }).trim().replace(/^'|'$/g, ""));
-    const fg = hex6(execSync(`dconf read ${base}foreground-color`, { encoding: "utf-8", timeout: 1000, stdio: ["ignore", "pipe", "ignore"] }).trim().replace(/^'|'$/g, ""));
+    const bg = hex6(runCommand("dconf", ["read", `${base}background-color`], { timeout: 1000 }).stdout.trim().replace(/^'|'$/g, ""));
+    const fg = hex6(runCommand("dconf", ["read", `${base}foreground-color`], { timeout: 1000 }).stdout.trim().replace(/^'|'$/g, ""));
     if (!bg || !fg) return null;
 
-    const paletteRaw = execSync(`dconf read ${base}palette`, { encoding: "utf-8", timeout: 1000, stdio: ["ignore", "pipe", "ignore"] }).trim().replace(/^\[|]$/g, "");
+    const paletteRaw = runCommand("dconf", ["read", `${base}palette`], { timeout: 1000 }).stdout.trim().replace(/^\[|]$/g, "");
     const ansi: string[] = [];
     if (paletteRaw) {
       const parts = paletteRaw.split("),");
@@ -434,7 +447,7 @@ function readGnomeTerminal(): TerminalColors | null {
     }
     while (ansi.length < 16) ansi.push(ansi.length < 8 ? "#555555" : "#aaaaaa");
 
-    const fontRaw = execSync(`dconf read ${base}font`, { encoding: "utf-8", timeout: 1000, stdio: ["ignore", "pipe", "ignore"] }).trim().replace(/^'|'$/g, "");
+    const fontRaw = runCommand("dconf", ["read", `${base}font`], { timeout: 1000 }).stdout.trim().replace(/^'|'$/g, "");
     let font: string | undefined;
     let fontSize: string | undefined;
     if (fontRaw) { const fp = fontRaw.split(" "); font = fp[0] || undefined; if (fp[1]) fontSize = /px$/i.test(fp[1]) ? fp[1] : `${fp[1]}px`; }

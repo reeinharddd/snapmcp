@@ -6,11 +6,24 @@ import os from "node:os";
 import { mock } from "bun:test";
 
 // Mock node:child_process BEFORE importing the module under test so the
-// execSync used inside src/terminal.js is intercepted (bun registry mock).
+// command runner used inside src/terminal.js is intercepted (bun registry
+// mock). The lookup key is the command and its arguments joined by spaces,
+// which keeps the historical expectations unchanged.
 const execSyncResults = new Map<string, string | Error>();
+function commandKey(file: string, args: string[] = []): string {
+  return [file, ...args].join(" ");
+}
 mock.module("node:child_process", () => ({
-  execSync: (cmd: string) => {
-    const found = execSyncResults.get(cmd);
+  spawnSync: (file: string, args: string[] = []) => {
+    const found = execSyncResults.get(commandKey(file, args));
+    if (found instanceof Error) throw found;
+    if (found !== undefined) {
+      return { stdout: found, stderr: "", status: 0, error: undefined };
+    }
+    throw new Error("Command not mocked");
+  },
+  execFileSync: (file: string, args: string[] = []) => {
+    const found = execSyncResults.get(commandKey(file, args));
     if (found instanceof Error) throw found;
     if (found !== undefined) return found;
     throw new Error("Command not mocked");

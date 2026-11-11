@@ -3,22 +3,9 @@ import assert from "node:assert";
 import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
-import { mock } from "bun:test";
 
-// Mock node:child_process BEFORE importing the module under test.
-// Bun's mock.module intercepts the module registry, so src/browser.js
-// sees the mocked execSync even though it imports it directly.
-const execSyncMocks = new Map<string, string | Error>();
-mock.module("node:child_process", () => ({
-  execSync: (cmd: string) => {
-    const found = execSyncMocks.get(cmd);
-    if (found instanceof Error) throw found;
-    if (found !== undefined) return found;
-    throw new Error("Command not mocked");
-  },
-}));
-
-// Import AFTER the mock is registered — bun resolves the registry at import time.
+// Browser detection scans PATH through the filesystem instead of spawning a
+// shell, so no child_process mock is required here.
 const { detectChrome, getChromeProfileDir, tryPath, tryWhich, detectChromeProfiles } = await import("../src/browser.js");
 
 // Original fs functions for restore
@@ -47,7 +34,6 @@ describe("detectChrome", () => {
     });
     process.env = originalEnv;
     resetFsMocks();
-    execSyncMocks.clear();
   });
 
   it("should use SNAPMCP_CHROME_EXECUTABLE when valid", () => {
@@ -96,21 +82,28 @@ describe("detectChrome", () => {
     assert.equal(result.channel, "chrome");
   });
 
-  it("should detect Chrome using which on Linux", () => {
+  it("should detect Chrome from a PATH lookup on Linux", () => {
     Object.defineProperty(process, "platform", {
       value: "linux",
     });
-    execSyncMocks.set("which google-chrome-stable 2>/dev/null", "/usr/bin/google-chrome");
+    const originalPath = process.env.PATH;
+    try {
+      process.env.PATH = "/usr/local/bin:/usr/bin";
+      fs.existsSync = (p) => p === "/usr/bin/google-chrome-stable";
+      fs.accessSync = () => {};
 
-    const result = detectChrome();
-    assert.equal(result.found, true);
-    assert.equal(result.executablePath, "/usr/bin/google-chrome");
-    assert.equal(result.channel, "chrome");
+      const result = detectChrome();
+      assert.equal(result.found, true);
+      assert.equal(result.executablePath, "/usr/bin/google-chrome-stable");
+      assert.equal(result.channel, "chrome");
+    } finally {
+      if (originalPath === undefined) delete process.env.PATH;
+      else process.env.PATH = originalPath;
+    }
   });
 
   it("should return not found when no Chrome is detected", () => {
     fs.existsSync = () => false;
-    execSyncMocks.clear();
 
     const result = detectChrome();
     assert.equal(result.found, false);
@@ -231,7 +224,6 @@ describe("getChromeProfileDir", () => {
 describe("tryPath and tryWhich", () => {
   after(() => {
     resetFsMocks();
-    execSyncMocks.clear();
   });
 
   it("should return path when valid", () => {
@@ -249,15 +241,38 @@ describe("tryPath and tryWhich", () => {
     assert.equal(result, null);
   });
 
-  it("should return path from which when valid", () => {
-    execSyncMocks.set("which test 2>/dev/null", "/usr/bin/test");
+  it("should resolve a binary from PATH without spawning a shell", () => {
+    const originalPath = process.env.PATH;
+    try {
+      process.env.PATH = "/usr/local/bin:/usr/bin";
+      fs.existsSync = (p) => p === "/usr/bin/test";
+      fs.accessSync = () => {};
 
-    const result = tryWhich("test");
-    assert.equal(result, "/usr/bin/test");
+      const result = tryWhich("test");
+      assert.equal(result, "/usr/bin/test");
+    } finally {
+      if (originalPath === undefined) delete process.env.PATH;
+      else process.env.PATH = originalPath;
+    }
   });
 
-  it("should return null from which when invalid", () => {
-    const result = tryWhich("invalid");
-    assert.equal(result, null);
+  it("should return null when the binary is not on PATH", () => {
+    const originalPath = process.env.PATH;
+    try {
+      process.env.PATH = "/usr/local/bin:/usr/bin";
+      fs.existsSync = () => false;
+
+      const result = tryWhich("invalid");
+      assert.equal(result, null);
+    } finally {
+      if (originalPath === undefined) delete process.env.PATH;
+      else process.env.PATH = originalPath;
+    }
+  });
+
+  it("should reject names that carry path separators", () => {
+    assert.equal(tryWhich("../bin/sh"), null);
+    assert.equal(tryWhich("/bin/sh"), null);
+    assert.equal(tryWhich(""), null);
   });
 });

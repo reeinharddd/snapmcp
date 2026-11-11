@@ -5,7 +5,6 @@
  * and manages browser lifecycle for real-profile captures.
  */
 
-import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -89,16 +88,31 @@ export function getChromeProfileDir(channel: string): string {
   return path.join(os.homedir(), ".config/chromium");
 }
 
+/**
+ * Resolve a bare binary name against PATH without spawning a shell.
+ *
+ * Scanning the filesystem directly removes shell interpolation from browser
+ * detection, keeps the lookup working when PATH is restricted to a minimal
+ * runtime, and avoids one process spawn per candidate.
+ */
 export function tryWhich(bin: string): string | null {
-  try {
-    const out = execSync(`which ${bin} 2>/dev/null`, {
-      encoding: "utf8",
-      timeout: 5000,
-    });
-    return out.trim() || null;
-  } catch {
-    return null;
+  if (!bin || bin.includes("/") || bin.includes("\\")) return null;
+
+  const searchPath = process.env.PATH || "";
+  const directories = searchPath
+    .split(path.delimiter)
+    .filter((entry) => entry.length > 0);
+  const suffixes =
+    process.platform === "win32" ? ["", ".exe", ".cmd", ".bat"] : [""];
+
+  for (const directory of directories) {
+    for (const suffix of suffixes) {
+      const resolved = tryPath(path.join(directory, `${bin}${suffix}`));
+      if (resolved) return resolved;
+    }
   }
+
+  return null;
 }
 
 export function tryPath(p: string): string | null {
@@ -158,7 +172,7 @@ export function detectChromeProfiles(baseDir: string): ChromeProfile[] {
  * Cross-platform search order (adapts per process.platform):
  *  1. SNAPMCP_CHROME_EXECUTABLE env var
  *  2. Platform-specific paths (via getChromePaths)
- *  3. which google-chrome-stable, google-chrome, chromium, chromium-browser
+ *  3. PATH lookup for google-chrome-stable, google-chrome, chromium, chromium-browser
  *  4. Not found
  */
 export function detectChrome(): DetectedChrome {
@@ -192,7 +206,7 @@ export function detectChrome(): DetectedChrome {
     }
   }
 
-  // 3. Try which for standard binary names
+  // 3. Look up standard binary names on PATH
   const candidates = [
     { bin: "google-chrome-stable", channel: "chrome" },
     { bin: "google-chrome", channel: "chrome" },

@@ -20,10 +20,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Clarified that `snapmcp init` explicitly installs Playwright Chromium while the package postinstall step does not download a browser
 - Clarified that Playwright Chromium is the default browser and that a system browser is selected explicitly with `SNAPMCP_CHROME_EXECUTABLE`; fixed explicit profile mode so URL captures use the selected persistent context and can send profile cookies and session state to the target site, while synthetic captures remain isolated
 - Added release gates for unit and integration tests, dependency audit, Node-only package installation, MCP tool/resource discovery, CLI discovery, and a non-root container smoke test
+- Fixed the CI matrix job so it keeps emitting the `test (ubuntu-latest)` and `test (macos-latest)` status contexts required by the protected branch, and chained the audit, package-smoke and container-smoke gates so they block the merge
+- Fixed the Node-only package smoke step, which created its install directory after restricting PATH and therefore could not find `mkdir`
+- Fixed the Windows CI job, where Bun does not expose every named export of `node:child_process` and the import failed at link time
+- Updated `actions/setup-node` to v7, which removes the deprecated Node.js 20 action runtime warning
 - Updated OpenCode registration to detect global JSON and JSONC configs, preserve JSONC comments and unrelated settings, and print the OpenCode V2 `mcp.servers` configuration shape
 - Replaced the doctor disk-space shell command with the Node filesystem API and added bounded document-image embedding limits so oversized captures fail loudly instead of being silently omitted
 
 ### Security
+- Removed shell execution from the runtime: browser detection and terminal theme probes now use argument-vector command execution, so no value read from the environment can be interpreted as shell syntax and static analysers no longer flag concatenated shell commands
 - Documented HTTP(S)-only URL handling and default-on SSRF protection for private/local IPv4 and IPv6 literals, IPv4-mapped IPv6 addresses, localhost variants, and DNS-resolved private addresses, with request revalidation
 - Rejected embedded URL credentials during both initial validation and per-request revalidation
 - Documented the DNS-pinning limit honestly: Chromium does not pin the DNS-resolved IP, so the checks do not guarantee complete DNS-rebinding prevention; hostile targets require deployment-level network isolation
