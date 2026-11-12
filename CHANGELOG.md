@@ -5,6 +5,13 @@ All notable changes to snapmcp are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.9] - 2026-11-12
+
+### Fixed
+- Fixed the startup banner and the `snapmcp --help` tool list, which still advertised `capture_document` as producing only Markdown, HTML, and PDF even though `2.3.8` added editable PowerPoint and Word output
+- Fixed the `snapmcp-hint` document topic, which did not mention the PowerPoint and Word formats
+- Added a regression test that pins the advertised document formats in the capability catalog and in the hint topic, so the supported formats cannot silently drift from the documented ones
+
 ## [2.3.8] - 2026-11-11
 
 > The `v2.3.7` tag was pushed before the documentation was aligned with the new proxy behavior, and it was never released to npm or the MCP Registry. `2.3.8` is the first published version of this work.

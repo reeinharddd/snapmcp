@@ -1,4 +1,4 @@
-# snapmcp 2.3.8 Go-to-Market Kit
+# snapmcp 2.3.9 Go-to-Market Kit
 
 Use these descriptions for registry listings, directories, launch posts, and other discovery surfaces. Keep the security and runtime claims consistent with the current documentation.
 
