@@ -146,6 +146,11 @@ jobs:
         run: npm run build
 
       - name: Create release
+        # The action can fail at the very end while refreshing release asset
+        # metadata, after every asset has already been uploaded. The assets
+        # are the part that matters, so the failure is tolerated and the
+        # verification step below decides whether the release is usable.
+        continue-on-error: true
         uses: softprops/action-gh-release@v3
         with:
           # Pinned explicitly so a manual dispatch targets the version tag
@@ -155,6 +160,28 @@ jobs:
           files: |
             dist/**
             package.json
+
+      - name: Verify the release is published with its assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ needs.resolve.outputs.tag }}"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            echo "The release for $TAG was not created" >&2
+            exit 1
+          fi
+          IS_DRAFT="$(gh release view "$TAG" --json isDraft --jq .isDraft)"
+          if [ "$IS_DRAFT" = "true" ]; then
+            echo "The release for $TAG is still a draft; publishing it"
+            gh release edit "$TAG" --draft=false
+          fi
+          ASSET_COUNT="$(gh release view "$TAG" --json assets --jq '.assets | length')"
+          if [ "$ASSET_COUNT" -lt 10 ]; then
+            echo "The release for $TAG only has $ASSET_COUNT assets" >&2
+            exit 1
+          fi
+          echo "Release $TAG is published with $ASSET_COUNT assets"
 
   registry-publish:
     name: Publish to the MCP Registry
