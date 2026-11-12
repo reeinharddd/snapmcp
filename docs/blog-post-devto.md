@@ -70,7 +70,7 @@ snapmcp is designed for local use, but it should not be described as a complete 
 
 URL tools accept HTTP(S) only. SSRF protection is default-on: private and local IPv4 and IPv6 literals, IPv4-mapped IPv6 addresses, localhost variants, and hostnames resolving to private addresses are blocked. Requests are revalidated as they occur.
 
-There is an important limit: Chromium does not pin the DNS-resolved IP that snapmcp validated. The checks reduce common SSRF paths but do not guarantee complete DNS-rebinding prevention. Hostile targets need an additional network boundary, such as a container or VM without access to internal networks.
+The address that was checked is the address that is used: Chromium reaches every capture target through a local validating proxy that resolves and validates the target and then connects to the validated IP literal, which closes the DNS-rebinding window. Hostile targets still need an additional network boundary, such as a container or VM without access to internal networks.
 
 File reads are deny-all until `SNAPMCP_ALLOWED_PATHS` is configured. Every output stays inside `SNAPMCP_DIR`, including composite outputs, and traversal and symlink escapes are rejected.
 

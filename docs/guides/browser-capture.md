@@ -77,7 +77,7 @@ SSRF protection is default-on. URL tools accept HTTP(S) only and block:
 
 The initial URL and browser requests are revalidated, including redirects and subresources.
 
-Chromium does not pin the DNS-resolved IP that snapmcp validated. This reduces common SSRF paths but does not guarantee complete DNS-rebinding prevention. Use a container or VM without internal network access for hostile targets.
+URL captures run through a local validating proxy that resolves and validates every target itself and connects to the validated IP literal, so there is no DNS-rebinding window between check and connection. The proxy trusts the system resolver, so use a container or VM without internal network access for hostile targets.
 
 `SNAPMCP_SSRF_PROTECTION=false` disables these checks. Do not use that setting for shared services.
 

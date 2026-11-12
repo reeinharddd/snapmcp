@@ -4,11 +4,11 @@ Use these descriptions for registry listings, directories, launch posts, and oth
 
 ## Positioning
 
-> snapmcp is the visual documentation MCP server for AI agents. It creates terminal screenshots, Shiki-highlighted code images, HTTP(S) page captures and PDFs, Markdown and HTML documents, visual diffs, GIFs, ordered step sequences, and captioned reports through exactly 13 tools. Capture results are saved file paths, not image bytes; the hint tool returns text.
+> snapmcp is the visual documentation MCP server for AI agents. It creates terminal screenshots, Shiki-highlighted code images, HTTP(S) page captures and PDFs, Markdown, HTML, PowerPoint and Word documents, visual diffs, GIFs, ordered step sequences, and captioned reports through exactly 13 tools. Capture results are saved file paths, not image bytes, and every tool also returns a structured payload; the hint tool returns text.
 
 ## Registry description
 
-> Visual documentation MCP server with 13 tools for terminal output, code highlighting, browser screenshots, Markdown, HTML, diffs, PDFs, GIFs, sequences, and captioned documents. Returns saved file paths with bounded inputs, deny-all file reads, output confinement, and default-on SSRF checks.
+> Visual documentation MCP server with 13 tools for terminal output, code highlighting, browser screenshots, Markdown, HTML, diffs, PDFs, GIFs, sequences, and editable PowerPoint or Word documents. Returns saved file paths with structured payloads, bounded inputs, deny-all file reads, output confinement, and default-on SSRF checks with DNS pinning.
 
 ## Short description
 
@@ -20,7 +20,8 @@ Use these descriptions for registry listings, directories, launch posts, and oth
 - Shiki highlighting for 300+ bundled languages and 27 built-in themes.
 - Inclusive `startLine` and `endLine` ranges for code and file captures.
 - Ordered `capture_sequence` step images with an optional GIF.
-- Print-quality document PDFs with generated captures embedded.
+- Print-quality document PDFs with generated captures embedded, plus editable PPTX and DOCX output with real text.
+- Every tool declares a JSON Schema output and returns a structured payload with the saved path, format, size, and image dimensions.
 - Discovery through `tools/list`, `snapmcp-hint`, `snapmcp://capabilities`, CLI JSON commands, `llms.txt`, and server instructions.
 - Saved-path results and bounded inputs for smaller agent context.
 - Node.js 20 primary; npm and npx work without Bun.
@@ -29,11 +30,11 @@ Use these descriptions for registry listings, directories, launch posts, and oth
 
 State the boundary accurately:
 
-> URL tools accept HTTP(S) only. SSRF checks are default-on and block private/local IPv4 and IPv6 literals, IPv4-mapped IPv6, localhost variants, and DNS-resolved private addresses, with request revalidation. Chromium does not pin the validated DNS address, so complete DNS-rebinding prevention is not guaranteed; use network isolation for hostile targets. File reads are deny-all until `SNAPMCP_ALLOWED_PATHS` is configured. All outputs stay inside `SNAPMCP_DIR`. Synthetic captures render in an isolated browser context with JavaScript disabled, external network resources blocked, and a restrictive CSP; Markdown raw HTML is escaped and raw HTML input is DOM-sanitized as defense in depth.
+> URL tools accept HTTP(S) only. SSRF checks are default-on and block private/local IPv4 and IPv6 literals, IPv4-mapped IPv6, localhost variants, and DNS-resolved private addresses, with request revalidation. Capture traffic goes through a local validating proxy that resolves and validates every target itself and connects to the validated IP literal, so the address that was checked is the address that is used; the proxy trusts the system resolver, so use network isolation for hostile targets. File reads are deny-all until `SNAPMCP_ALLOWED_PATHS` is configured. All outputs stay inside `SNAPMCP_DIR`. Synthetic captures render in an isolated browser context with JavaScript disabled, external network resources blocked, and a restrictive CSP; Markdown raw HTML is escaped and raw HTML input is DOM-sanitized as defense in depth.
 
 Do not claim:
 
-- complete DNS-rebinding prevention;
+- that snapmcp is a complete isolation boundary for hostile websites;
 - perfect HTML sanitization;
 - automatic authenticated profile reuse;
 - npm provenance, a committed npm lockfile, or an `npm audit` gate unless the packaging pipeline independently guarantees them.

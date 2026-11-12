@@ -165,7 +165,7 @@ GIF frames are PNG captures. `loop: true` means infinite looping; `loop: false` 
 
 Only HTTP(S) URLs are accepted by URL tools. With default-on SSRF protection, validation rejects private and local IPv4 and IPv6 literals, IPv4-mapped IPv6 addresses, localhost variants, and DNS names resolving to local or private addresses. Browser requests are revalidated as they occur.
 
-Chromium does not pin the DNS result validated by snapmcp to the address it connects to. The architecture therefore reduces common SSRF paths but does not claim complete DNS-rebinding prevention. Hostile-target isolation belongs in the deployment boundary.
+Chromium reaches capture targets through a local validating proxy that resolves and validates every target and connects to the validated IP literal, so the validated address is the connected address. The proxy resolves through the system resolver, so hostile-target isolation still belongs in the deployment boundary.
 
 ### File-read boundary
 
