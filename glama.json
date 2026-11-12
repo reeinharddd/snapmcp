@@ -1,6 +1,6 @@
 {
   "name": "snapmcp",
-  "description": "Visual documentation MCP server for agents: terminal output, Shiki-highlighted code for 300+ languages, HTTP(S) screenshots and PDFs, Markdown, HTML, diffs, GIFs, and captioned documents. Exactly 13 tools apply bounded inputs, deny-all file reads, output confinement, and default-on SSRF checks; capture tools return saved paths.",
+  "description": "Visual documentation MCP server for agents: terminal output, Shiki-highlighted code for 300+ languages, HTTP(S) screenshots and PDFs, Markdown, HTML, diffs, GIFs, and captioned documents in Markdown, HTML, PDF, editable PowerPoint, and editable Word. Exactly 13 tools apply bounded inputs, deny-all file reads, output confinement, and default-on SSRF checks with DNS pinning; capture tools return saved paths and a structured result with the path, format, and size.",
   "version": "2.3.8",
   "license": "MIT",
   "repository": "https://github.com/reeinharddd/snapmcp",
@@ -16,7 +16,12 @@
     "gif",
     "documentation",
     "playwright",
-    "shiki"
+    "shiki",
+    "powerpoint",
+    "word",
+    "pptx",
+    "docx",
+    "structured-output"
   ],
   "categories": [
     "documentation-access",
