@@ -5,6 +5,16 @@ All notable changes to snapmcp are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.11] - 2026-11-12
+
+### Added
+- Added `lhm.plugin.json`, the LobeHub Marketplace manifest, generated from the running server so the listing carries the exact 13 tool names, descriptions, input schemas, and output schemas the server serves
+- Added an integration test that compares the committed manifest against the `tools/list` response of the built server, so a stale manifest fails CI instead of reaching the marketplace
+- Added the LobeHub Marketplace badge and the Glama score badge to the README, so the repository links back to both listings
+
+### Changed
+- Documented the directory listing matrix and the manifest regeneration flow in `docs/gtm-kit.md` and `CONTRIBUTING.md`
+
 ## [2.3.10] - 2026-11-12
 
 ### Changed

@@ -13,12 +13,14 @@
   <a href="https://www.npmjs.com/package/snapmcp"><img src="https://img.shields.io/npm/dm/snapmcp?style=flat&label=downloads&color=%2300d4aa" alt="npm downloads"/></a>
   <a href="https://github.com/reeinharddd/snapmcp/actions/workflows/ci.yml"><img src="https://github.com/reeinharddd/snapmcp/actions/workflows/ci.yml/badge.svg" alt="tests"/></a>
   <a href="https://github.com/reeinharddd/snapmcp"><img src="https://img.shields.io/github/stars/reeinharddd/snapmcp?style=flat&color=%2300d4aa" alt="stars"/></a>
+  <a href="https://lobehub.com/mcp/reeinharddd-snapmcp"><img src="https://lobehub.com/badge/mcp/reeinharddd-snapmcp" alt="LobeHub MCP"/></a>
+  <a href="https://glama.ai/mcp/servers/reeinharddd/snapmcp"><img src="https://glama.ai/mcp/servers/reeinharddd/snapmcp/badges/score.svg" alt="Glama score"/></a>
   <img src="https://img.shields.io/badge/license-MIT-%2300d4aa" alt="MIT"/>
 </p>
 
 ---
 
-**snapmcp 2.3.10** turns agent-provided content into visual documentation artifacts: syntax-highlighted code, terminal sessions, browser pages, diffs, PDFs, GIFs, and captioned documents. It exposes exactly 13 MCP tools. The 12 capture/document tools return saved file paths rather than image bytes, while `snapmcp-hint` returns text guidance, keeping agent context small. Every tool also returns a structured payload with the saved path, format, and size.
+**snapmcp 2.3.11** turns agent-provided content into visual documentation artifacts: syntax-highlighted code, terminal sessions, browser pages, diffs, PDFs, GIFs, and captioned documents. It exposes exactly 13 MCP tools. The 12 capture/document tools return saved file paths rather than image bytes, while `snapmcp-hint` returns text guidance, keeping agent context small. Every tool also returns a structured payload with the saved path, format, and size.
 
 ## Quick start
 

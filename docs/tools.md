@@ -1,6 +1,6 @@
 # Tools Reference
 
-> snapmcp 2.3.10 exposes exactly 13 MCP tools: 12 capture/document tools and one discovery tool.
+> snapmcp 2.3.11 exposes exactly 13 MCP tools: 12 capture/document tools and one discovery tool.
 
 The 12 capture/document tools return saved file paths and short text summaries rather than image bytes. `snapmcp-hint` returns text guidance. Generated files are confined to `SNAPMCP_DIR`.
 
@@ -127,7 +127,7 @@ Example:
   "arguments": {
     "language": "typescript",
     "title": "src/index.ts",
-    "code": "export const version = \"2.3.10\";\n",
+    "code": "export const version = \"2.3.11\";\n",
     "startLine": 1,
     "endLine": 1
   }
