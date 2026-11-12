@@ -1,0 +1,2164 @@
+{
+  "author": "reeinharddd",
+  "description": "Visual documentation MCP server for AI agents: terminal, code, browser, Markdown, HTML, diffs, PDF, GIF, and documents.",
+  "homepage": "https://github.com/reeinharddd/snapmcp#readme",
+  "identifier": "reeinharddd-snapmcp",
+  "name": "SnapMCP",
+  "prompts": [],
+  "resources": [
+    {
+      "name": "snapmcp-capabilities",
+      "title": "SnapMCP capability manifest",
+      "uri": "snapmcp://capabilities",
+      "description": "Compact, machine-readable catalog of snapmcp tools, limits, discovery surfaces, security defaults, and token policy.",
+      "mimeType": "application/json"
+    }
+  ],
+  "tags": [
+    "mcp",
+    "model-context-protocol",
+    "screenshot",
+    "terminal",
+    "code",
+    "syntax-highlighting",
+    "shiki",
+    "playwright",
+    "capture",
+    "snapmcp"
+  ],
+  "tools": [
+    {
+      "name": "capture_terminal",
+      "title": "Capture terminal output",
+      "description": "Generate a styled terminal screenshot from text lines. Uses a detected terminal palette when available (Kitty, GNOME, Alacritty, WezTerm, and others) and otherwise falls back to the configured theme. Use for CLI tutorials, command output documentation, and terminal-based guides.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Window title shown in the terminal title bar (e.g., 'bash', 'zsh', 'git log')"
+          },
+          "lines": {
+            "minItems": 1,
+            "maxItems": 1000,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Lines to render. Prefix command prompts with '$ ' (or '# ' for root) for syntax-colored prompts. Other lines are rendered as output. Maximum 1000 lines."
+          },
+          "output": {
+            "description": "Output filename (default: auto-generated as 'terminal-<timestamp>.png' or '.jpeg' based on SNAPMCP_FORMAT). Include extension to override format.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "lines"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Absolute path of the saved image file"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "png",
+              "jpeg"
+            ],
+            "description": "Format of the saved image file"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Size of the saved file in bytes"
+          },
+          "width": {
+            "description": "Image width in pixels",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "height": {
+            "description": "Image height in pixels",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "path",
+          "format",
+          "bytes"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "capture_code",
+      "title": "Capture highlighted code",
+      "description": "Generate a syntax-highlighted code screenshot using Shiki (300+ bundled languages and 27 themes). Supports inclusive startLine/endLine ranges and optional window chrome. Ideal for code documentation, tutorials, and sharing snippets with an IDE-like appearance.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200000,
+            "description": "Source code to render. Maximum 200KB."
+          },
+          "language": {
+            "default": "text",
+            "description": "Programming language for highlighting. Supports 300+ bundled Shiki languages, including typescript, javascript, python, rust, go, java, c, cpp, csharp, ruby, php, swift, kotlin, sql, json, yaml, markdown, html, css, bash, dockerfile, toml, xml, graphql, and many more. Use 'text' for plain text.",
+            "type": "string"
+          },
+          "title": {
+            "default": "code",
+            "description": "Window title shown in the title bar (e.g., 'src/main.ts', 'example.py')",
+            "type": "string",
+            "maxLength": 100
+          },
+          "startLine": {
+            "description": "First line number to show in the gutter (1-indexed). Use with endLine to show a code range.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "endLine": {
+            "description": "Last line number to show in the gutter (1-indexed, inclusive). Must be >= startLine if both provided.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "output": {
+            "description": "Output filename (default: auto-generated as 'code-<timestamp>.png' or '.jpeg' based on SNAPMCP_FORMAT). Include extension to override format.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Absolute path of the saved image file"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "png",
+              "jpeg"
+            ],
+            "description": "Format of the saved image file"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Size of the saved file in bytes"
+          },
+          "width": {
+            "description": "Image width in pixels",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "height": {
+            "description": "Image height in pixels",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "path",
+          "format",
+          "bytes"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "capture_browser",
+      "title": "Capture a web page",
+      "description": "Take a screenshot of an HTTP(S) URL using headless Chromium. Uses Playwright's bundled Chromium by default; set SNAPMCP_CHROME_EXECUTABLE or the experimental SNAPMCP_CHROME_PROFILE to opt into a system Chrome or persistent profile. Explicit profile mode can send profile cookies and session state to the target site. SSRF protection is enabled by default and blocks private/local targets. Supports full-page or viewport captures.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL to capture (http/https). Private and local IPv4/IPv6 targets, localhost variants, and hostnames resolving to private addresses are blocked when SSRF protection is enabled."
+          },
+          "fullPage": {
+            "default": false,
+            "description": "Capture the full scrollable page (true) or the viewport (false).",
+            "type": "boolean"
+          },
+          "width": {
+            "default": 1280,
+            "description": "Viewport width in pixels (320-3840).",
+            "type": "integer",
+            "minimum": 320,
+            "maximum": 3840
+          },
+          "height": {
+            "default": 800,
+            "description": "Viewport height in pixels (240-4096).",
+            "type": "integer",
+            "minimum": 240,
+            "maximum": 4096
+          },
+          "output": {
+            "description": "Output filename (default: auto-generated as 'browser-<timestamp>.png' or '.jpeg' based on SNAPMCP_FORMAT). Include extension to override format.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Absolute path of the saved image file"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "png",
+              "jpeg"
+            ],
+            "description": "Format of the saved image file"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Size of the saved file in bytes"
+          },
+          "width": {
+            "description": "Image width in pixels",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "height": {
+            "description": "Image height in pixels",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "path",
+          "format",
+          "bytes"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "capture_file",
+      "title": "Capture a source file",
+      "description": "Read a file and generate a syntax-highlighted screenshot with automatic language detection from file extension. Supports 300+ bundled Shiki languages. Requires SNAPMCP_ALLOWED_PATHS to be set for security (deny-all by default). Maximum file size 5MB.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "filePath": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Absolute path to the file to capture. Must be within SNAPMCP_ALLOWED_PATHS allowlist. Symlinks are resolved to prevent traversal."
+          },
+          "startLine": {
+            "description": "First line number to capture (1-indexed, inclusive). Use with endLine to capture a specific range.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "endLine": {
+            "description": "Last line number to capture (1-indexed, inclusive). Must be >= startLine if both provided. Defaults to end of file.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "output": {
+            "description": "Output filename (default: auto-generated as 'file-<timestamp>.png' or '.jpeg' based on SNAPMCP_FORMAT). Include extension to override format.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "filePath"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Absolute path of the saved image file"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "png",
+              "jpeg"
+            ],
+            "description": "Format of the saved image file"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Size of the saved file in bytes"
+          },
+          "width": {
+            "description": "Image width in pixels",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "height": {
+            "description": "Image height in pixels",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "path",
+          "format",
+          "bytes"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "capture_markdown",
+      "title": "Render Markdown",
+      "description": "Render GitHub-flavored Markdown as a styled document screenshot. Supports tables, task lists, and fenced code blocks with syntax highlighting. Raw HTML is escaped, JavaScript is disabled, and external resources are blocked. Maximum input 200KB.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "markdown": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200000,
+            "description": "Markdown content to render. Supports GFM tables, task lists, fenced code blocks, strikethrough, and autolinks. Raw HTML is escaped. Maximum 200KB."
+          },
+          "title": {
+            "default": "document",
+            "description": "Document title shown in the window title bar and as H1 if not present in markdown.",
+            "type": "string",
+            "maxLength": 100
+          },
+          "output": {
+            "description": "Output filename (default: auto-generated as 'markdown-<timestamp>.png' or '.jpeg' based on SNAPMCP_FORMAT). Include extension to override format.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "markdown"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Absolute path of the saved image file"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "png",
+              "jpeg"
+            ],
+            "description": "Format of the saved image file"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Size of the saved file in bytes"
+          },
+          "width": {
+            "description": "Image width in pixels",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "height": {
+            "description": "Image height in pixels",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "path",
+          "format",
+          "bytes"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "capture_html",
+      "title": "Render HTML",
+      "description": "Render HTML/CSS as a screenshot in an isolated, JavaScript-disabled context. Inline styles and embedded data images are supported; scripts, frames, external stylesheets, and other external resources are removed or blocked. Maximum input 200KB.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "html": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200000,
+            "description": "HTML content to render. Active elements, event handlers, external references, and unsafe URL schemes are removed. Inline styles, <style> tags, and embedded data images work. Maximum 200KB."
+          },
+          "title": {
+            "default": "html",
+            "description": "Description for logging and window title (if window chrome enabled).",
+            "type": "string",
+            "maxLength": 100
+          },
+          "output": {
+            "description": "Output filename (default: auto-generated as 'html-<timestamp>.png' or '.jpeg' based on SNAPMCP_FORMAT). Include extension to override format.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "html"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Absolute path of the saved image file"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "png",
+              "jpeg"
+            ],
+            "description": "Format of the saved image file"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Size of the saved file in bytes"
+          },
+          "width": {
+            "description": "Image width in pixels",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "height": {
+            "description": "Image height in pixels",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "path",
+          "format",
+          "bytes"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "capture_diff",
+      "title": "Capture a code diff",
+      "description": "Render a unified diff with color-coded additions (green) and deletions (red). Shows file headers, hunk markers, and context lines. Ideal for PR reviews, migration guides, and change documentation. Maximum input 500KB.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "diff": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500000,
+            "description": "Unified diff content (for example, output from 'git diff' or 'diff -u'). File headers (---/+++) and hunk markers (@@ -... +... @@) are rendered when present. Maximum 500KB."
+          },
+          "output": {
+            "description": "Output filename (default: auto-generated as 'diff-<timestamp>.png' or '.jpeg' based on SNAPMCP_FORMAT). Include extension to override format.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "diff"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Absolute path of the saved image file"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "png",
+              "jpeg"
+            ],
+            "description": "Format of the saved image file"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Size of the saved file in bytes"
+          },
+          "width": {
+            "description": "Image width in pixels",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "height": {
+            "description": "Image height in pixels",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "path",
+          "format",
+          "bytes"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "capture_pdf",
+      "title": "Capture a URL as PDF",
+      "description": "Convert a URL to a print-quality PDF using headless Chromium. The complete paginated document is printed. Uses a system Chrome profile only when explicitly configured. SSRF protection is enabled by default (blocks private IPs and localhost).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL to convert to PDF (http/https). Must pass SSRF validation: private and local addresses are blocked and requests are revalidated."
+          },
+          "width": {
+            "default": 1280,
+            "description": "Viewport width in pixels (320-3840) for responsive rendering.",
+            "type": "integer",
+            "minimum": 320,
+            "maximum": 3840
+          },
+          "height": {
+            "default": 800,
+            "description": "Viewport height in pixels (240-4096) for responsive rendering.",
+            "type": "integer",
+            "minimum": 240,
+            "maximum": 4096
+          },
+          "output": {
+            "description": "Output filename (default: auto-generated as 'pdf-<timestamp>.pdf'). Must end in .pdf.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Absolute path of the saved PDF"
+          },
+          "format": {
+            "type": "string",
+            "const": "pdf",
+            "description": "Format of the saved file"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Size of the saved file in bytes"
+          }
+        },
+        "required": [
+          "path",
+          "format",
+          "bytes"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "capture_batch",
+      "title": "Capture multiple artifacts",
+      "description": "Capture multiple items in a single call. Each capture is processed sequentially with its own parameters. Use for batch documentation generation (e.g., capture terminal output, code file, and browser screenshot together). Maximum 10 captures per call.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "captures": {
+            "minItems": 1,
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "title": {
+                      "description": "Window title (default: 'terminal')",
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    "lines": {
+                      "minItems": 1,
+                      "maxItems": 1000,
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Lines to render. Prefix with '$ ' for prompts."
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "terminal"
+                    }
+                  },
+                  "required": [
+                    "lines",
+                    "type"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200000,
+                      "description": "Source code to render"
+                    },
+                    "language": {
+                      "default": "text",
+                      "description": "Programming language (typescript, python, rust, go, etc.)",
+                      "type": "string"
+                    },
+                    "title": {
+                      "description": "Window title (default: 'code')",
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    "startLine": {
+                      "description": "First line number (1-indexed)",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "endLine": {
+                      "description": "Last line number (1-indexed, inclusive)",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "code"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "type"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "filePath": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Absolute path to file (must be in SNAPMCP_ALLOWED_PATHS)"
+                    },
+                    "startLine": {
+                      "description": "First line number (1-indexed)",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "endLine": {
+                      "description": "Last line number (1-indexed, inclusive)",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "file"
+                    }
+                  },
+                  "required": [
+                    "filePath",
+                    "type"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "URL to capture (http/https, SSRF protected)"
+                    },
+                    "fullPage": {
+                      "default": false,
+                      "description": "Capture full scrollable page",
+                      "type": "boolean"
+                    },
+                    "width": {
+                      "default": 1280,
+                      "description": "Viewport width (px)",
+                      "type": "integer",
+                      "minimum": 320,
+                      "maximum": 3840
+                    },
+                    "height": {
+                      "default": 800,
+                      "description": "Viewport height (px)",
+                      "type": "integer",
+                      "minimum": 240,
+                      "maximum": 4096
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "browser"
+                    }
+                  },
+                  "required": [
+                    "url",
+                    "type"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "markdown": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200000,
+                      "description": "Markdown content (GFM supported)"
+                    },
+                    "title": {
+                      "description": "Document title (default: 'document')",
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "markdown"
+                    }
+                  },
+                  "required": [
+                    "markdown",
+                    "type"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "html": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200000,
+                      "description": "HTML content (external resources blocked)"
+                    },
+                    "title": {
+                      "description": "Description for logging (default: 'html')",
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "html"
+                    }
+                  },
+                  "required": [
+                    "html",
+                    "type"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "diff": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500000,
+                      "description": "Unified diff content (git diff format)"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "diff"
+                    }
+                  },
+                  "required": [
+                    "diff",
+                    "type"
+                  ]
+                }
+              ]
+            },
+            "description": "Array of captures to process. Each capture specifies its type and type-specific parameters."
+          },
+          "output": {
+            "description": "Output directory (default: SNAPMCP_DIR). Captures saved as individual files.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "captures"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Number of captures produced"
+          },
+          "captures": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "description": "Capture type that produced the file"
+                },
+                "path": {
+                  "type": "string",
+                  "description": "Absolute path of the saved file"
+                },
+                "format": {
+                  "type": "string",
+                  "description": "Format of the saved file"
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Size of the saved file in bytes"
+                },
+                "width": {
+                  "description": "Image width in pixels",
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "height": {
+                  "description": "Image height in pixels",
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "stepNumber": {
+                  "description": "Step number in the sequence",
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "label": {
+                  "description": "Caller-provided label for the capture",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "path",
+                "format",
+                "bytes"
+              ],
+              "additionalProperties": false
+            },
+            "description": "One entry per saved capture, in capture order"
+          }
+        },
+        "required": [
+          "count",
+          "captures"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "capture_sequence",
+      "title": "Capture a process sequence",
+      "description": "Capture ordered process steps as individual image files and optionally compile them into a GIF. Each step has typed capture parameters plus stepNumber and label. When GIF output is requested, frames are rendered as PNG. Maximum 60 steps.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "steps": {
+            "minItems": 1,
+            "maxItems": 60,
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "terminal"
+                    },
+                    "title": {
+                      "description": "Window title (default: 'step')",
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    "lines": {
+                      "minItems": 1,
+                      "maxItems": 1000,
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Lines to render. Prefix with '$ ' for prompts."
+                    },
+                    "stepNumber": {
+                      "description": "Step number label (auto-assigned if omitted)",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "label": {
+                      "description": "Optional label for this step",
+                      "type": "string",
+                      "maxLength": 100
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "lines"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "code"
+                    },
+                    "code": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200000,
+                      "description": "Source code to render"
+                    },
+                    "language": {
+                      "default": "text",
+                      "description": "Programming language (typescript, python, rust, go, etc.)",
+                      "type": "string"
+                    },
+                    "title": {
+                      "description": "Window title (default: 'step')",
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    "startLine": {
+                      "description": "First line number (1-indexed)",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "endLine": {
+                      "description": "Last line number (1-indexed, inclusive)",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "stepNumber": {
+                      "description": "Step number label (auto-assigned if omitted)",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "label": {
+                      "description": "Optional label for this step",
+                      "type": "string",
+                      "maxLength": 100
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "code"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "file"
+                    },
+                    "filePath": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Absolute path to file (must be in SNAPMCP_ALLOWED_PATHS)"
+                    },
+                    "startLine": {
+                      "description": "First line number (1-indexed)",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "endLine": {
+                      "description": "Last line number (1-indexed, inclusive)",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "stepNumber": {
+                      "description": "Step number label (auto-assigned if omitted)",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "label": {
+                      "description": "Optional label for this step",
+                      "type": "string",
+                      "maxLength": 100
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "filePath"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "browser"
+                    },
+                    "url": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "URL to capture (http/https, SSRF protected)"
+                    },
+                    "fullPage": {
+                      "default": false,
+                      "description": "Capture full scrollable page",
+                      "type": "boolean"
+                    },
+                    "width": {
+                      "default": 1280,
+                      "description": "Viewport width (px)",
+                      "type": "integer",
+                      "minimum": 320,
+                      "maximum": 3840
+                    },
+                    "height": {
+                      "default": 800,
+                      "description": "Viewport height (px)",
+                      "type": "integer",
+                      "minimum": 240,
+                      "maximum": 4096
+                    },
+                    "stepNumber": {
+                      "description": "Step number label (auto-assigned if omitted)",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "label": {
+                      "description": "Optional label for this step",
+                      "type": "string",
+                      "maxLength": 100
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "url"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "markdown"
+                    },
+                    "markdown": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200000,
+                      "description": "Markdown content (GFM supported)"
+                    },
+                    "title": {
+                      "description": "Document title (default: 'step')",
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    "stepNumber": {
+                      "description": "Step number label (auto-assigned if omitted)",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "label": {
+                      "description": "Optional label for this step",
+                      "type": "string",
+                      "maxLength": 100
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "markdown"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "html"
+                    },
+                    "html": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200000,
+                      "description": "HTML content (external resources blocked)"
+                    },
+                    "title": {
+                      "description": "Description for logging (default: 'step')",
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    "stepNumber": {
+                      "description": "Step number label (auto-assigned if omitted)",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "label": {
+                      "description": "Optional label for this step",
+                      "type": "string",
+                      "maxLength": 100
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "html"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "diff"
+                    },
+                    "diff": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500000,
+                      "description": "Unified diff content (git diff format)"
+                    },
+                    "stepNumber": {
+                      "description": "Step number label (auto-assigned if omitted)",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "label": {
+                      "description": "Optional label for this step",
+                      "type": "string",
+                      "maxLength": 100
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "diff"
+                  ]
+                }
+              ]
+            },
+            "description": "Array of steps to capture. Each step specifies its capture type, type-specific parameters, plus optional stepNumber and label."
+          },
+          "compileGif": {
+            "default": false,
+            "description": "Compile frames into an animated GIF (requires at least 2 steps)",
+            "type": "boolean"
+          },
+          "frameDelay": {
+            "default": 800,
+            "description": "Frame delay in milliseconds for GIF (10-5000). Default 800ms.",
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 5000
+          },
+          "loop": {
+            "default": true,
+            "description": "Whether the GIF loops infinitely",
+            "type": "boolean"
+          },
+          "output": {
+            "description": "Output directory (default: SNAPMCP_DIR). Steps saved as individual files, GIF as sequence-<timestamp>.gif",
+            "type": "string"
+          }
+        },
+        "required": [
+          "steps"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "stepCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Number of steps captured"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "description": "Capture type that produced the file"
+                },
+                "path": {
+                  "type": "string",
+                  "description": "Absolute path of the saved file"
+                },
+                "format": {
+                  "type": "string",
+                  "description": "Format of the saved file"
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Size of the saved file in bytes"
+                },
+                "width": {
+                  "description": "Image width in pixels",
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "height": {
+                  "description": "Image height in pixels",
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "stepNumber": {
+                  "description": "Step number in the sequence",
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "label": {
+                  "description": "Caller-provided label for the capture",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "path",
+                "format",
+                "bytes"
+              ],
+              "additionalProperties": false
+            },
+            "description": "One entry per captured step, in step order"
+          },
+          "gifPath": {
+            "description": "Absolute path of the compiled GIF, when requested",
+            "type": "string"
+          },
+          "gifBytes": {
+            "description": "Size of the compiled GIF in bytes",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "stepCount",
+          "steps"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "capture_gif",
+      "title": "Capture an animated GIF",
+      "description": "Create an animated GIF from 2-60 sequential captures. Frames are rendered as PNG, compiled into a GIF, and removed after encoding. loop=true repeats forever; loop=false plays once. Maximum canvas 8192x8192.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "default": "animation",
+            "description": "Name for the GIF (used in default filename)",
+            "type": "string",
+            "maxLength": 100
+          },
+          "captures": {
+            "minItems": 2,
+            "maxItems": 60,
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "title": {
+                      "description": "Window title (default: 'frame')",
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    "lines": {
+                      "minItems": 1,
+                      "maxItems": 1000,
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Lines to render. Prefix with '$ ' for prompts."
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "terminal"
+                    }
+                  },
+                  "required": [
+                    "lines",
+                    "type"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200000,
+                      "description": "Source code to render"
+                    },
+                    "language": {
+                      "default": "text",
+                      "description": "Programming language (typescript, python, rust, go, etc.)",
+                      "type": "string"
+                    },
+                    "title": {
+                      "description": "Window title (default: 'frame')",
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    "startLine": {
+                      "description": "First line number (1-indexed)",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "endLine": {
+                      "description": "Last line number (1-indexed, inclusive)",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "code"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "type"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "filePath": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Absolute path to file (must be in SNAPMCP_ALLOWED_PATHS)"
+                    },
+                    "startLine": {
+                      "description": "First line number (1-indexed)",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "endLine": {
+                      "description": "Last line number (1-indexed, inclusive)",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "file"
+                    }
+                  },
+                  "required": [
+                    "filePath",
+                    "type"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "URL to capture (http/https, SSRF protected)"
+                    },
+                    "fullPage": {
+                      "default": false,
+                      "description": "Capture full scrollable page",
+                      "type": "boolean"
+                    },
+                    "width": {
+                      "default": 1280,
+                      "description": "Viewport width (px)",
+                      "type": "integer",
+                      "minimum": 320,
+                      "maximum": 3840
+                    },
+                    "height": {
+                      "default": 800,
+                      "description": "Viewport height (px)",
+                      "type": "integer",
+                      "minimum": 240,
+                      "maximum": 4096
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "browser"
+                    }
+                  },
+                  "required": [
+                    "url",
+                    "type"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "markdown": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200000,
+                      "description": "Markdown content (GFM supported)"
+                    },
+                    "title": {
+                      "description": "Document title (default: 'frame')",
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "markdown"
+                    }
+                  },
+                  "required": [
+                    "markdown",
+                    "type"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "html": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200000,
+                      "description": "HTML content (external resources blocked)"
+                    },
+                    "title": {
+                      "description": "Description for logging (default: 'frame')",
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "html"
+                    }
+                  },
+                  "required": [
+                    "html",
+                    "type"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "diff": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500000,
+                      "description": "Unified diff content (git diff format)"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "diff"
+                    }
+                  },
+                  "required": [
+                    "diff",
+                    "type"
+                  ]
+                }
+              ]
+            },
+            "description": "Array of frames to capture. Each frame specifies its capture type and type-specific parameters. Minimum 2, maximum 60 frames."
+          },
+          "frameDelay": {
+            "default": 800,
+            "description": "Frame delay in milliseconds for GIF (10-5000). Default 800ms.",
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 5000
+          },
+          "loop": {
+            "default": true,
+            "description": "Whether the GIF loops infinitely (true) or plays once (false)",
+            "type": "boolean"
+          },
+          "output": {
+            "description": "Output filename (default: auto-generated as '<title>-<timestamp>.gif'). Must end in .gif",
+            "type": "string"
+          }
+        },
+        "required": [
+          "captures"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Absolute path of the saved GIF"
+          },
+          "format": {
+            "type": "string",
+            "const": "gif",
+            "description": "Format of the saved file"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Size of the saved file in bytes"
+          },
+          "width": {
+            "description": "Animation width in pixels",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "height": {
+            "description": "Animation height in pixels",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "frames": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Number of frames in the animation"
+          }
+        },
+        "required": [
+          "path",
+          "format",
+          "bytes",
+          "frames"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "capture_document",
+      "title": "Capture a visual document",
+      "description": "Create a document with embedded step-by-step captures. Each capture is rendered as an image and embedded in the document with optional captions. Output formats: markdown (with image references), html (self-contained with base64 images), pdf (print-quality), pptx (editable PowerPoint deck), or docx (editable Word document). Maximum 30 captures per document; 25 MB per embedded image and 75 MB total.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Document title"
+          },
+          "captures": {
+            "minItems": 1,
+            "maxItems": 30,
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "terminal"
+                    },
+                    "title": {
+                      "description": "Window title (default: 'step')",
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    "lines": {
+                      "minItems": 1,
+                      "maxItems": 1000,
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Lines to render. Prefix with '$ ' for prompts."
+                    },
+                    "caption": {
+                      "description": "Caption for this capture in the document",
+                      "type": "string",
+                      "maxLength": 200
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "lines"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "code"
+                    },
+                    "code": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200000,
+                      "description": "Source code to render"
+                    },
+                    "language": {
+                      "default": "text",
+                      "description": "Programming language (typescript, python, rust, go, etc.)",
+                      "type": "string"
+                    },
+                    "title": {
+                      "description": "Window title (default: 'step')",
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    "startLine": {
+                      "description": "First line number (1-indexed)",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "endLine": {
+                      "description": "Last line number (1-indexed, inclusive)",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "caption": {
+                      "description": "Caption for this capture in the document",
+                      "type": "string",
+                      "maxLength": 200
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "code"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "file"
+                    },
+                    "filePath": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Absolute path to file (must be in SNAPMCP_ALLOWED_PATHS)"
+                    },
+                    "startLine": {
+                      "description": "First line number (1-indexed)",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "endLine": {
+                      "description": "Last line number (1-indexed, inclusive)",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "caption": {
+                      "description": "Caption for this capture in the document",
+                      "type": "string",
+                      "maxLength": 200
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "filePath"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "browser"
+                    },
+                    "url": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "URL to capture (http/https, SSRF protected)"
+                    },
+                    "fullPage": {
+                      "default": false,
+                      "description": "Capture full scrollable page",
+                      "type": "boolean"
+                    },
+                    "width": {
+                      "default": 1280,
+                      "description": "Viewport width (px)",
+                      "type": "integer",
+                      "minimum": 320,
+                      "maximum": 3840
+                    },
+                    "height": {
+                      "default": 800,
+                      "description": "Viewport height (px)",
+                      "type": "integer",
+                      "minimum": 240,
+                      "maximum": 4096
+                    },
+                    "caption": {
+                      "description": "Caption for this capture in the document",
+                      "type": "string",
+                      "maxLength": 200
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "url"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "markdown"
+                    },
+                    "markdown": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200000,
+                      "description": "Markdown content (GFM supported)"
+                    },
+                    "title": {
+                      "description": "Document title (default: 'step')",
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    "caption": {
+                      "description": "Caption for this capture in the document",
+                      "type": "string",
+                      "maxLength": 200
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "markdown"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "html"
+                    },
+                    "html": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200000,
+                      "description": "HTML content (external resources blocked)"
+                    },
+                    "title": {
+                      "description": "Description for logging (default: 'step')",
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    "caption": {
+                      "description": "Caption for this capture in the document",
+                      "type": "string",
+                      "maxLength": 200
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "html"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "diff"
+                    },
+                    "diff": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500000,
+                      "description": "Unified diff content (git diff format)"
+                    },
+                    "caption": {
+                      "description": "Caption for this capture in the document",
+                      "type": "string",
+                      "maxLength": 200
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "diff"
+                  ]
+                }
+              ]
+            },
+            "description": "Array of captures to embed. Each specifies capture type, type-specific parameters, and optional caption."
+          },
+          "format": {
+            "default": "markdown",
+            "description": "Output document format: markdown (image refs), html (self-contained), pdf (print-quality), pptx (editable PowerPoint), docx (editable Word)",
+            "type": "string",
+            "enum": [
+              "markdown",
+              "html",
+              "pdf",
+              "pptx",
+              "docx"
+            ]
+          },
+          "includeTimestamps": {
+            "default": false,
+            "description": "Include capture timestamps in the document",
+            "type": "boolean"
+          },
+          "output": {
+            "description": "Output filename (default: auto-generated as 'document-<timestamp>.md/.html/.pdf/.pptx/.docx'). Extension should match format.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "captures"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Absolute path of the saved document"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "markdown",
+              "html",
+              "pdf",
+              "pptx",
+              "docx"
+            ],
+            "description": "Format of the saved document"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Size of the saved file in bytes"
+          },
+          "captureCount": {
+            "description": "Number of captures embedded in the document",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "path",
+          "format",
+          "bytes"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "snapmcp-hint",
+      "title": "Find the right snapmcp tool",
+      "description": "Find the right snapmcp tool by natural-language intent, or get concise setup, security, sandbox, agent, and token guidance. Use when tool selection is unclear or before loading the full documentation.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "topic": {
+            "description": "Legacy named topic: init, doctor, browser, themes, output, security, sandbox, gif, document, batch, tokens, agents, discovery, or code-mode.",
+            "type": "string",
+            "maxLength": 50
+          },
+          "query": {
+            "description": "Natural-language intent to search, such as 'website screenshot', 'animated before and after', 'pdf export', or 'read a source file'.",
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "matches",
+              "topic",
+              "overview"
+            ],
+            "description": "Kind of guidance returned: ranked matches, a setup topic, or the overview"
+          },
+          "query": {
+            "type": "string",
+            "description": "Query or topic the guidance answers"
+          },
+          "answer": {
+            "type": "string",
+            "description": "Human-readable guidance text"
+          },
+          "matches": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Tool name"
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Human-readable tool title"
+                },
+                "summary": {
+                  "type": "string",
+                  "description": "One-line tool summary"
+                },
+                "useWhen": {
+                  "type": "string",
+                  "description": "When to prefer the tool"
+                }
+              },
+              "required": [
+                "name",
+                "title",
+                "summary",
+                "useWhen"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Ranked tool matches; empty when the answer is not a search"
+          }
+        },
+        "required": [
+          "kind",
+          "query",
+          "answer",
+          "matches"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    }
+  ],
+  "version": "2.3.11"
+}

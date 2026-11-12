@@ -1,7 +1,7 @@
 {
   "name": "snapmcp",
   "description": "Visual documentation MCP server for agents: terminal output, Shiki-highlighted code for 300+ languages, HTTP(S) screenshots and PDFs, Markdown, HTML, diffs, GIFs, and captioned documents in Markdown, HTML, PDF, editable PowerPoint, and editable Word. Exactly 13 tools apply bounded inputs, deny-all file reads, output confinement, and default-on SSRF checks with DNS pinning; capture tools return saved paths and a structured result with the path, format, and size.",
-  "version": "2.3.10",
+  "version": "2.3.11",
   "license": "MIT",
   "repository": "https://github.com/reeinharddd/snapmcp",
   "homepage": "https://github.com/reeinharddd/snapmcp",

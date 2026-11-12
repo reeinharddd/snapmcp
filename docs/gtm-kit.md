@@ -1,4 +1,4 @@
-# snapmcp 2.3.10 Go-to-Market Kit
+# snapmcp 2.3.11 Go-to-Market Kit
 
 Use these descriptions for registry listings, directories, launch posts, and other discovery surfaces. Keep the security and runtime claims consistent with the current documentation.
 
@@ -68,3 +68,29 @@ Install with npm, initialize Chromium explicitly, and let `snapmcp-hint` guide t
 - Tool reference: https://github.com/reeinharddd/snapmcp/blob/main/docs/tools.md
 - Agent manifest: https://github.com/reeinharddd/snapmcp/blob/main/llms.txt
 - Security policy: https://github.com/reeinharddd/snapmcp/blob/main/SECURITY.md
+
+## Directory listings
+
+| Directory | Listing | How it updates |
+|---|---|---|
+| npm | https://www.npmjs.com/package/snapmcp | Published by the release workflow with provenance |
+| MCP Registry | https://registry.modelcontextprotocol.io/v0.1/servers/io.github.reeinharddd%2Fsnapmcp | Published by the release workflow from `server.json` |
+| LobeHub Marketplace | https://lobehub.com/mcp/reeinharddd-snapmcp | `lhm plugin update --dir .`, using `lhm.plugin.json` |
+| Glama | https://glama.ai/mcp/servers/reeinharddd/snapmcp | Re-crawled from the repository |
+| ToolBench | https://toolbench.arcade.dev | Re-scored by the Arcade scoring workers |
+| mcp.market | https://mcp.market/server/reeinharddd-snapmcp | Re-scanned from the MCP Registry |
+| mcpservers.org | https://mcpservers.org | Manual review after submission |
+| Docker MCP Catalog | https://github.com/docker/mcp-registry | Pull request against the catalog |
+
+`lhm.plugin.json` is the marketplace manifest and the source of truth for the
+LobeHub listing. It is generated from the running server, so it must be
+regenerated whenever a tool, a description, or a schema changes:
+
+```bash
+bun run build
+npx -y @lobehub/market-cli plugin init --stdio "node dist/index.js" --dir .
+npx -y @lobehub/market-cli plugin update --dir .
+```
+
+A regression test compares the committed manifest against the `tools/list`
+response of the built server, so a stale manifest fails the build.
