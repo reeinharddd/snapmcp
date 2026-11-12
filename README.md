@@ -18,7 +18,7 @@
 
 ---
 
-**snapmcp 2.3.7** turns agent-provided content into visual documentation artifacts: syntax-highlighted code, terminal sessions, browser pages, diffs, PDFs, GIFs, and captioned documents. It exposes exactly 13 MCP tools. The 12 capture/document tools return saved file paths rather than image bytes, while `snapmcp-hint` returns text guidance, keeping agent context small. Every tool also returns a structured payload with the saved path, format, and size.
+**snapmcp 2.3.8** turns agent-provided content into visual documentation artifacts: syntax-highlighted code, terminal sessions, browser pages, diffs, PDFs, GIFs, and captioned documents. It exposes exactly 13 MCP tools. The 12 capture/document tools return saved file paths rather than image bytes, while `snapmcp-hint` returns text guidance, keeping agent context small. Every tool also returns a structured payload with the saved path, format, and size.
 
 ## Quick start
 
