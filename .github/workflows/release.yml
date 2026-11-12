@@ -193,6 +193,11 @@ jobs:
           persist-credentials: false
           ref: ${{ needs.resolve.outputs.tag }}
 
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
       - name: Download the MCP Registry publisher
         run: |
           set -euo pipefail
@@ -212,6 +217,27 @@ jobs:
       - name: Log in to the MCP Registry with GitHub OIDC
         run: mcp-publisher login github-oidc
 
+      - name: Wait for the npm release to become visible
+        env:
+          EXPECTED_VERSION: ${{ needs.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          # The MCP Registry validates that the referenced npm version exists
+          # before it accepts the server. npm answers the publish immediately
+          # but its CDN can take a few minutes to serve the new version, so a
+          # registry publish right after the npm publish races the CDN and is
+          # rejected with "version not found". Wait for the version instead.
+          for attempt in $(seq 1 30); do
+            if npm view "snapmcp@${EXPECTED_VERSION}" version 2>/dev/null | grep -qx "${EXPECTED_VERSION}"; then
+              echo "snapmcp@${EXPECTED_VERSION} is visible on npm"
+              exit 0
+            fi
+            echo "Attempt ${attempt}: snapmcp@${EXPECTED_VERSION} is not on npm yet, retrying in 20s"
+            sleep 20
+          done
+          echo "::error::snapmcp@${EXPECTED_VERSION} did not appear on npm within 10 minutes" >&2
+          exit 1
+
       - name: Publish server.json
         env:
           EXPECTED_VERSION: ${{ needs.resolve.outputs.version }}
@@ -228,4 +254,14 @@ jobs:
             exit 1
           fi
           mcp-publisher validate ./server.json
-          mcp-publisher publish ./server.json
+          # The registry can still be serving a stale view of npm, so a
+          # transient rejection is retried before the job fails.
+          for attempt in 1 2 3; do
+            if mcp-publisher publish ./server.json; then
+              exit 0
+            fi
+            echo "Attempt ${attempt} to publish to the MCP Registry failed, retrying in 30s"
+            sleep 30
+          done
+          echo "::error::could not publish ${PKG_VERSION} to the MCP Registry" >&2
+          exit 1
