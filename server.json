@@ -1,5 +1,65 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "_meta": {
+    "io.modelcontextprotocol.registry/publisher-provided": {
+      "tools": {
+        "list": [
+          {
+            "name": "capture_terminal",
+            "description": "Render terminal lines as a PNG or JPEG, with heuristic terminal palette detection and $ or # prompt markers."
+          },
+          {
+            "name": "capture_code",
+            "description": "Render source code with Shiki highlighting for 300+ bundled languages and 27 themes, with an optional inclusive line range."
+          },
+          {
+            "name": "capture_browser",
+            "description": "Capture a full-page or viewport screenshot of an HTTP(S) URL with default-on SSRF protection."
+          },
+          {
+            "name": "capture_file",
+            "description": "Render an allowlisted file with extension-based language mapping and an optional inclusive line range; file reads are deny-all by default."
+          },
+          {
+            "name": "capture_markdown",
+            "description": "Render GitHub-flavored Markdown as a PNG or JPEG; raw HTML is escaped and external resources are blocked."
+          },
+          {
+            "name": "capture_html",
+            "description": "Render sanitized HTML and CSS in a JavaScript-disabled, network-isolated context; active and external content is removed or blocked."
+          },
+          {
+            "name": "capture_diff",
+            "description": "Render a unified diff as a PNG or JPEG with additions and deletions highlighted."
+          },
+          {
+            "name": "capture_pdf",
+            "description": "Print a complete HTTP(S) URL document to a PDF with Chromium."
+          },
+          {
+            "name": "capture_batch",
+            "description": "Capture up to 10 independent typed items in one call and return their saved image paths."
+          },
+          {
+            "name": "capture_sequence",
+            "description": "Capture up to 60 ordered steps as individual images and optionally compile a GIF."
+          },
+          {
+            "name": "capture_gif",
+            "description": "Create a GIF from 2 to 60 PNG captures; loop true repeats forever and loop false plays once."
+          },
+          {
+            "name": "capture_document",
+            "description": "Embed up to 30 captioned captures in a Markdown, self-contained HTML, print-quality PDF, editable PowerPoint, or editable Word document."
+          },
+          {
+            "name": "snapmcp-hint",
+            "description": "Find the right tool by natural-language intent or return concise setup, security, and token guidance."
+          }
+        ]
+      }
+    }
+  },
   "name": "io.github.reeinharddd/snapmcp",
   "title": "snapmcp",
   "description": "Visual documentation: terminal, code, browser, Markdown, HTML, diffs, PDF, GIF, and Office files.",
@@ -8,12 +68,12 @@
     "source": "github"
   },
   "websiteUrl": "https://github.com/reeinharddd/snapmcp",
-  "version": "2.3.9",
+  "version": "2.3.10",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "snapmcp",
-      "version": "2.3.9",
+      "version": "2.3.10",
       "transport": {
         "type": "stdio"
       },
@@ -95,61 +155,5 @@
         }
       ]
     }
-  ],
-  "tools": {
-    "list": [
-      {
-        "name": "capture_terminal",
-        "description": "Render terminal lines as a PNG or JPEG, with heuristic terminal palette detection and $ or # prompt markers."
-      },
-      {
-        "name": "capture_code",
-        "description": "Render source code with Shiki highlighting for 300+ bundled languages and 27 themes, with an optional inclusive line range."
-      },
-      {
-        "name": "capture_browser",
-        "description": "Capture a full-page or viewport screenshot of an HTTP(S) URL with default-on SSRF protection."
-      },
-      {
-        "name": "capture_file",
-        "description": "Render an allowlisted file with extension-based language mapping and an optional inclusive line range; file reads are deny-all by default."
-      },
-      {
-        "name": "capture_markdown",
-        "description": "Render GitHub-flavored Markdown as a PNG or JPEG; raw HTML is escaped and external resources are blocked."
-      },
-      {
-        "name": "capture_html",
-        "description": "Render sanitized HTML and CSS in a JavaScript-disabled, network-isolated context; active and external content is removed or blocked."
-      },
-      {
-        "name": "capture_diff",
-        "description": "Render a unified diff as a PNG or JPEG with additions and deletions highlighted."
-      },
-      {
-        "name": "capture_pdf",
-        "description": "Print a complete HTTP(S) URL document to a PDF with Chromium."
-      },
-      {
-        "name": "capture_batch",
-        "description": "Capture up to 10 independent typed items in one call and return their saved image paths."
-      },
-      {
-        "name": "capture_sequence",
-        "description": "Capture up to 60 ordered steps as individual images and optionally compile a GIF."
-      },
-      {
-        "name": "capture_gif",
-        "description": "Create a GIF from 2 to 60 PNG captures; loop true repeats forever and loop false plays once."
-      },
-      {
-        "name": "capture_document",
-        "description": "Embed up to 30 captioned captures in a Markdown, self-contained HTML, print-quality PDF, editable PowerPoint, or editable Word document."
-      },
-      {
-        "name": "snapmcp-hint",
-        "description": "Find the right tool by natural-language intent or return concise setup, security, and token guidance."
-      }
-    ]
-  }
+  ]
 }

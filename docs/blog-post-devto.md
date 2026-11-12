@@ -90,5 +90,5 @@ That distinction keeps both tools focused:
 
 - Repository: https://github.com/reeinharddd/snapmcp
 - npm package: `snapmcp`
-- Release: `2.3.9`
+- Release: `2.3.10`
 - License: MIT

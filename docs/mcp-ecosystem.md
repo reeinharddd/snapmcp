@@ -1,6 +1,6 @@
 # MCP Discovery and Registry Metadata
 
-This document describes the local discovery surfaces and metadata shape for snapmcp 2.3.9. It does not publish or modify any remote registry.
+This document describes the local discovery surfaces and metadata shape for snapmcp 2.3.10. It does not publish or modify any remote registry.
 
 ## Server identity
 
@@ -8,7 +8,7 @@ This document describes the local discovery surfaces and metadata shape for snap
 |---|---|
 | Name | `io.github.reeinharddd/snapmcp` |
 | Display name | snapmcp |
-| Version | `2.3.9` |
+| Version | `2.3.10` |
 | Transport | stdio |
 | Primary runtime | Node.js 20 or newer |
 | Optional runtime | Bun 1.2 or newer |
@@ -56,7 +56,14 @@ Do not describe an additional capture tool. Composite workflows use `capture_bat
 
 `https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json`
 
-It records the server identity, npm package, transport, environment variables, and the 13 tool names and descriptions. The package and server versions are both `2.3.9`.
+It records the server identity, npm package, transport, and environment variables. The package and server versions are both `2.3.10`.
+
+The 13 tool names and descriptions live under `_meta` in the
+`io.modelcontextprotocol.registry/publisher-provided` namespace, which is the
+only place the registry preserves publisher-supplied data. The official schema
+has no top-level `tools` property, so a top-level block is silently dropped on
+publish. The registry keeps the metadata of a published version immutable, so a
+tool-catalog change requires a new server version.
 
 ### `glama.json`
 
@@ -81,7 +88,7 @@ Add the relevant details instead of repeating keywords:
 ```bash
 node -e "JSON.parse(require('fs').readFileSync('server.json', 'utf8'))"
 node -e "JSON.parse(require('fs').readFileSync('glama.json', 'utf8'))"
-node -e "const s=JSON.parse(require('fs').readFileSync('server.json','utf8')); console.log(s.tools.list.length, s.tools.list.map(t=>t.name).join('\n'))"
+node -e "const s=JSON.parse(require('fs').readFileSync('server.json','utf8')); const t=s._meta['io.modelcontextprotocol.registry/publisher-provided'].tools.list; console.log(t.length, t.map(x=>x.name).join('\n'))"
 ```
 
 For schema validation, use a JSON Schema validator that supports draft-07 and the schema URL recorded in `server.json`. Validation is local and does not require a registry publication.

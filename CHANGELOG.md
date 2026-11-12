@@ -5,6 +5,14 @@ All notable changes to snapmcp are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.10] - 2026-11-12
+
+### Changed
+- Moved the 13-tool catalog in `server.json` from a top-level `tools` block into `_meta` under the `io.modelcontextprotocol.registry/publisher-provided` namespace, which is the only publisher-supplied data the MCP Registry preserves
+
+### Fixed
+- Fixed the MCP Registry record, which listed zero tools: the official server schema has no top-level `tools` property, so the catalog was silently dropped on publish and only appeared in the repository copy of the file
+
 ## [2.3.9] - 2026-11-12
 
 ### Fixed
