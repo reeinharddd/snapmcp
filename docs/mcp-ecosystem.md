@@ -1,6 +1,6 @@
 # MCP Discovery and Registry Metadata
 
-This document describes the local discovery surfaces and metadata shape for snapmcp 2.3.8. It does not publish or modify any remote registry.
+This document describes the local discovery surfaces and metadata shape for snapmcp 2.3.9. It does not publish or modify any remote registry.
 
 ## Server identity
 
@@ -8,7 +8,7 @@ This document describes the local discovery surfaces and metadata shape for snap
 |---|---|
 | Name | `io.github.reeinharddd/snapmcp` |
 | Display name | snapmcp |
-| Version | `2.3.8` |
+| Version | `2.3.9` |
 | Transport | stdio |
 | Primary runtime | Node.js 20 or newer |
 | Optional runtime | Bun 1.2 or newer |
@@ -56,7 +56,7 @@ Do not describe an additional capture tool. Composite workflows use `capture_bat
 
 `https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json`
 
-It records the server identity, npm package, transport, environment variables, and the 13 tool names and descriptions. The package and server versions are both `2.3.8`.
+It records the server identity, npm package, transport, environment variables, and the 13 tool names and descriptions. The package and server versions are both `2.3.9`.
 
 ### `glama.json`
 

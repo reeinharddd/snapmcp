@@ -191,4 +191,36 @@ describe("capability resource and hint tool", () => {
     assert.match(text, /SSRF/i);
     assert.match(text, /ALLOWED_PATHS/i);
   });
+
+  it("advertises every document format in the catalog and in the hint topic", async () => {
+    const documentCapability = TOOL_CAPABILITIES.find(
+      (capability) => capability.name === "capture_document",
+    );
+    assert.ok(documentCapability);
+    for (const format of ["Markdown", "HTML", "PDF", "PPTX", "DOCX"]) {
+      assert.ok(
+        documentCapability.outputs.includes(format as never),
+        `capture_document must advertise the ${format} output`,
+      );
+    }
+
+    let handler: HintHandler | undefined;
+    const server = {
+      registerTool(
+        _name: string,
+        _config: unknown,
+        callback: HintHandler,
+      ): void {
+        handler = callback;
+      },
+    } as unknown as McpServer;
+
+    registerHintTool(server);
+    assert.ok(handler);
+
+    const result = await handler({ topic: "document" });
+    const text = result.content[0]?.text ?? "";
+    assert.match(text, /PowerPoint/i);
+    assert.match(text, /Word/i);
+  });
 });

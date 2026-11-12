@@ -14,7 +14,7 @@
  *  capture_batch         → multi-capture batch                  → PNG/JPEG
  *  capture_sequence      → step-by-step sequence + GIF          → PNG/GIF
  *  capture_gif           → animated GIF from captures           → GIF
- *  capture_document      → document with embedded captures      → MD/HTML/PDF
+ *  capture_document      → document with embedded captures      → MD/HTML/PDF/PPTX/DOCX
  *  snapmcp-hint          → capability search and agent guidance → text
  *
  * CLI commands:
@@ -128,7 +128,7 @@ function showHelp(): void {
     capture_batch        Multi-capture batch (up to ${TOOL_LIMITS.batch.maxCaptures})
     capture_sequence     Step-by-step sequence + optional GIF
     capture_gif           Animated GIF from ${TOOL_LIMITS.gif.minFrames}-${TOOL_LIMITS.gif.maxFrames} captures
-    capture_document      Document (MD/HTML/PDF) with embedded captures
+    capture_document      Document (MD/HTML/PDF/PPTX/DOCX) with embedded captures
     snapmcp-hint          Capability search and concise agent guidance
 
   CLI
@@ -359,7 +359,7 @@ async function main() {
   logger.info(`  Format:   ${config.format}${config.format === "jpeg" ? ` (q${config.quality})` : ""}`);
   logger.info(`  Output:   ${OUTPUT_DIR}`);
   logger.info(`  Theme:    ${config.theme}`);
-  logger.info(`  GIF:      gifenc + fast-png · Documents: MD/HTML/PDF`);
+  logger.info(`  GIF:      gifenc + fast-png · Documents: MD/HTML/PDF/PPTX/DOCX`);
   logger.info(`  Chrome:   ${config.windowChrome ? "on" : "off"} · Shadow: ${config.shadow} · Radius: ${config.borderRadius}px`);
   logger.info(`  Security: ${config.securityChecks ? "enabled" : "disabled"}`);
   logger.debug(`  Padding:  ${config.padding}px · Badge: ${config.badge} · Font: ${config.fontSize}`);
