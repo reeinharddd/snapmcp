@@ -86,7 +86,9 @@ jobs:
         # The token is only a fallback for repositories that have not migrated
         # to Trusted Publishing yet. When the package has a trusted publisher
         # configured, npm exchanges the GitHub OIDC token instead and this
-        # secret is never used.
+        # secret is never used: the exchanged token is written to the
+        # non-persistable `cli` config layer, which takes precedence over both
+        # the `.npmrc` entry and NODE_AUTH_TOKEN.
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
@@ -100,7 +102,7 @@ jobs:
             if npm whoami --registry https://registry.npmjs.org >/dev/null 2>&1; then
               echo "npm_token_status=valid"
             else
-              echo "npm_token_status=invalid — the publish will fall back to the OIDC trusted publisher"
+              echo "npm_token_status=invalid — the publish will use the OIDC trusted publisher"
               echo "::warning::NPM_TOKEN is present but not accepted by the npm registry. Configure a trusted publisher for this workflow, or refresh the secret."
             fi
           else
@@ -117,7 +119,10 @@ jobs:
             echo "snapmcp@${PKG_VERSION} already on npm — skipping publish"
             exit 0
           fi
-          npm publish --access public --provenance
+          if ! npm publish --access public --provenance; then
+            echo "::error::npm publish failed. A 404 Not Found from the registry means the OIDC exchange produced no token. Check that a trusted publisher is configured on npmjs.com for this package with owner 'reeinharddd', repository 'snapmcp' and workflow 'release.yml', and that this workflow grants id-token: write."
+            exit 1
+          fi
 
   github-release:
     name: Create GitHub Release
