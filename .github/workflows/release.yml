@@ -156,6 +156,9 @@ jobs:
           # Pinned explicitly so a manual dispatch targets the version tag
           # instead of the branch that triggered the workflow.
           tag_name: ${{ needs.resolve.outputs.tag }}
+          # Without an explicit name the action falls back to the bare tag,
+          # which titles the release "v2.3.10" instead of "snapmcp v2.3.10".
+          name: snapmcp ${{ needs.resolve.outputs.tag }}
           generate_release_notes: true
           files: |
             dist/**

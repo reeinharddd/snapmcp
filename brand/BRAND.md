@@ -226,7 +226,7 @@ The startup banner displays the brand in ASCII:
 
 ```
   ┌──────────────────────────────────┬
-  │  ⬡ snapmcp v2.3.9  —  13 tools  │
+  │  ⬡ snapmcp v2.3.10  —  13 tools  │
   │  27 themes · GIF · Documents   │
   │  PNG / JPEG / PDF / GIF / MD   │
   │  precision captures for AI      │
