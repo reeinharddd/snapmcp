@@ -145,7 +145,7 @@ See the [agent guide](./docs/agents.md) for selection rules, token-efficient beh
 
 **Visual QA.** Capture affected pages with `capture_browser`, produce several independent images with `capture_batch`, or record an ordered walkthrough with `capture_sequence`.
 
-**Technical tutorials.** Use `capture_sequence` for ordered step images and `capture_document` when the final artifact should be a captioned Markdown, self-contained HTML, or print-quality PDF document.
+**Technical tutorials.** Use `capture_sequence` for ordered step images and `capture_document` when the final artifact should be a captioned Markdown, self-contained HTML, print-quality PDF, editable PowerPoint, or editable Word document.
 
 ## Security boundaries
 

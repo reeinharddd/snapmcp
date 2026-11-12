@@ -147,7 +147,7 @@ A useful OpenCode request is:
 
 - URL tools accept HTTP(S) only.
 - SSRF protection is default-on and blocks private/local IPv4 and IPv6 literals, IPv4-mapped IPv6, localhost variants, and DNS-resolved private addresses. Requests are revalidated.
-- Chromium does not pin the DNS-resolved IP, so the checks do not guarantee complete DNS-rebinding prevention. Use network isolation for hostile targets.
+- URL captures run through a local validating proxy that resolves and validates every target itself and connects to the validated IP literal, so there is no DNS-rebinding window between check and connection. Use network isolation for hostile targets anyway.
 - File reads are deny-all until `SNAPMCP_ALLOWED_PATHS` is configured.
 - All outputs, including composite outputs, stay inside `SNAPMCP_DIR`; traversal and symlink escapes are rejected.
 - Synthetic captures, including terminal, code, diff, Markdown, HTML, and generated document PDFs, render in an isolated browser context with JavaScript disabled, external network resources blocked, and a restrictive CSP. Markdown raw HTML is escaped and raw HTML input is DOM-sanitized. This is defense in depth, not a perfect sanitizer guarantee.

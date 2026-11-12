@@ -14,7 +14,7 @@
 
 - the task is browser interaction such as clicking, filling forms, or accessibility-tree navigation; use a browser-automation MCP server;
 - the result should be raw structured data rather than a visual artifact;
-- the target is an untrusted site and the deployment has no network isolation; the built-in URL checks do not provide complete DNS-rebinding protection.
+- the target is an untrusted site and the deployment has no network isolation; the built-in URL checks reduce common SSRF paths but are not a complete isolation boundary.
 
 ## Tools
 
@@ -61,7 +61,7 @@ There is no fourteenth capture tool. Composite tools accept flat discriminated u
 
 - URL tools accept HTTP(S) only.
 - SSRF protection is default-on: private/local IPv4 and IPv6 literals, IPv4-mapped IPv6, localhost variants, and DNS-resolved private addresses are blocked; requests are revalidated.
-- Chromium does not pin the DNS-resolved address, so complete DNS-rebinding prevention is not guaranteed. Isolate hostile targets with network controls.
+- URL captures run through a local validating proxy that resolves and validates every target itself and connects to the validated IP literal, so there is no DNS-rebinding window between check and connection. Isolate hostile targets with network controls anyway.
 - File reads are deny-all until `SNAPMCP_ALLOWED_PATHS` is configured.
 - Every output stays inside `SNAPMCP_DIR`; traversal and symlink escapes are rejected.
 - Synthetic captures render in an isolated browser context with JavaScript disabled, external network resources blocked, and a restrictive CSP. Markdown raw HTML is escaped and raw HTML input is DOM-sanitized. Sanitization is defense in depth, not a perfect-safety guarantee.

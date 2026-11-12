@@ -71,10 +71,10 @@ Use this as the baseline description:
 Add the relevant details instead of repeating keywords:
 
 - **Use cases:** README images, CLI tutorials, PR evidence, visual QA, API or onboarding guides.
-- **Outputs:** PNG/JPEG, PDF, GIF, Markdown, and HTML artifacts saved under `SNAPMCP_DIR`.
+- **Outputs:** PNG/JPEG, PDF, GIF, Markdown, HTML, PowerPoint, and Word artifacts saved under `SNAPMCP_DIR`, each returned with a structured payload.
 - **Selection:** Use `snapmcp-hint` or the capability resource when the appropriate tool is unclear.
 - **Security boundary:** HTTP(S)-only URL tools, default-on SSRF checks, deny-all file reads, output confinement, and isolated synthetic content.
-- **Honest limits:** Chromium does not pin the DNS-resolved address, and synthetic-content sanitization is defense in depth rather than a perfect-safety guarantee.
+- **Honest limits:** the validating proxy trusts the system resolver, and synthetic-content sanitization is defense in depth rather than a perfect-safety guarantee.
 
 ## Local verification
 

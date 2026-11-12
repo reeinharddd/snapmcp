@@ -227,8 +227,11 @@ export function validateUrl(raw: string, ssrfProtection: boolean = false): void 
 /**
  * Full SSRF validation including DNS resolution of hostnames.
  * Blocks public names that resolve to private ranges (for example, localtest.me
- * or nip.io). Chromium does not pin this answer, so this is not complete
- * DNS-rebinding prevention.
+ * or nip.io).
+ *
+ * This check validates a hostname but does not pin the answer it receives.
+ * Browser captures get the pinning guarantee from the local validating proxy
+ * in `proxy.ts`, which resolves and connects to the validated address itself.
  */
 export async function validateUrlResolve(raw: string, ssrfProtection: boolean = false): Promise<void> {
   validateUrl(raw, ssrfProtection);

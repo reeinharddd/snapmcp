@@ -92,7 +92,7 @@ Use a dedicated profile rather than a live personal profile. Profile data may in
 
 Browser requests are revalidated as they occur, including redirects and subresources.
 
-Chromium does not pin the DNS-resolved IP that snapmcp validated. These checks reduce common SSRF paths but do not guarantee complete DNS-rebinding prevention. Use network isolation for hostile targets.
+URL captures run through a local validating proxy that resolves and validates every target itself and connects to the validated IP literal, so there is no DNS-rebinding window between check and connection. The remaining limit is resolver trust, so use network isolation for hostile targets.
 
 Setting `SNAPMCP_SSRF_PROTECTION=false` disables SSRF checks. It is not recommended outside a controlled test environment.
 
