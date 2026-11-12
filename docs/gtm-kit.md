@@ -94,3 +94,29 @@ npx -y @lobehub/market-cli plugin update --dir .
 
 A regression test compares the committed manifest against the `tools/list`
 response of the built server, so a stale manifest fails the build.
+
+## Deferred follow-ups
+
+The 2.3.11 release shipped to every reachable directory. These items are
+open on purpose and are not release blockers:
+
+- **ToolBench** — a publisher account exists, but the Arcade scoring queue was
+  closed when the listing was submitted. Nothing to do until the queue reopens;
+  the rescore then reads the repository as it is now, including the schemas in
+  `lhm.plugin.json`.
+- **Glama** — the listing is re-crawled from the repository, so it lags behind
+  the latest release. Do not use the "Add Server" form to force it: that form
+  creates a new listing and would duplicate the crawled one.
+- **mcpservers.org** — the free submission is in review for up to two weeks.
+- **wong2/awesome-mcp-servers** — no pull request is possible while the
+  repository keeps Issues disabled. Retry only if they re-enable it.
+- **Docker MCP Catalog** and **punkpeye/awesome-mcp-servers** — the pull
+  requests are open and waiting on the upstream maintainers.
+- **LobeHub score** — the marketplace rubric asks for MCP prompts, which the
+  server does not expose today. Adding prompts is a feature decision, not a
+  listing task, so it was left out on purpose.
+- **mcp.market review** — the listing is claimed; a publisher review is allowed
+  by that site's model but was not written.
+- **npm install scripts** — npm 11.19 and later ask for approval before
+  running dependency install scripts. The postinstall script only prints a
+  pointer to `snapmcp init`, so nothing breaks, but the warning is expected.
