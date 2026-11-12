@@ -1,6 +1,6 @@
 # Tools Reference
 
-> snapmcp 2.3.6 exposes exactly 13 MCP tools: 12 capture/document tools and one discovery tool.
+> snapmcp 2.3.7 exposes exactly 13 MCP tools: 12 capture/document tools and one discovery tool.
 
 The 12 capture/document tools return saved file paths and short text summaries rather than image bytes. `snapmcp-hint` returns text guidance. Generated files are confined to `SNAPMCP_DIR`.
 
@@ -21,6 +21,22 @@ The 12 capture/document tools return saved file paths and short text summaries r
 | URLs | HTTP(S) only |
 | File reads | Denied unless `SNAPMCP_ALLOWED_PATHS` is configured |
 | Output | Confined to `SNAPMCP_DIR`, including composite outputs |
+
+## Structured results
+
+Every tool advertises a JSON Schema `outputSchema` in `tools/list` and returns a matching `structuredContent` payload. The text content stays a short human-readable summary, so clients can consume the result without parsing text.
+
+| Tool | `structuredContent` fields |
+|---|---|
+| `capture_terminal`, `capture_code`, `capture_browser`, `capture_file`, `capture_markdown`, `capture_html`, `capture_diff` | `path`, `format`, `bytes`, `width?`, `height?` |
+| `capture_pdf` | `path`, `format`, `bytes` |
+| `capture_batch` | `count`, `captures[]` with `type`, `path`, `format`, `bytes`, `width?`, `height?` |
+| `capture_sequence` | `stepCount`, `steps[]` (capture fields plus `stepNumber?`, `label?`), `gifPath?`, `gifBytes?` |
+| `capture_gif` | `path`, `format`, `bytes`, `width?`, `height?`, `frames` |
+| `capture_document` | `path`, `format`, `bytes`, `captureCount?` |
+| `snapmcp-hint` | `kind` (`matches`, `topic` or `overview`), `query`, `answer`, `matches[]` with `name`, `title`, `summary`, `useWhen` |
+
+`width` and `height` are the real pixel dimensions read from the saved image header. Failures return `isError: true` with the message as text; output-schema validation applies to successful results only.
 
 ## Flat capture unions
 
@@ -111,7 +127,7 @@ Example:
   "arguments": {
     "language": "typescript",
     "title": "src/index.ts",
-    "code": "export const version = \"2.3.6\";\n",
+    "code": "export const version = \"2.3.7\";\n",
     "startLine": 1,
     "endLine": 1
   }
@@ -271,12 +287,14 @@ Generate up to 30 captioned captures and embed them in a document. Embedded imag
 - `markdown` writes a Markdown document with embedded data-URI image references.
 - `html` writes a self-contained HTML document with embedded images.
 - `pdf` writes a print-quality PDF with the generated captures embedded.
+- `pptx` writes an editable PowerPoint deck: a title slide plus one slide per capture, with the heading, description, and caption as real text and the capture as a picture.
+- `docx` writes an editable Word document: a Heading 1 title plus one Heading 2 per capture, with the description, capture, caption, and code block as normal content.
 
 | Parameter | Type | Required | Default | Description |
 |---|---|:---:|---|---|
 | `title` | string | yes | — | Document title, 1 to 200 characters |
 | `captures` | document capture union[] | yes | — | 1 to 30 flat captures, each with optional `caption` |
-| `format` | enum | no | `markdown` | `markdown`, `html`, or `pdf` |
+| `format` | enum | no | `markdown` | `markdown`, `html`, `pdf`, `pptx`, or `docx` |
 | `includeTimestamps` | boolean | no | `false` | Include capture timestamps |
 | `output` | string | no | auto | Output filename; its extension must match the selected format |
 

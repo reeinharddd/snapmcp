@@ -28,9 +28,20 @@ URL-producing tools accept HTTP(S) only. Other URL schemes and URLs with embedde
 
 The initial URL is checked, and browser requests are revalidated as they occur, including redirects and subresources. URL checks also apply to URL entries inside composite tools.
 
-### Known SSRF limit: DNS is not pinned
+### DNS pinning through the local validating proxy
 
-Chromium resolves and connects to DNS independently. snapmcp does not pin Chromium to the IP address it validated, so it cannot guarantee complete prevention of DNS rebinding or a time-of-check/time-of-use DNS change.
+When SSRF protection is enabled, snapmcp starts a local HTTP/HTTPS proxy on `127.0.0.1` and points Chromium at it. Chromium is also launched with a resolver rule that stops it from resolving any target hostname, so the browser never performs a DNS lookup for a capture target.
+
+The proxy resolves and validates every target itself and connects to the validated IP literal:
+
+- a hostname that resolves to any private address is refused, even if other addresses are public;
+- a target that is already an IP literal is validated directly, without DNS, so a redirect to a private literal cannot bypass the checks;
+- each redirect is a new request through the proxy and is validated independently;
+- TLS is terminated by Chromium, so the proxy never inspects or rewrites page content.
+
+Because the connection is made to the address that was validated, there is no time-of-check/time-of-use window between validation and connection.
+
+Remaining limits: the proxy resolves through the system resolver, so a resolver that returns a public address for a hostname that is actually internal is still trusted to the same degree as any DNS-based check. `SNAPMCP_SSRF_PROTECTION=false` disables the proxy as well, which removes the pinning guarantee entirely.
 
 For hostile targets, use an additional network boundary: a dedicated container or VM without access to internal networks, egress filtering, and dedicated browser credentials. Do not treat the default checks as sufficient isolation for arbitrary public sites.
 
@@ -93,7 +104,6 @@ The server checks Chromium sandbox availability at startup and reports a warning
 
 ## What is not guaranteed
 
-- Complete DNS-rebinding prevention, because Chromium does not pin the validated DNS result.
 - Perfect HTML or Markdown sanitization, including safety against novel parser or browser exploits.
 - Safe reuse of an authenticated browser profile.
 - Protection from a malicious local process with the same operating-system permissions as the server.

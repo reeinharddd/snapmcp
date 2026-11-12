@@ -7,13 +7,8 @@ import {
 import { runCleanup } from "../renderer.js";
 import { createOutputPath, resolveOutputDirectory } from "../output.js";
 import { TOOL_LIMITS } from "../capabilities.js";
-
-interface ToolDeps {
-  outPath: (prefix: string, name?: string) => string;
-  ok: (path: string) => { content: { type: "text"; text: string }[] };
-  fail: (err: unknown) => { content: { type: "text"; text: string }[]; isError: boolean };
-  config: import("../config.js").SnapConfig;
-}
+import { batchOutputShape, describeFile, structuredResult } from "../results.js";
+import type { ToolDeps } from "./deps.js";
 
 // Discriminated union for capture parameters - replaces black-box z.record(z.string(), z.any())
 const TerminalParams = z.object({
@@ -66,18 +61,28 @@ const CaptureParams = z.discriminatedUnion("type", [
   DiffParams.extend({ type: z.literal("diff") }),
 ]);
 
-export function registerBatchTool(server: McpServer, { outPath, ok, fail, config }: ToolDeps): void {
-  server.tool(
+export function registerBatchTool(server: McpServer, { fail, config }: ToolDeps): void {
+  server.registerTool(
     "capture_batch",
-    `Capture multiple items in a single call. Each capture is processed sequentially with its own parameters. Use for batch documentation generation (e.g., capture terminal output, code file, and browser screenshot together). Maximum ${TOOL_LIMITS.batch.maxCaptures} captures per call.`,
     {
-      captures: z.array(CaptureParams).min(1).max(TOOL_LIMITS.batch.maxCaptures).describe("Array of captures to process. Each capture specifies its type and type-specific parameters."),
-      output: z.string().optional().describe("Output directory (default: SNAPMCP_DIR). Captures saved as individual files."),
+      title: "Capture multiple artifacts",
+      description: `Capture multiple items in a single call. Each capture is processed sequentially with its own parameters. Use for batch documentation generation (e.g., capture terminal output, code file, and browser screenshot together). Maximum ${TOOL_LIMITS.batch.maxCaptures} captures per call.`,
+      inputSchema: {
+        captures: z.array(CaptureParams).min(1).max(TOOL_LIMITS.batch.maxCaptures).describe("Array of captures to process. Each capture specifies its type and type-specific parameters."),
+        output: z.string().optional().describe("Output directory (default: SNAPMCP_DIR). Captures saved as individual files."),
+      },
+      outputSchema: batchOutputShape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
     },
     async ({ captures, output }) => {
       try {
         const outputDir = resolveOutputDirectory(config.outputDir, output);
-        const results: { type: string; path: string; caption?: string }[] = [];
+        const results: { type: string; path: string }[] = [];
         const extension = config.format === "jpeg" ? "jpg" : "png";
 
         for (const cap of captures) {
@@ -120,8 +125,15 @@ export function registerBatchTool(server: McpServer, { outPath, ok, fail, config
 
         runCleanup(config);
 
-        const summary = results.map(r => `  ${r.type}: ${r.path}`).join("\n");
-        return ok(`✅ Batch complete (${results.length} captures):\n${summary}`);
+        const entries = results.map((result) => ({
+          type: result.type,
+          ...describeFile(result.path),
+        }));
+        const summary = entries.map((entry) => `  ${entry.type}: ${entry.path}`).join("\n");
+        return structuredResult(
+          { count: entries.length, captures: entries },
+          `✅ Batch complete (${entries.length} captures):\n${summary}`,
+        );
       } catch (e) {
         return fail(e);
       }

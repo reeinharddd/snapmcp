@@ -228,6 +228,32 @@ describe("MCP server protocol", () => {
       ];
       assert.deepEqual(names, expected.sort());
     });
+
+    it("advertises an output schema for every tool", async () => {
+      const response = await server.sendRequest("tools/list");
+      const result = response.result as {
+        tools: Array<{
+          name: string;
+          title?: string;
+          outputSchema?: { type?: string; properties?: Record<string, unknown> };
+        }>;
+      };
+
+      for (const tool of result.tools) {
+        assert.ok(tool.outputSchema, `${tool.name} must advertise an outputSchema`);
+        assert.equal(tool.outputSchema?.type, "object", `${tool.name} outputSchema must be an object`);
+        const properties = Object.keys(tool.outputSchema?.properties ?? {});
+        assert.ok(properties.length > 0, `${tool.name} outputSchema needs properties`);
+      }
+    });
+
+    it("exposes a human-readable title for every tool", async () => {
+      const response = await server.sendRequest("tools/list");
+      const result = response.result as { tools: Array<{ name: string; title?: string }> };
+      for (const tool of result.tools) {
+        assert.ok(tool.title?.trim(), `${tool.name} needs a title`);
+      }
+    });
   });
 
   describe("resources", () => {
@@ -316,12 +342,25 @@ describe("MCP server protocol", () => {
       assert.ok(!response.error, `No error expected: ${JSON.stringify(response.error)}`);
       const result = response.result as {
         content?: Array<{ text?: string }>;
+        structuredContent?: {
+          kind?: string;
+          query?: string;
+          answer?: string;
+          matches?: Array<{ name?: string; title?: string; summary?: string }>;
+        };
         isError?: boolean;
       };
       assert.ok(!result.isError, "isError should be falsy");
       const text = result.content?.[0]?.text ?? "";
       assert.match(text, /capture_browser/);
       assert.match(text, /Best snapmcp matches/i);
+
+      const structured = result.structuredContent;
+      assert.ok(structured, "Expected structuredContent");
+      assert.equal(structured?.kind, "matches");
+      assert.equal(structured?.query, "website screenshot");
+      assert.equal(structured?.matches?.[0]?.name, "capture_browser");
+      assert.ok(structured?.answer?.includes("capture_browser"));
     });
   });
 
@@ -339,12 +378,31 @@ describe("MCP server protocol", () => {
       assert.ok(!response.error, `No error expected: ${JSON.stringify(response.error)}`);
       assert.ok(response.result, "Should have a result");
 
-      const result = response.result as { content?: Array<{ text: string }>; isError?: boolean };
+      const result = response.result as {
+        content?: Array<{ text: string }>;
+        structuredContent?: {
+          path?: string;
+          format?: string;
+          bytes?: number;
+          width?: number;
+          height?: number;
+        };
+        isError?: boolean;
+      };
       assert.ok(!result.isError, "isError should be falsy");
 
       // Verify the output file was created
       const text = result.content?.[0]?.text || "";
       assert.ok(text.includes("Saved:"), `Result should mention saved file: ${text}`);
+
+      // Verify the structured payload matches the advertised output schema
+      const structured = result.structuredContent;
+      assert.ok(structured, "Expected structuredContent");
+      assert.ok(structured?.path, "structuredContent needs a path");
+      assert.ok(structured?.format === "png" || structured?.format === "jpeg");
+      assert.ok((structured?.bytes ?? 0) > 0, "structuredContent needs a byte size");
+      assert.ok((structured?.width ?? 0) > 0, "structuredContent needs the image width");
+      assert.ok((structured?.height ?? 0) > 0, "structuredContent needs the image height");
     });
   });
 

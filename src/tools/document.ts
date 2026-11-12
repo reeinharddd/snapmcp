@@ -12,13 +12,8 @@ import {
 import { runCleanup } from "../renderer.js";
 import path from "node:path";
 import { TOOL_LIMITS } from "../capabilities.js";
-
-interface ToolDeps {
-  outPath: (prefix: string, name?: string) => string;
-  ok: (path: string) => { content: { type: "text"; text: string }[] };
-  fail: (err: unknown) => { content: { type: "text"; text: string }[]; isError: boolean };
-  config: import("../config.js").SnapConfig;
-}
+import { artifactResult, documentOutputShape } from "../results.js";
+import type { ToolDeps } from "./deps.js";
 
 // Common field for all capture types in document
 const CaptureCommon = {
@@ -85,16 +80,35 @@ const CaptureWithCaption = z.discriminatedUnion("type", [
   MarkdownParams, HtmlParams, DiffParams,
 ]);
 
-export function registerDocumentTool(server: McpServer, { outPath, ok, fail, config }: ToolDeps): void {
-  server.tool(
+/** File extension produced by each document format. */
+const DOCUMENT_EXTENSIONS: Record<DocumentFormat, string> = {
+  markdown: ".md",
+  html: ".html",
+  pdf: ".pdf",
+  pptx: ".pptx",
+  docx: ".docx",
+};
+
+export function registerDocumentTool(server: McpServer, { fail, config }: ToolDeps): void {
+  server.registerTool(
     "capture_document",
-    `Create a document (Markdown/HTML/PDF) with embedded step-by-step captures. Each capture is rendered as an image and embedded in the document with optional captions. Output formats: markdown (with image references), HTML (self-contained with base64 images), or PDF (print-quality). Maximum ${TOOL_LIMITS.document.maxCaptures} captures per document; ${TOOL_LIMITS.document.maxEmbeddedImageBytes / 1_000_000} MB per embedded image and ${TOOL_LIMITS.document.maxEmbeddedTotalBytes / 1_000_000} MB total.`,
     {
-      title: z.string().min(1).max(200).describe("Document title"),
-      captures: z.array(CaptureWithCaption).min(1).max(TOOL_LIMITS.document.maxCaptures).describe("Array of captures to embed. Each specifies capture type, type-specific parameters, and optional caption."),
-      format: z.enum(["markdown", "html", "pdf"]).default("markdown").describe("Output document format: markdown (image refs), html (self-contained), pdf (print-quality)"),
-      includeTimestamps: z.boolean().default(false).describe("Include capture timestamps in the document"),
-      output: z.string().optional().describe("Output filename (default: auto-generated as 'document-<timestamp>.md/.html/.pdf'). Extension should match format."),
+      title: "Capture a visual document",
+      description: `Create a document with embedded step-by-step captures. Each capture is rendered as an image and embedded in the document with optional captions. Output formats: markdown (with image references), html (self-contained with base64 images), pdf (print-quality), pptx (editable PowerPoint deck), or docx (editable Word document). Maximum ${TOOL_LIMITS.document.maxCaptures} captures per document; ${TOOL_LIMITS.document.maxEmbeddedImageBytes / 1_000_000} MB per embedded image and ${TOOL_LIMITS.document.maxEmbeddedTotalBytes / 1_000_000} MB total.`,
+      inputSchema: {
+        title: z.string().min(1).max(200).describe("Document title"),
+        captures: z.array(CaptureWithCaption).min(1).max(TOOL_LIMITS.document.maxCaptures).describe("Array of captures to embed. Each specifies capture type, type-specific parameters, and optional caption."),
+        format: z.enum(["markdown", "html", "pdf", "pptx", "docx"]).default("markdown").describe("Output document format: markdown (image refs), html (self-contained), pdf (print-quality), pptx (editable PowerPoint), docx (editable Word)"),
+        includeTimestamps: z.boolean().default(false).describe("Include capture timestamps in the document"),
+        output: z.string().optional().describe("Output filename (default: auto-generated as 'document-<timestamp>.md/.html/.pdf/.pptx/.docx'). Extension should match format."),
+      },
+      outputSchema: documentOutputShape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
     },
     async ({ title, captures, format, includeTimestamps, output }) => {
       try {
@@ -145,7 +159,7 @@ export function registerDocumentTool(server: McpServer, { outPath, ok, fail, con
           caption: cp.caption,
         }));
 
-        const docExt = format === "markdown" ? ".md" : format === "html" ? ".html" : ".pdf";
+        const docExt = DOCUMENT_EXTENSIONS[format];
         const requestedOutput = output?.trim();
         const outputName = requestedOutput
           ? (path.extname(requestedOutput) ? requestedOutput : `${requestedOutput}${docExt}`)
@@ -160,7 +174,11 @@ export function registerDocumentTool(server: McpServer, { outPath, ok, fail, con
         );
 
         runCleanup(config);
-        return ok(`✅ Document saved: ${docOutput} (${captures.length} captures, ${format})`);
+        return artifactResult(
+          docOutput,
+          { captureCount: captures.length },
+          `✅ Document saved: ${docOutput} (${captures.length} captures, ${format})`,
+        );
       } catch (e) {
         return fail(e);
       }

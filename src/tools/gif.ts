@@ -14,13 +14,8 @@ import {
 import fs from "node:fs";
 import path from "node:path";
 import { TOOL_LIMITS } from "../capabilities.js";
-
-interface ToolDeps {
-  outPath: (prefix: string, name?: string) => string;
-  ok: (path: string) => { content: { type: "text"; text: string }[] };
-  fail: (err: unknown) => { content: { type: "text"; text: string }[]; isError: boolean };
-  config: import("../config.js").SnapConfig;
-}
+import { describeFile, gifOutputShape, structuredResult } from "../results.js";
+import type { ToolDeps } from "./deps.js";
 
 // Reuse the same discriminated union from batch tool
 const TerminalParams = z.object({
@@ -73,16 +68,26 @@ const CaptureParams = z.discriminatedUnion("type", [
   DiffParams.extend({ type: z.literal("diff") }),
 ]);
 
-export function registerGifTool(server: McpServer, { outPath, ok, fail, config }: ToolDeps): void {
-  server.tool(
+export function registerGifTool(server: McpServer, { fail, config }: ToolDeps): void {
+  server.registerTool(
     "capture_gif",
-    `Create an animated GIF from ${TOOL_LIMITS.gif.minFrames}-${TOOL_LIMITS.gif.maxFrames} sequential captures. Frames are rendered as PNG, compiled into a GIF, and removed after encoding. loop=true repeats forever; loop=false plays once. Maximum canvas ${TOOL_LIMITS.gif.maxDimension}x${TOOL_LIMITS.gif.maxDimension}.`,
     {
-      title: z.string().max(100).default("animation").describe("Name for the GIF (used in default filename)"),
-      captures: z.array(CaptureParams).min(TOOL_LIMITS.gif.minFrames).max(TOOL_LIMITS.gif.maxFrames).describe(`Array of frames to capture. Each frame specifies its capture type and type-specific parameters. Minimum ${TOOL_LIMITS.gif.minFrames}, maximum ${TOOL_LIMITS.gif.maxFrames} frames.`),
-      frameDelay: z.number().int().min(TOOL_LIMITS.gif.minFrameDelayMs).max(TOOL_LIMITS.gif.maxFrameDelayMs).default(800).describe(`Frame delay in milliseconds (${TOOL_LIMITS.gif.minFrameDelayMs}-${TOOL_LIMITS.gif.maxFrameDelayMs}). Default 800ms.`),
-      loop: z.boolean().default(true).describe("Whether the GIF loops infinitely (true) or plays once (false)"),
-      output: z.string().optional().describe("Output filename (default: auto-generated as '<title>-<timestamp>.gif'). Must end in .gif"),
+      title: "Capture an animated GIF",
+      description: `Create an animated GIF from ${TOOL_LIMITS.gif.minFrames}-${TOOL_LIMITS.gif.maxFrames} sequential captures. Frames are rendered as PNG, compiled into a GIF, and removed after encoding. loop=true repeats forever; loop=false plays once. Maximum canvas ${TOOL_LIMITS.gif.maxDimension}x${TOOL_LIMITS.gif.maxDimension}.`,
+      inputSchema: {
+        title: z.string().max(100).default("animation").describe("Name for the GIF (used in default filename)"),
+        captures: z.array(CaptureParams).min(TOOL_LIMITS.gif.minFrames).max(TOOL_LIMITS.gif.maxFrames).describe(`Array of frames to capture. Each frame specifies its capture type and type-specific parameters. Minimum ${TOOL_LIMITS.gif.minFrames}, maximum ${TOOL_LIMITS.gif.maxFrames} frames.`),
+        frameDelay: z.number().int().min(TOOL_LIMITS.gif.minFrameDelayMs).max(TOOL_LIMITS.gif.maxFrameDelayMs).default(800).describe(`Frame delay in milliseconds for GIF (${TOOL_LIMITS.gif.minFrameDelayMs}-${TOOL_LIMITS.gif.maxFrameDelayMs}). Default 800ms.`),
+        loop: z.boolean().default(true).describe("Whether the GIF loops infinitely (true) or plays once (false)"),
+        output: z.string().optional().describe("Output filename (default: auto-generated as '<title>-<timestamp>.gif'). Must end in .gif"),
+      },
+      outputSchema: gifOutputShape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
     },
     async ({ title, captures, frameDelay, loop, output }) => {
       try {
@@ -140,7 +145,12 @@ export function registerGifTool(server: McpServer, { outPath, ok, fail, config }
           const result = await createGif(frames, gifOutput, { loop });
 
           runCleanup(config);
-          return ok(result);
+
+          const descriptor = describeFile(result);
+          return structuredResult(
+            { ...descriptor, frames: captures.length },
+            `✅ Saved: ${descriptor.path} (${captures.length} frames)`,
+          );
         } finally {
           for (const filePath of framePaths) {
             try { fs.unlinkSync(filePath); } catch { /* already removed */ }

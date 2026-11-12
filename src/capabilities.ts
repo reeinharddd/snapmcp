@@ -45,7 +45,9 @@ export const SECURITY_DEFAULTS = {
   outputRootEnv: "SNAPMCP_DIR",
   syntheticJavaScript: "disabled",
   syntheticNetwork: "blocked",
-  dnsPinning: false,
+  dnsPinning: true,
+  dnsPinningMechanism:
+    "URL captures run through a local validating proxy that resolves and pins every target, including each redirect hop; Chromium cannot resolve target hostnames itself",
   chromiumSandbox:
     "configuration checked at startup; custom browser status is not statically verifiable",
   containerRuntime: "non-root",
@@ -175,10 +177,10 @@ export const TOOL_CAPABILITIES: readonly ToolCapability[] = [
   {
     name: "capture_document",
     title: "Capture a visual document",
-    summary: `Embed up to ${TOOL_LIMITS.document.maxCaptures} captioned captures in a Markdown, self-contained HTML, or PDF document.`,
+    summary: `Embed up to ${TOOL_LIMITS.document.maxCaptures} captioned captures in a Markdown, self-contained HTML, print-quality PDF, PowerPoint, or Word document.`,
     useWhen: "The final deliverable is a guide, report, tutorial, or visual document containing captures.",
-    keywords: ["document", "report", "guide", "tutorial", "manual", "embed", "chapters", "pdf"],
-    outputs: ["Markdown", "HTML", "PDF"],
+    keywords: ["document", "report", "guide", "tutorial", "manual", "embed", "chapters", "pdf", "pptx", "docx", "powerpoint", "word"],
+    outputs: ["Markdown", "HTML", "PDF", "PPTX", "DOCX"],
     limits: `${TOOL_LIMITS.document.maxCaptures} captures per document; ${TOOL_LIMITS.document.maxEmbeddedImageBytes / 1_000_000} MB per embedded image; ${TOOL_LIMITS.document.maxEmbeddedTotalBytes / 1_000_000} MB total embedded images`,
   },
   {
@@ -197,7 +199,7 @@ export const TOOL_CAPABILITIES: readonly ToolCapability[] = [
  * clients may surface only an excerpt to the model.
  */
 export const SERVER_INSTRUCTIONS =
-  "Use snapmcp to turn content into visual documentation artifacts (PNG/JPEG, PDF, GIF, Markdown/HTML). Select one focused tool per artifact; use capture_batch only for independent captures. Use snapmcp-hint with a natural-language query or read snapmcp://capabilities when the correct tool is unclear. Prefer saved file paths over embedding image bytes. URL captures are SSRF-protected; file reads require an explicit allowlist.";
+  "Use snapmcp to turn content into visual documentation artifacts (PNG/JPEG, PDF, GIF, Markdown/HTML/PPTX/DOCX). Select one focused tool per artifact; use capture_batch only for independent captures. Every tool returns a structured payload with the saved path, format and size. Use snapmcp-hint with a natural-language query or read snapmcp://capabilities when the correct tool is unclear. URL captures are SSRF-protected; file reads require an explicit allowlist.";
 
 const STOP_WORDS = new Set([
   "a",
@@ -311,17 +313,26 @@ export function createCapabilityManifest(version: string) {
       outputConfinement: "SNAPMCP_DIR",
       htmlExternalResources: "blocked",
       syntheticJavaScript: "disabled",
-      dnsPinning: false,
+      dnsPinning: SECURITY_DEFAULTS.dnsPinning,
+      dnsPinningMechanism: SECURITY_DEFAULTS.dnsPinningMechanism,
       profileMode:
         "experimental and explicit; URL captures share the selected persistent profile storage",
       chromiumSandbox: SECURITY_DEFAULTS.chromiumSandbox,
       containerRuntime: "non-root",
     },
     tokenPolicy: {
-      resultMode: "saved file paths",
+      resultMode: "saved file paths in a structured payload",
       boundedInputs: true,
       batchLimit: TOOL_LIMITS.batch.maxCaptures,
       discoveryHint: "Use snapmcp-hint or snapmcp://capabilities before loading full docs.",
+    },
+    resultContract: {
+      structuredContent: true,
+      outputSchemas:
+        "Every tool advertises a JSON Schema output schema in tools/list and returns a matching structuredContent payload",
+      successFields: "path, format and bytes; raster artifacts also report width and height",
+      errorMode:
+        "Failures return isError=true with a text message; output-schema validation is skipped for error results",
     },
   } as const;
 }
