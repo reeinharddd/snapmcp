@@ -1,6 +1,6 @@
 # snapmcp Architecture
 
-**Version**: 2.3.6
+**Version**: 2.3.7
 **Runtime**: Node.js 20 or newer (primary); Bun 1.2 or newer (optional)
 **Transport**: MCP over stdio
 **License**: MIT

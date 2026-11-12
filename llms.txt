@@ -1,6 +1,6 @@
 # snapmcp
 
-> Visual documentation MCP server for AI agents and developers. snapmcp renders terminal output, source code, HTTP(S) pages, Markdown, HTML, and diffs into PNG/JPEG, PDF, GIF, Markdown, and HTML artifacts. It exposes exactly 13 MCP tools. The 12 capture/document tools return saved file paths instead of image bytes; `snapmcp-hint` returns text guidance.
+> Visual documentation MCP server for AI agents and developers. snapmcp renders terminal output, source code, HTTP(S) pages, Markdown, HTML, and diffs into PNG/JPEG, PDF, GIF, Markdown, HTML, PowerPoint, and Word artifacts. It exposes exactly 13 MCP tools. The 12 capture/document tools return saved file paths instead of image bytes; `snapmcp-hint` returns text guidance.
 
 ## Use snapmcp when
 
@@ -29,7 +29,7 @@
 - `capture_batch`: up to 10 independent captures; image paths.
 - `capture_sequence`: up to 60 ordered step images plus an optional GIF; image/GIF paths.
 - `capture_gif`: animation from 2 to 60 captures; GIF.
-- `capture_document`: up to 30 captioned captures embedded in Markdown, HTML, or print-quality PDF; document path.
+- `capture_document`: up to 30 captioned captures embedded in Markdown, HTML, print-quality PDF, editable PowerPoint, or editable Word; document path.
 - `snapmcp-hint`: natural-language tool search and concise agent, setup, security, and token guidance; text.
 
 There is no fourteenth capture tool. Composite tools accept flat discriminated unions: each entry has `type` and the fields for that type at the same level.

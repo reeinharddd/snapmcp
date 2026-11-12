@@ -8,13 +8,8 @@ import { createGif, type GifFrame } from "../gif.js";
 import { runCleanup } from "../renderer.js";
 import { createOutputPath, resolveOutputDirectory } from "../output.js";
 import { TOOL_LIMITS } from "../capabilities.js";
-
-interface ToolDeps {
-  outPath: (prefix: string, name?: string) => string;
-  ok: (path: string) => { content: { type: "text"; text: string }[] };
-  fail: (err: unknown) => { content: { type: "text"; text: string }[]; isError: boolean };
-  config: import("../config.js").SnapConfig;
-}
+import { describeFile, sequenceOutputShape, structuredResult } from "../results.js";
+import type { ToolDeps } from "./deps.js";
 
 // Common fields for all step types
 const StepCommon = {
@@ -82,16 +77,26 @@ const StepSchema = z.discriminatedUnion("type", [
   MarkdownParams, HtmlParams, DiffParams,
 ]);
 
-export function registerSequenceTool(server: McpServer, { outPath, ok, fail, config }: ToolDeps): void {
-  server.tool(
+export function registerSequenceTool(server: McpServer, { fail, config }: ToolDeps): void {
+  server.registerTool(
     "capture_sequence",
-    `Capture ordered process steps as individual image files and optionally compile them into a GIF. Each step has typed capture parameters plus stepNumber and label. When GIF output is requested, frames are rendered as PNG. Maximum ${TOOL_LIMITS.sequence.maxSteps} steps.`,
     {
-      steps: z.array(StepSchema).min(1).max(TOOL_LIMITS.sequence.maxSteps).describe("Array of steps to capture. Each step specifies its capture type, type-specific parameters, plus optional stepNumber and label."),
-      compileGif: z.boolean().default(false).describe("Compile frames into an animated GIF (requires at least 2 steps)"),
-      frameDelay: z.number().int().min(TOOL_LIMITS.gif.minFrameDelayMs).max(TOOL_LIMITS.gif.maxFrameDelayMs).default(800).describe(`Frame delay in milliseconds for GIF (${TOOL_LIMITS.gif.minFrameDelayMs}-${TOOL_LIMITS.gif.maxFrameDelayMs}). Default 800ms.`),
-      loop: z.boolean().default(true).describe("Whether the GIF loops infinitely"),
-      output: z.string().optional().describe("Output directory (default: SNAPMCP_DIR). Steps saved as individual files, GIF as sequence-<timestamp>.gif"),
+      title: "Capture a process sequence",
+      description: `Capture ordered process steps as individual image files and optionally compile them into a GIF. Each step has typed capture parameters plus stepNumber and label. When GIF output is requested, frames are rendered as PNG. Maximum ${TOOL_LIMITS.sequence.maxSteps} steps.`,
+      inputSchema: {
+        steps: z.array(StepSchema).min(1).max(TOOL_LIMITS.sequence.maxSteps).describe("Array of steps to capture. Each step specifies its capture type, type-specific parameters, plus optional stepNumber and label."),
+        compileGif: z.boolean().default(false).describe("Compile frames into an animated GIF (requires at least 2 steps)"),
+        frameDelay: z.number().int().min(TOOL_LIMITS.gif.minFrameDelayMs).max(TOOL_LIMITS.gif.maxFrameDelayMs).default(800).describe(`Frame delay in milliseconds for GIF (${TOOL_LIMITS.gif.minFrameDelayMs}-${TOOL_LIMITS.gif.maxFrameDelayMs}). Default 800ms.`),
+        loop: z.boolean().default(true).describe("Whether the GIF loops infinitely"),
+        output: z.string().optional().describe("Output directory (default: SNAPMCP_DIR). Steps saved as individual files, GIF as sequence-<timestamp>.gif"),
+      },
+      outputSchema: sequenceOutputShape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
     },
     async ({ steps, compileGif, frameDelay, loop, output }) => {
       try {
@@ -161,12 +166,29 @@ export function registerSequenceTool(server: McpServer, { outPath, ok, fail, con
 
         runCleanup(config);
 
-        const summary = results.map(r =>
-          `  ${r.label ? `[${r.label}] ` : ""}${r.stepNumber ? `Step ${r.stepNumber}: ` : ""}${r.type}: ${r.path}`
+        const entries = results.map((result) => ({
+          stepNumber: result.stepNumber,
+          label: result.label,
+          type: result.type,
+          ...describeFile(result.path),
+        }));
+
+        const summary = entries.map((entry) =>
+          `  ${entry.label ? `[${entry.label}] ` : ""}${entry.stepNumber ? `Step ${entry.stepNumber}: ` : ""}${entry.type}: ${entry.path}`
         ).join("\n");
 
-        const gifNote = gifPath ? `\n  GIF compiled: ${gifPath}` : "";
-        return ok(`✅ Sequence complete (${results.length} steps):\n${summary}${gifNote}`);
+        const gifInfo = gifPath ? describeFile(gifPath) : undefined;
+        const gifNote = gifInfo ? `\n  GIF compiled: ${gifInfo.path}` : "";
+
+        return structuredResult(
+          {
+            stepCount: entries.length,
+            steps: entries,
+            gifPath: gifInfo?.path,
+            gifBytes: gifInfo?.bytes,
+          },
+          `✅ Sequence complete (${entries.length} steps):\n${summary}${gifNote}`,
+        );
       } catch (e) {
         return fail(e);
       }

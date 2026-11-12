@@ -1,7 +1,7 @@
 {
   "name": "snapmcp",
   "description": "Visual documentation MCP server for agents: terminal output, Shiki-highlighted code for 300+ languages, HTTP(S) screenshots and PDFs, Markdown, HTML, diffs, GIFs, and captioned documents. Exactly 13 tools apply bounded inputs, deny-all file reads, output confinement, and default-on SSRF checks; capture tools return saved paths.",
-  "version": "2.3.6",
+  "version": "2.3.7",
   "license": "MIT",
   "repository": "https://github.com/reeinharddd/snapmcp",
   "homepage": "https://github.com/reeinharddd/snapmcp",
@@ -76,7 +76,7 @@
     "outputConfinement": "SNAPMCP_DIR, including composite outputs",
     "syntheticContent": "All synthetic captures: JavaScript disabled, network resources blocked, restrictive CSP; raw HTML DOM-sanitized",
     "inputLimits": true,
-    "dnsRebindingLimit": "Chromium does not pin the DNS-resolved address; isolate hostile targets"
+    "dnsRebindingLimit": "URL captures run through a local validating proxy that resolves and pins every target, including each redirect hop; Chromium is prevented from resolving target hostnames itself. Isolating hostile targets is still recommended."
   },
   "relatedServers": [
     "microsoft/playwright-mcp",

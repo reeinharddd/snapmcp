@@ -5,6 +5,28 @@ All notable changes to snapmcp are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.7] - 2026-11-11
+
+### Added
+- Added a JSON Schema `outputSchema` to all 13 tools, so `tools/list` advertises the exact shape of every result and MCP clients can consume results without parsing text
+- Added a matching `structuredContent` payload to every successful tool result: the saved absolute path, the artifact format, the file size in bytes, and the real pixel dimensions for raster artifacts; composite tools report their per-capture entries, and `snapmcp-hint` reports the ranked matches it returned
+- Added editable PowerPoint output to `capture_document` through the `pptx` format: a title slide plus one slide per capture, with headings, descriptions, and captions as real text boxes and captures as pictures that keep their aspect ratio
+- Added editable Word output to `capture_document` through the `docx` format: a Heading 1 title plus one Heading 2 per capture, with the description, capture, caption, and code block as normal document content
+- Added `src/results.ts` as the single source of truth for tool output schemas, result builders, and artifact metadata, and `src/tools/deps.ts` as the shared tool dependency contract
+
+### Security
+- Closed the DNS-rebinding window in URL captures: Chromium now runs behind a local validating proxy that resolves and validates every target itself and connects to the validated IP literal, and Chromium is launched with a resolver rule that stops it from resolving target hostnames at all
+- Validated every redirect hop independently through that proxy, including targets that are already IP literals, so a redirect to a private address cannot bypass the checks
+- Replaced the previous "DNS is not pinned" limitation with the actual behavior: the address that was validated is the address that is connected to, while keeping the honest caveats about resolver trust and deployment-level isolation
+
+### Changed
+- Migrated every tool registration from the deprecated `server.tool()` API to `server.registerTool()`, which is the only registration path that can carry an output schema
+- Added human-readable tool titles and behavioural annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) to the tool catalog
+- Documented the structured result contract in `docs/tools.md` and added it to the `snapmcp://capabilities` manifest and the server instructions
+
+### Fixed
+- Fixed `capture_batch` and `capture_sequence` results, which previously reported their summary as a saved path (`Saved: Batch complete ...`) instead of returning structured capture entries
+
 ## [2.3.6] - 2026-11-10
 
 ### Changed

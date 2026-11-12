@@ -2,8 +2,8 @@
  * Document generation module for snapmcp.
  *
  * Compiles a sequence of captures (images, code, text) into a formatted
- * document in Markdown, HTML, or PDF format. Images are embedded as base64
- * data URIs so documents are fully self-contained.
+ * document in Markdown, HTML, PDF, PowerPoint, or Word format. Images are
+ * embedded so documents are fully self-contained.
  *
  * @module
  */
@@ -16,11 +16,13 @@ import { BRAND } from "./brand.js"
 import { captureHtmlToPdf } from "./renderer.js"
 import { validateFileRead, LimitError } from "./security.js"
 import { TOOL_LIMITS } from "./capabilities.js"
+import { describeFile } from "./results.js"
+import { writeDocx, writePptx, type OfficeImage, type OfficeSection } from "./office.js"
 
 // ─── Types ─────────────────────────────────────────────────────
 
 /** Supported output formats. */
-export type DocumentFormat = "markdown" | "html" | "pdf"
+export type DocumentFormat = "markdown" | "html" | "pdf" | "pptx" | "docx"
 
 /** A single section inside a generated document. */
 export interface DocumentSection {
@@ -48,8 +50,14 @@ export interface DocumentOptions {
   format: DocumentFormat
   /** Include a timestamp header in the document. */
   includeTimestamps?: boolean
-  /** Absolute or relative output path (.md, .html, or .pdf). */
+  /** Absolute or relative output path (.md, .html, .pdf, .pptx, or .docx). */
   outputPath: string
+}
+
+/** A section with its image already read from disk. */
+interface LoadedSection extends OfficeSection {
+  /** Image bytes and metadata, when an embeddable image was found. */
+  image?: OfficeImage
 }
 
 // ─── Public API ────────────────────────────────────────────────
@@ -58,8 +66,8 @@ export interface DocumentOptions {
  * Create a self-contained document with embedded captures.
  *
  * Renders the specified sections (images, code, text) into a single
- * document in the requested format. Images are read from disk and
- * embedded as base64 data URIs, making the output fully portable.
+ * document in the requested format. Images are read from disk and embedded,
+ * making the output fully portable.
  *
  * @param options Document content and format options
  * @param config  Server configuration (used for PDF only)
@@ -78,13 +86,19 @@ export async function createDocument(
   // Ensure output directory exists
   fs.mkdirSync(path.dirname(path.resolve(outputPath)), { recursive: true })
 
+  const loaded = loadSections(sections, config)
+
   switch (format) {
     case "markdown":
-      return writeMarkdown(title, sections, includeTimestamps ?? false, outputPath, config)
+      return writeMarkdown(title, loaded, includeTimestamps ?? false, outputPath)
     case "html":
-      return writeHtml(title, sections, includeTimestamps ?? false, outputPath, config)
+      return writeHtml(title, loaded, includeTimestamps ?? false, outputPath)
     case "pdf":
-      return writePdf(title, sections, includeTimestamps ?? false, outputPath, config)
+      return writePdf(title, loaded, includeTimestamps ?? false, outputPath, config)
+    case "pptx":
+      return writePptx({ title, sections: loaded, includeTimestamps, outputPath })
+    case "docx":
+      return writeDocx({ title, sections: loaded, includeTimestamps, outputPath })
     default:
       throw new DocumentError(`Unsupported format: ${format}`)
   }
@@ -102,17 +116,48 @@ export class DocumentError extends Error {
   }
 }
 
+// ─── Section loading ───────────────────────────────────────────
+
+/**
+ * Read every section image once, enforcing the embedding limits.
+ *
+ * Missing or unsupported images are skipped, while embedding-limit
+ * violations fail loudly so a document can never be reported as complete
+ * when it is not.
+ */
+function loadSections(sections: DocumentSection[], config: SnapConfig): LoadedSection[] {
+  let embeddedBytes = 0
+
+  return sections.map((section) => {
+    const loaded: LoadedSection = {
+      title: section.title,
+      description: section.description,
+      caption: section.caption,
+      code: section.code,
+      codeLanguage: section.codeLanguage,
+    }
+
+    if (!section.imagePath) return loaded
+
+    const remainingBytes = TOOL_LIMITS.document.maxEmbeddedTotalBytes - embeddedBytes
+    const image = readEmbeddedImage(section.imagePath, config, remainingBytes)
+    if (!image) return loaded
+
+    embeddedBytes += image.byteLength
+    loaded.image = image
+    return loaded
+  })
+}
+
 // ─── Markdown output ───────────────────────────────────────────
 
 function writeMarkdown(
   title: string,
-  sections: DocumentSection[],
+  sections: LoadedSection[],
   includeTimestamps: boolean,
   outputPath: string,
-  config: SnapConfig,
 ): string {
   const lines: string[] = []
-  let embeddedBytes = 0
 
   lines.push(`# ${escapeMd(title)}`)
   lines.push("")
@@ -133,18 +178,13 @@ function writeMarkdown(
       lines.push("")
     }
 
-    if (section.imagePath) {
-      const remainingBytes = TOOL_LIMITS.document.maxEmbeddedTotalBytes - embeddedBytes
-      const image = readImageDataUri(section.imagePath, config, remainingBytes)
-      if (image) {
-        embeddedBytes += image.byteLength
-        const caption = section.caption ? escapeMd(section.caption) : ""
-        lines.push(`![${caption}](${image.dataUri})`)
+    if (section.image) {
+      const caption = section.caption ? escapeMd(section.caption) : ""
+      lines.push(`![${caption}](${toDataUri(section.image)})`)
+      lines.push("")
+      if (section.caption) {
+        lines.push(`*${escapeMd(section.caption)}*`)
         lines.push("")
-        if (section.caption) {
-          lines.push(`*${escapeMd(section.caption)}*`)
-          lines.push("")
-        }
       }
     }
 
@@ -171,12 +211,10 @@ function escapeMd(text: string): string {
 
 function buildHtml(
   title: string,
-  sections: DocumentSection[],
+  sections: LoadedSection[],
   includeTimestamps: boolean,
-  config: SnapConfig,
 ): string {
   const parts: string[] = []
-  let embeddedBytes = 0
 
   parts.push("<!DOCTYPE html>")
   parts.push('<html lang="en">')
@@ -210,18 +248,13 @@ function buildHtml(
     if (section.description) {
       parts.push(`<p>${escHtml(section.description)}</p>`)
     }
-    if (section.imagePath) {
-      const remainingBytes = TOOL_LIMITS.document.maxEmbeddedTotalBytes - embeddedBytes
-      const image = readImageDataUri(section.imagePath, config, remainingBytes)
-      if (image) {
-        embeddedBytes += image.byteLength
-        parts.push("<figure>")
-        parts.push(`<img src="${image.dataUri}" alt="${escHtml(section.caption ?? "")}">`)
-        if (section.caption) {
-          parts.push(`<figcaption>${escHtml(section.caption)}</figcaption>`)
-        }
-        parts.push("</figure>")
+    if (section.image) {
+      parts.push("<figure>")
+      parts.push(`<img src="${toDataUri(section.image)}" alt="${escHtml(section.caption ?? "")}">`)
+      if (section.caption) {
+        parts.push(`<figcaption>${escHtml(section.caption)}</figcaption>`)
       }
+      parts.push("</figure>")
     }
     if (section.code) {
       const lang = section.codeLanguage ?? ""
@@ -236,12 +269,11 @@ function buildHtml(
 
 function writeHtml(
   title: string,
-  sections: DocumentSection[],
+  sections: LoadedSection[],
   includeTimestamps: boolean,
   outputPath: string,
-  config: SnapConfig,
 ): string {
-  const html = buildHtml(title, sections, includeTimestamps, config)
+  const html = buildHtml(title, sections, includeTimestamps)
   fs.writeFileSync(outputPath, html, "utf-8")
   logger.info(`HTML document saved: ${outputPath}`)
   return outputPath
@@ -251,14 +283,14 @@ function writeHtml(
 
 async function writePdf(
   title: string,
-  sections: DocumentSection[],
+  sections: LoadedSection[],
   includeTimestamps: boolean,
   outputPath: string,
   config: SnapConfig,
 ): Promise<string> {
   // Build the document in memory. Avoiding a sibling .html temporary prevents
   // the PDF output from being deleted when the output name has no .pdf suffix.
-  const html = buildHtml(title, sections, includeTimestamps, config)
+  const html = buildHtml(title, sections, includeTimestamps)
   await captureHtmlToPdf(html, outputPath, config)
 
   logger.info(`PDF document saved: ${outputPath}`)
@@ -266,12 +298,6 @@ async function writePdf(
 }
 
 // ─── Helpers ───────────────────────────────────────────────────
-
-interface EmbeddedImage {
-  dataUri: string;
-  mimeType: string;
-  byteLength: number;
-}
 
 /** Detect supported image formats from their file signatures. */
 function detectImageMime(data: Buffer): string | null {
@@ -298,16 +324,17 @@ function detectImageMime(data: Buffer): string | null {
 }
 
 /**
- * Read an image file and return a base64 data URI with its real MIME type.
+ * Read an image file and return its bytes with its real MIME type.
+ *
  * Restricted to the output directory and configured allowlist. Missing or
  * unsupported images are skipped, while embedding-limit violations fail
  * loudly so a document can never be reported as complete when it is not.
  */
-function readImageDataUri(
+function readEmbeddedImage(
   filePath: string,
   config: SnapConfig,
   remainingTotalBytes: number,
-): EmbeddedImage | null {
+): OfficeImage | null {
   try {
     if (config.securityChecks) {
       validateFileRead(filePath, {
@@ -330,10 +357,14 @@ function readImageDataUri(
     const data = fs.readFileSync(resolved);
     const mimeType = detectImageMime(data);
     if (!mimeType) return null;
+    const dimensions = describeFile(resolved);
     return {
+      filePath: resolved,
+      buffer: data,
       mimeType,
       byteLength,
-      dataUri: `data:${mimeType};base64,${data.toString("base64")}`,
+      width: dimensions.width,
+      height: dimensions.height,
     };
   } catch (err) {
     if (err instanceof DocumentError) throw err;
@@ -347,11 +378,24 @@ function readImageDataUri(
   }
 }
 
+/** Build a base64 data URI from an embedded image. */
+function toDataUri(image: OfficeImage): string {
+  return `data:${image.mimeType};base64,${image.buffer.toString("base64")}`
+}
+
+/**
+ * Ampersand character, used to build HTML entities.
+ *
+ * The entities are assembled from this constant so the source stays readable
+ * without embedding raw entity sequences.
+ */
+const AMP = String.fromCharCode(38)
+
 /** Simple HTML escaping. */
 function escHtml(text: string): string {
   return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
+    .replace(/&/g, `${AMP}amp;`)
+    .replace(/</g, `${AMP}lt;`)
+    .replace(/>/g, `${AMP}gt;`)
+    .replace(/"/g, `${AMP}quot;`)
 }

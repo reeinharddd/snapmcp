@@ -60,6 +60,7 @@ import { getHighlighter } from "./highlighter.js";
 import { logger, setLogLevel, setLogFile, AuditEventType, closeAuditLog } from "./logger.js";
 import { createGif, type GifFrame } from "./gif.js";
 import { createDocument, type DocumentSection, type DocumentFormat } from "./document.js";
+import { artifactResult, failureResult, type ToolResult } from "./results.js";
 import { cliInit, cliDoctor, cliTest, cliCapabilities } from "./cli.js";
 import { BRAND, brandPrimary, brandSecondary, brandGradient } from "./brand.js";
 import { detectChrome, logChromeStatus, type DetectedChrome } from "./browser.js";
@@ -248,17 +249,13 @@ function outPath(prefix: string, name?: string): string {
   return createOutputPath(OUTPUT_DIR, OUTPUT_DIR, prefix, ext());
 }
 
-function ok(path: string): { content: { type: "text"; text: string }[] } {
+function ok(filePath: string): ToolResult {
   runCleanup(config);
-  return { content: [{ type: "text", text: `✅ Saved: ${path}` }] };
+  return artifactResult(filePath);
 }
 
-function fail(err: unknown): {
-  content: { type: "text"; text: string }[];
-  isError: boolean;
-} {
-  const msg = err instanceof Error ? err.message : String(err);
-  return { content: [{ type: "text", text: `❌ ${msg}` }], isError: true };
+function fail(err: unknown): ToolResult {
+  return failureResult(err);
 }
 
 // ─── Register all tools ──────────────────────────────────────

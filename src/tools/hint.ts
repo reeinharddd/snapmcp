@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { searchCapabilities, TOOL_LIMITS } from "../capabilities.js";
+import { hintOutputShape, structuredResult } from "../results.js";
 
 const SETUP_HINTS: Record<string, string> = {
   init: "Run `snapmcp init` for interactive setup: detects Chrome, installs Playwright Chromium when needed, configures the output directory, picks a terminal theme, and prepares MCP client configuration.",
@@ -13,27 +14,38 @@ const SETUP_HINTS: Record<string, string> = {
   gif: `Use capture_gif for ${TOOL_LIMITS.gif.minFrames}-${TOOL_LIMITS.gif.maxFrames} explicit frames and capture_sequence for ordered process steps with an optional GIF. Configure frameDelay (${TOOL_LIMITS.gif.minFrameDelayMs}-${TOOL_LIMITS.gif.maxFrameDelayMs}ms) and loop. Maximum canvas is ${TOOL_LIMITS.gif.maxDimension}x${TOOL_LIMITS.gif.maxDimension}.`,
   document: `Use capture_document for up to ${TOOL_LIMITS.document.maxCaptures} captioned captures embedded in Markdown, self-contained HTML, or print-quality PDF. Use capture_batch when only independent image files are needed.`,
   batch: `Use capture_batch for up to ${TOOL_LIMITS.batch.maxCaptures} independent captures. Each item uses the same typed schema as the underlying terminal, code, file, browser, Markdown, HTML, or diff tool. Prefer one batch over many unrelated tool calls.`,
-  tokens: "Keep context small: tools return saved file paths rather than image bytes, inputs are bounded, capture_batch handles independent items in one call, and snapmcp-hint searches capabilities without loading the full reference. Use `snapmcp capabilities --json` for a compact manifest.",
+  tokens: "Keep context small: tools return saved file paths rather than image bytes, inputs are bounded, capture_batch handles independent items in one call, and snapmcp-hint searches capabilities without loading the full reference. Every tool also returns a structured payload with the saved path, format and byte size. Use `snapmcp capabilities --json` for a compact manifest.",
   agents: "Discovery surfaces are tools/list (canonical), snapmcp-hint (natural-language search), snapmcp://capabilities (JSON resource), `snapmcp capabilities --json` (CLI), and llms.txt (static agent-friendly overview). Server instructions guide tool selection across workflows.",
   discovery: "Search by intent with snapmcp-hint, for example `query: \"website screenshot\"` or `query: \"pdf export\"`. Read snapmcp://capabilities for the complete machine-readable catalog.",
   "code-mode": "Run `snapmcp capabilities --json` for a stable manifest, or `snapmcp search \"<intent>\" --json` for ranked matches. The manifest includes tool names, use cases, outputs, limits, security defaults, and token policy.",
 };
 
 export function registerHintTool(server: McpServer): void {
-  server.tool(
+  server.registerTool(
     "snapmcp-hint",
-    "Find the right snapmcp tool by natural-language intent, or get concise setup, security, sandbox, agent, and token guidance. Use when tool selection is unclear or before loading the full documentation.",
     {
-      topic: z
-        .string()
-        .max(50)
-        .optional()
-        .describe("Legacy named topic: init, doctor, browser, themes, output, security, sandbox, gif, document, batch, tokens, agents, discovery, or code-mode."),
-      query: z
-        .string()
-        .max(200)
-        .optional()
-        .describe("Natural-language intent to search, such as 'website screenshot', 'animated before and after', 'pdf export', or 'read a source file'."),
+      title: "Find the right snapmcp tool",
+      description:
+        "Find the right snapmcp tool by natural-language intent, or get concise setup, security, sandbox, agent, and token guidance. Use when tool selection is unclear or before loading the full documentation.",
+      inputSchema: {
+        topic: z
+          .string()
+          .max(50)
+          .optional()
+          .describe("Legacy named topic: init, doctor, browser, themes, output, security, sandbox, gif, document, batch, tokens, agents, discovery, or code-mode."),
+        query: z
+          .string()
+          .max(200)
+          .optional()
+          .describe("Natural-language intent to search, such as 'website screenshot', 'animated before and after', 'pdf export', or 'read a source file'."),
+      },
+      outputSchema: hintOutputShape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async ({ topic, query }) => {
       const requested = query?.trim() || (topic && !SETUP_HINTS[topic] ? topic.trim() : undefined);
@@ -50,12 +62,27 @@ export function registerHintTool(server: McpServer): void {
           lines.push(
             "Call `snapmcp capabilities --json` only when you need the complete machine-readable catalog.",
           );
-          return { content: [{ type: "text", text: lines.join("\n") }] };
+          const answer = lines.join("\n");
+          return structuredResult(
+            {
+              kind: "matches",
+              query: requested,
+              answer,
+              matches: matches.map(({ capability }) => ({
+                name: capability.name,
+                title: capability.title,
+                summary: capability.summary,
+                useWhen: capability.useWhen,
+              })),
+            },
+            answer,
+          );
         }
       }
 
       if (topic && SETUP_HINTS[topic]) {
-        return { content: [{ type: "text", text: SETUP_HINTS[topic] }] };
+        const answer = SETUP_HINTS[topic];
+        return structuredResult({ kind: "topic", query: topic, answer, matches: [] }, answer);
       }
 
       const generic = [
@@ -74,7 +101,10 @@ export function registerHintTool(server: McpServer): void {
         "Search with `query`, or read `snapmcp://capabilities` for the complete catalog. File access is deny-by-default; URL captures are SSRF-protected.",
       ].join("\n");
 
-      return { content: [{ type: "text", text: generic }] };
+      return structuredResult(
+        { kind: "overview", query: requested ?? topic ?? "", answer: generic, matches: [] },
+        generic,
+      );
     },
   );
 }

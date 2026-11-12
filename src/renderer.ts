@@ -30,8 +30,11 @@ import {
   validateFileRead,
   validateUrlResolve,
   assertSafeRequestUrl,
+  isPrivateIpAddress,
   type FileReadPolicy,
 } from "./security.js";
+import { startValidatingProxy, type ValidatingProxy } from "./proxy.js";
+import { logger } from "./logger.js";
 import { highlightCode } from "./highlighter.js";
 import { installSyntheticContent, markdownToSafeHtml } from "./synthetic.js";
 import { detectChrome, type ChromeProfile } from './browser.js';
@@ -507,6 +510,28 @@ body{background:${theme.bg};color:${theme.text};font-family:${theme.font};font-s
 let _browser: playwright.Browser | null = null;
 let _browserPromise: Promise<playwright.Browser> | null = null;
 let _persistentContext: playwright.BrowserContext | null = null;
+let _proxy: ValidatingProxy | null = null;
+
+/**
+ * Start the local validating proxy used to pin DNS for URL captures.
+ *
+ * Chromium resolves DNS itself and re-resolves it on every redirect hop, so
+ * the address snapmcp validated is not necessarily the address Chromium
+ * connects to. The proxy resolves and validates every target itself and
+ * connects to the pinned IP literal, which removes the rebinding window.
+ */
+async function ensureProxy(config: SnapConfig): Promise<ValidatingProxy | null> {
+  if (!config.ssrfProtection) return null;
+  if (_proxy) return _proxy;
+  const proxy = await startValidatingProxy({
+    isPrivateAddress: isPrivateIpAddress,
+    onAudit: (event, detail) => {
+      logger.audit({ event, severity: "warn", detail, source: "ssrf_proxy" });
+    },
+  });
+  _proxy = proxy;
+  return proxy;
+}
 
 function launchOptions(config: SnapConfig): playwright.LaunchOptions {
   const opts: playwright.LaunchOptions = { headless: true };
@@ -528,6 +553,13 @@ function findChromeProfile(profiles: ChromeProfile[] | undefined, requested: str
 
 async function launchBrowser(config: SnapConfig): Promise<playwright.Browser> {
   const opts = launchOptions(config);
+
+  // Route every Chromium request through the validating proxy so the target
+  // address is resolved and pinned by snapmcp, never by the browser.
+  const proxy = await ensureProxy(config);
+  if (proxy) {
+    opts.args = [...(opts.args ?? []), ...proxy.chromiumArgs];
+  }
 
   if (config.chromeProfile) {
     const detected = detectChrome();
@@ -614,6 +646,9 @@ export async function closeBrowser(): Promise<void> {
   _browser = null;
   _persistentContext = null;
   if (target) await target.close();
+  const proxy = _proxy;
+  _proxy = null;
+  if (proxy) await proxy.close();
 }
 
 /* ── SSRF route guard ── */

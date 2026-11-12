@@ -1,23 +1,29 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { captureFile } from "../renderer.js";
-
-interface ToolDeps {
-  outPath: (prefix: string, name?: string) => string;
-  ok: (path: string) => { content: { type: "text"; text: string }[] };
-  fail: (err: unknown) => { content: { type: "text"; text: string }[]; isError: boolean };
-  config: import("../config.js").SnapConfig;
-}
+import { imageOutputShape } from "../results.js";
+import type { ToolDeps } from "./deps.js";
 
 export function registerFileTool(server: McpServer, { outPath, ok, fail, config }: ToolDeps): void {
-  server.tool(
+  server.registerTool(
     "capture_file",
-    "Read a file and generate a syntax-highlighted screenshot with automatic language detection from file extension. Supports 300+ bundled Shiki languages. Requires SNAPMCP_ALLOWED_PATHS to be set for security (deny-all by default). Maximum file size 5MB.",
     {
-      filePath: z.string().min(1).describe("Absolute path to the file to capture. Must be within SNAPMCP_ALLOWED_PATHS allowlist. Symlinks are resolved to prevent traversal."),
-      startLine: z.number().int().min(1).optional().describe("First line number to capture (1-indexed, inclusive). Use with endLine to capture a specific range."),
-      endLine: z.number().int().min(1).optional().describe("Last line number to capture (1-indexed, inclusive). Must be >= startLine if both provided. Defaults to end of file."),
-      output: z.string().optional().describe("Output filename (default: auto-generated as 'file-<timestamp>.png' or '.jpeg' based on SNAPMCP_FORMAT). Include extension to override format."),
+      title: "Capture a source file",
+      description:
+        "Read a file and generate a syntax-highlighted screenshot with automatic language detection from file extension. Supports 300+ bundled Shiki languages. Requires SNAPMCP_ALLOWED_PATHS to be set for security (deny-all by default). Maximum file size 5MB.",
+      inputSchema: {
+        filePath: z.string().min(1).describe("Absolute path to the file to capture. Must be within SNAPMCP_ALLOWED_PATHS allowlist. Symlinks are resolved to prevent traversal."),
+        startLine: z.number().int().min(1).optional().describe("First line number to capture (1-indexed, inclusive). Use with endLine to capture a specific range."),
+        endLine: z.number().int().min(1).optional().describe("Last line number to capture (1-indexed, inclusive). Must be >= startLine if both provided. Defaults to end of file."),
+        output: z.string().optional().describe("Output filename (default: auto-generated as 'file-<timestamp>.png' or '.jpeg' based on SNAPMCP_FORMAT). Include extension to override format."),
+      },
+      outputSchema: imageOutputShape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
     },
     async ({ filePath, startLine, endLine, output }) => {
       try {

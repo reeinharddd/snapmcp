@@ -1,6 +1,6 @@
 # snapmcp Social Content Drafts
 
-These drafts describe snapmcp 2.3.6 accurately. They are drafts and have not been published.
+These drafts describe snapmcp 2.3.7 accurately. They are drafts and have not been published.
 
 ## X/Twitter thread
 

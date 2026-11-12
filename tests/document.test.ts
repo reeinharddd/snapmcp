@@ -319,6 +319,35 @@ describe("createDocument", () => {
       assert.ok(content.includes("<p>Hello</p>"))
     })
 
+    it("escapes markup in titles, descriptions, and captions", async () => {
+      const dir = tmpDir()
+      const img = createTestPng(dir)
+      const out = path.join(dir, "escaped.html")
+      await createDocument(
+        {
+          title: "Tom & Jerry <script>",
+          sections: [
+            {
+              title: "A & B",
+              description: 'Quote " and <b>bold</b>',
+              imagePath: img,
+              caption: "5 > 3 & 2 < 4",
+            },
+          ],
+          format: "html",
+          outputPath: out,
+        },
+        { ...loadConfig(), outputDir: dir, allowedPaths: [dir] },
+      )
+      const content = fs.readFileSync(out, "utf-8")
+      const amp = String.fromCharCode(38)
+      assert.ok(content.includes(`<h1>Tom ${amp}amp; Jerry ${amp}lt;script${amp}gt;</h1>`))
+      assert.ok(content.includes(`<h2>A ${amp}amp; B</h2>`))
+      assert.ok(content.includes(`Quote ${amp}quot; and ${amp}lt;b${amp}gt;bold${amp}lt;/b${amp}gt;`))
+      assert.ok(content.includes(`5 ${amp}gt; 3 ${amp}amp; 2 ${amp}lt; 4`))
+      assert.ok(!content.includes("<script>"), "Expected no raw script tag")
+    })
+
     it("renders images in figure elements", async () => {
       const dir = tmpDir()
       const img = createTestPng(dir)
@@ -414,7 +443,7 @@ describe("createDocument", () => {
       await assert.rejects(
         () =>
           createDocument(
-            { title: "Bad", sections: [{ description: "x" }], format: "docx" as DocumentFormat, outputPath: path.join(dir, "bad.md") },
+            { title: "Bad", sections: [{ description: "x" }], format: "xlsx" as DocumentFormat, outputPath: path.join(dir, "bad.md") },
             { ...loadConfig(), outputDir: dir, allowedPaths: [dir] },
           ),
         (err: unknown) => {

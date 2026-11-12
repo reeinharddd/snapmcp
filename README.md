@@ -18,7 +18,7 @@
 
 ---
 
-**snapmcp 2.3.6** turns agent-provided content into visual documentation artifacts: syntax-highlighted code, terminal sessions, browser pages, diffs, PDFs, GIFs, and captioned documents. It exposes exactly 13 MCP tools. The 12 capture/document tools return saved file paths rather than image bytes, while `snapmcp-hint` returns text guidance, keeping agent context small.
+**snapmcp 2.3.7** turns agent-provided content into visual documentation artifacts: syntax-highlighted code, terminal sessions, browser pages, diffs, PDFs, GIFs, and captioned documents. It exposes exactly 13 MCP tools. The 12 capture/document tools return saved file paths rather than image bytes, while `snapmcp-hint` returns text guidance, keeping agent context small. Every tool also returns a structured payload with the saved path, format, and size.
 
 ## Quick start
 
@@ -121,7 +121,7 @@ Use Playwright MCP for browser interaction: clicking, filling forms, navigating,
 | `capture_batch` | Up to 10 independent captures in one call | Image paths |
 | `capture_sequence` | Up to 60 ordered step images, with an optional GIF | Image paths and optional GIF path |
 | `capture_gif` | An animation built from 2 to 60 captures | GIF path |
-| `capture_document` | Up to 30 captioned captures embedded in a document | Markdown/HTML/PDF path |
+| `capture_document` | Up to 30 captioned captures embedded in a document | Markdown/HTML/PDF/PPTX/DOCX path |
 | `snapmcp-hint` | Tool discovery, setup, security, and token guidance | Text |
 
 There is no additional capture tool. `capture_batch`, `capture_sequence`, `capture_gif`, and `capture_document` compose the same seven capture types: terminal, code, file, browser, Markdown, HTML, and diff.
@@ -152,7 +152,7 @@ See the [agent guide](./docs/agents.md) for selection rules, token-efficient beh
 The defaults are designed for local use, not as a complete isolation boundary for hostile content.
 
 - URL tools accept HTTP(S) only. With `SNAPMCP_SSRF_PROTECTION=true` by default, private and local IPv4/IPv6 literals, IPv4-mapped IPv6 addresses, localhost variants, and DNS names resolving to private addresses are blocked. Requests are revalidated as they occur.
-- Chromium does not pin the validated DNS result to the address it connects to. The checks therefore reduce common SSRF paths but do not guarantee complete DNS-rebinding prevention. Use network isolation for hostile targets.
+- URL captures run through a local validating proxy that resolves and pins every target, including each redirect hop, so the address that was validated is the address that is connected to. Chromium is launched with a resolver rule that stops it from resolving target hostnames itself.
 - File reads are deny-all until `SNAPMCP_ALLOWED_PATHS` is configured. Allowed files are resolved before the boundary check so symlinks cannot escape the allowlist.
 - Every output is confined to `SNAPMCP_DIR`, including composite-tool outputs. Traversal and symlink escapes are rejected.
 - Synthetic captures, including terminal, code, diff, Markdown, HTML, and generated document PDFs, render in an isolated browser context with JavaScript disabled, external network resources blocked, and a restrictive Content Security Policy. Markdown and HTML add content-specific handling: raw HTML in Markdown is escaped and raw HTML input is DOM-sanitized. These are defense-in-depth controls, not a guarantee of perfect sanitizer safety.

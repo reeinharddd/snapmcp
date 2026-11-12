@@ -2,18 +2,18 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.reeinharddd/snapmcp",
   "title": "snapmcp",
-  "description": "Visual documentation: terminal, code, browser, Markdown, HTML, diffs, PDFs, GIFs, and documents.",
+  "description": "Visual documentation: terminal, code, browser, Markdown, HTML, diffs, PDF, GIF, and Office files.",
   "repository": {
     "url": "https://github.com/reeinharddd/snapmcp",
     "source": "github"
   },
   "websiteUrl": "https://github.com/reeinharddd/snapmcp",
-  "version": "2.3.6",
+  "version": "2.3.7",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "snapmcp",
-      "version": "2.3.6",
+      "version": "2.3.7",
       "transport": {
         "type": "stdio"
       },
@@ -144,7 +144,7 @@
       },
       {
         "name": "capture_document",
-        "description": "Embed up to 30 captioned captures in a Markdown, self-contained HTML, or print-quality PDF document."
+        "description": "Embed up to 30 captioned captures in a Markdown, self-contained HTML, print-quality PDF, editable PowerPoint, or editable Word document."
       },
       {
         "name": "snapmcp-hint",

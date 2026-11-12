@@ -152,10 +152,9 @@ describe("capability resource and hint tool", () => {
   it("returns ranked guidance for a natural-language hint query", async () => {
     let handler: HintHandler | undefined;
     const server = {
-      tool(
+      registerTool(
         _name: string,
-        _description: string,
-        _schema: unknown,
+        _config: unknown,
         callback: HintHandler,
       ): void {
         handler = callback;
@@ -174,10 +173,9 @@ describe("capability resource and hint tool", () => {
   it("returns concise security guidance for a setup topic", async () => {
     let handler: HintHandler | undefined;
     const server = {
-      tool(
+      registerTool(
         _name: string,
-        _description: string,
-        _schema: unknown,
+        _config: unknown,
         callback: HintHandler,
       ): void {
         handler = callback;

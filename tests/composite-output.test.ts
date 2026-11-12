@@ -21,10 +21,9 @@ function registerFakeTool(
 ): ToolHandler {
   let handler: ToolHandler | undefined;
   const server = {
-    tool(
+    registerTool(
       _name: string,
-      _description: string,
-      _schema: unknown,
+      _config: unknown,
       callback: ToolHandler,
     ): void {
       handler = callback;
